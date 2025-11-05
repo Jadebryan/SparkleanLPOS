@@ -44,6 +44,19 @@ const userSchema = new mongoose.Schema({
   lockUntil: {
     type: Date,
     default: null
+  },
+  resetPasswordToken: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null
+  },
+  stationId: {
+    type: String,
+    trim: true,
+    default: null
   }
 }, {
   timestamps: true
@@ -147,6 +160,8 @@ userSchema.methods.toJSON = function() {
   delete userObject.password;
   delete userObject.loginAttempts;
   delete userObject.lockUntil;
+  delete userObject.resetPasswordToken;
+  delete userObject.resetPasswordExpires;
   return userObject;
 };
 
