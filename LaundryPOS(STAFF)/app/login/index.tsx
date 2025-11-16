@@ -39,6 +39,11 @@ export default function LoginAccount() {
   const [loading, setLoading] = useState(false);
   const [emailValid, setEmailValid] = useState<boolean | null>(null);
   const [showRememberConfirm, setShowRememberConfirm] = useState(false);
+  
+  // Helper to check if input is email or username
+  const isEmailFormat = (value: string): boolean => {
+    return /^\S+@\S+\.\S+$/.test(value.trim());
+  };
 
   // simple captcha state
   const [captchaA, setCaptchaA] = useState<number>(() => Math.floor(Math.random()*9)+1);
@@ -58,11 +63,11 @@ export default function LoginAccount() {
         const saved = await AsyncStorage.getItem('rememberedCredentials');
         if (saved) {
           const credentials = JSON.parse(saved);
-          setEmail(credentials.email || "");
+          const savedValue = credentials.email || credentials.username || "";
+          setEmail(savedValue);
           setRememberMe(true);
-          if (credentials.email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            setEmailValid(emailRegex.test(credentials.email));
+          if (savedValue) {
+            setEmailValid(isEmailFormat(savedValue) || savedValue.length >= 3);
           }
         }
       } catch (error) {
@@ -114,21 +119,29 @@ export default function LoginAccount() {
 
   const getEmailValidationMessage = (raw: string): string | null => {
     const v = raw.trim();
-    if (!v) return "Email is required.";
-    if (v.includes(" ")) return "Email must not contain spaces.";
-    if (!v.includes("@")) return "Missing '@' symbol.";
-    const parts = v.split("@");
-    if (parts.length !== 2) return "Email must contain a single '@' symbol.";
-    const [local, domain] = parts;
-    if (!local) return "Missing part before '@' (username).";
-    if (!/^[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~.]+$/.test(local)) return "Local part contains invalid characters.";
-    if (!domain) return "Missing domain after '@'.";
-    if (domain.startsWith(".") || domain.endsWith(".")) return "Domain must not start or end with '.'";
-    if (!domain.includes(".")) return "Domain must include a '.' (e.g. example.com).";
-    const domParts = domain.split(".");
-    const tld = domParts[domParts.length - 1];
-    if (!tld || tld.length < 2) return "Top-level domain seems invalid (e.g. .com).";
-    if (!isValidEmailGeneric(v)) return "Please enter a valid email address.";
+    if (!v) return "Email or username is required.";
+    if (v.includes(" ")) return "Email or username must not contain spaces.";
+    
+    // If it looks like an email, validate as email
+    if (v.includes("@")) {
+      const parts = v.split("@");
+      if (parts.length !== 2) return "Email must contain a single '@' symbol.";
+      const [local, domain] = parts;
+      if (!local) return "Missing part before '@' (username).";
+      if (!/^[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~.]+$/.test(local)) return "Local part contains invalid characters.";
+      if (!domain) return "Missing domain after '@'.";
+      if (domain.startsWith(".") || domain.endsWith(".")) return "Domain must not start or end with '.'";
+      if (!domain.includes(".")) return "Domain must include a '.' (e.g. example.com).";
+      const domParts = domain.split(".");
+      const tld = domParts[domParts.length - 1];
+      if (!tld || tld.length < 2) return "Top-level domain seems invalid (e.g. .com).";
+      if (!isValidEmailGeneric(v)) return "Please enter a valid email address.";
+    } else {
+      // Validate as username
+      if (v.length < 3) return "Username must be at least 3 characters.";
+      if (v.length > 30) return "Username cannot exceed 30 characters.";
+      if (!/^[A-Za-z0-9_]+$/.test(v)) return "Username can only contain letters, numbers, and underscores.";
+    }
     return null;
   };
 
@@ -188,10 +201,18 @@ export default function LoginAccount() {
     setInactiveWarning(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      const loginUrl = `${API_BASE_URL}/auth/login`;
+      console.log('Login attempt to:', loginUrl);
+      
+      const trimmedValue = email.trim();
+      const loginBody = isEmailFormat(trimmedValue)
+        ? { email: trimmedValue, password }
+        : { username: trimmedValue, password };
+      
+      const res = await fetch(loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify(loginBody),
       });
 
       const body = await res.json().catch(() => ({}));
@@ -204,9 +225,11 @@ export default function LoginAccount() {
 
         // Handle "Remember Me" functionality
         if (rememberMe) {
-          await AsyncStorage.setItem('rememberedCredentials', JSON.stringify({
-            email: email.trim()
-          }));
+          const trimmedValue = email.trim();
+          const credentials = isEmailFormat(trimmedValue)
+            ? { email: trimmedValue }
+            : { username: trimmedValue };
+          await AsyncStorage.setItem('rememberedCredentials', JSON.stringify(credentials));
         } else {
           await AsyncStorage.removeItem('rememberedCredentials');
         }
@@ -234,12 +257,12 @@ export default function LoginAccount() {
       }
 
       if (res.status === 404) {
-        setEmailError("This email is not registered.");
+        setEmailError("This email or username is not registered.");
       } else if (res.status === 401) {
         if (body && typeof body.message === "string" && /password/i.test(body.message)) {
           setPasswordError("Incorrect password. Please try again.");
         } else {
-          setGeneralError("Invalid email or password.");
+          setGeneralError("Invalid email/username or password.");
         }
       } else if (res.status === 403) {
         setInactiveWarning("Your account is inactive. Contact support.");
@@ -248,8 +271,13 @@ export default function LoginAccount() {
       } else {
         setGeneralError(body.message || "Server error. Try again later.");
       }
-    } catch (e) {
-      setGeneralError("Network error. Ensure the backend is running and reachable.");
+    } catch (e: any) {
+      console.error('Login error:', e);
+      console.error('API_BASE_URL:', API_BASE_URL);
+      const errorMessage = e?.message || 'Unknown error';
+      setGeneralError(
+        `Network error: ${errorMessage}. Ensure the backend is running at ${API_BASE_URL}`
+      );
     } finally {
       setLoading(false);
     }
@@ -374,17 +402,17 @@ export default function LoginAccount() {
               <View style={styles.form}>
                 <View style={styles.formGroup}>
                   <View style={styles.labelContainer}>
-                    <Ionicons name="mail-outline" size={14} color="#6B7280" />
-                    <Text style={styles.label}>Email Address</Text>
+                    <Ionicons name="person-outline" size={14} color="#6B7280" />
+                    <Text style={styles.label}>Email or Username</Text>
                   </View>
                   <TextInput
                     style={[
                       styles.input,
                       emailValid === false && styles.inputError,
                     ]}
-                    placeholder="your.email@example.com"
+                    placeholder="your.email@example.com or username"
                     placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
+                    keyboardType="default"
                     autoCapitalize="none"
                     value={email}
                     onChangeText={(t) => {
@@ -395,7 +423,7 @@ export default function LoginAccount() {
                         setEmailValid(false);
                       } else {
                         setEmailError(null);
-                        setEmailValid(true);
+                        setEmailValid(isEmailFormat(t.trim()) || t.trim().length >= 3);
                       }
                       if (generalError) setGeneralError(null);
                     }}
@@ -509,7 +537,7 @@ export default function LoginAccount() {
                     <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
                       <Ionicons name="information-circle-outline" size={44} color="#2563EB" style={{ marginBottom: 8 }} />
                       <Text style={styles.modalTitle}>Enable Remember Me?</Text>
-                      <Text style={styles.modalSubtitle}>We'll save your email on this device for next time. Your password is never saved.</Text>
+                      <Text style={styles.modalSubtitle}>We'll save your email or username on this device for next time. Your password is never saved.</Text>
                       <View style={{ flexDirection:'row', gap:12, marginTop:12 }}>
                         <TouchableOpacity style={styles.backBtn} onPress={() => setShowRememberConfirm(false)}>
                           <Text style={styles.backText}>Cancel</Text>
@@ -519,9 +547,13 @@ export default function LoginAccount() {
                           onPress={async () => {
                             setRememberMe(true);
                             setShowRememberConfirm(false);
-                            // save current email if valid; otherwise save empty and it'll update on login
+                            // save current email/username if valid; otherwise save empty and it'll update on login
                             try {
-                              await AsyncStorage.setItem('rememberedCredentials', JSON.stringify({ email: email.trim() }));
+                              const trimmedValue = email.trim();
+                              const credentials = isEmailFormat(trimmedValue)
+                                ? { email: trimmedValue }
+                                : { username: trimmedValue };
+                              await AsyncStorage.setItem('rememberedCredentials', JSON.stringify(credentials));
                             } catch {}
                           }}
                         >

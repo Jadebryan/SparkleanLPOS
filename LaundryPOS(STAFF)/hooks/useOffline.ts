@@ -53,8 +53,8 @@ export const useOffline = () => {
       updateQueueCount();
     });
 
-    // Listen for online/offline events (web)
-    if (typeof window !== 'undefined') {
+    // Listen for online/offline events (web only; some RN runtimes expose a window without these APIs)
+    if (typeof window !== 'undefined' && typeof (window as any).addEventListener === 'function') {
       const handleOnline = () => {
         setIsOnline(true);
         syncQueue();

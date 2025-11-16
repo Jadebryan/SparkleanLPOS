@@ -28,6 +28,7 @@ interface AddCustomerModalProps {
   visible: boolean;
   onClose: () => void;
   onCustomerAdded: (customer: Customer) => void;
+  onSkipCustomer?: () => void;
   existingCustomers: Customer[];
   pendingCustomerData?: { name: string; phone: string };
 }
@@ -36,6 +37,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   visible,
   onClose,
   onCustomerAdded,
+  onSkipCustomer,
   existingCustomers,
   pendingCustomerData,
 }) => {
@@ -102,6 +104,101 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       handleClose();
       Alert.alert('Success', 'Customer added successfully!');
     } catch (error: any) {
+      // Handle 409 Conflict - customer already exists
+      if (error?.response?.status === 409) {
+        console.log('Customer already exists (409), using existing customer from response...');
+        
+        // First, try to get existing customer from error response
+        const existingCustomerFromResponse = error?.response?.data?.data;
+        
+        if (existingCustomerFromResponse) {
+          // Use the existing customer from the backend response
+          const customer: Customer = {
+            _id: existingCustomerFromResponse._id || existingCustomerFromResponse.id,
+            customerName: existingCustomerFromResponse.name || existingCustomerFromResponse.customerName,
+            phoneNumber: existingCustomerFromResponse.phone || existingCustomerFromResponse.phoneNumber,
+            email: existingCustomerFromResponse.email,
+          };
+          
+          console.log('Using existing customer from 409 response:', customer);
+          onCustomerAdded(customer);
+          handleClose();
+          return;
+        }
+        
+        // If not in response, try to fetch it
+        try {
+          const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+          const headers: any = { 'Content-Type': 'application/json' };
+          if (token) headers.Authorization = `Bearer ${token}`;
+
+          // Normalize phone number for comparison (remove all non-digits)
+          const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+          const phoneToMatch = normalizePhone(newCustomer.phone.trim());
+          const nameToMatch = newCustomer.name.trim().toLowerCase();
+
+          // Fetch all customers and find the one with matching phone or name
+          const customersResponse = await axios.get(`${API_BASE_URL}/customers`, { headers });
+          const customersList = Array.isArray(customersResponse.data)
+            ? customersResponse.data
+            : customersResponse.data?.data || customersResponse.data?.customers || [];
+
+          // Find the customer with matching phone or name
+          const existingCustomer = customersList.find((c: any) => {
+            if (!c) return false;
+            const customerPhone = normalizePhone((c.phone || c.phoneNumber || '').trim());
+            const customerName = (c.name || c.customerName || '').trim().toLowerCase();
+            
+            // Match by phone (exact or normalized) or by name
+            return (customerPhone && customerPhone === phoneToMatch) || 
+                   (customerName && customerName === nameToMatch);
+          });
+
+          if (existingCustomer) {
+            const customer: Customer = {
+              _id: existingCustomer._id || existingCustomer.id,
+              customerName: existingCustomer.name || existingCustomer.customerName,
+              phoneNumber: existingCustomer.phone || existingCustomer.phoneNumber,
+              email: existingCustomer.email,
+            };
+            
+            console.log('Found existing customer in list:', customer);
+            onCustomerAdded(customer);
+            handleClose();
+            return;
+          } else {
+            // If we can't find the customer in the list, create a customer object from the form data
+            // The backend will find the existing customer when creating the order
+            console.log('Customer exists (409) but not found in list, creating customer object from form data');
+            const customer: Customer = {
+              _id: '', // Will be set by backend
+              customerName: newCustomer.name.trim(),
+              phoneNumber: newCustomer.phone.trim(),
+              email: newCustomer.email.trim() || undefined,
+            };
+            
+            onCustomerAdded(customer);
+            handleClose();
+            return;
+          }
+        } catch (fetchError) {
+          console.error('Error fetching existing customer:', fetchError);
+          // Even if fetch fails, create customer object from form data
+          // Backend will find existing customer when creating order
+          const customer: Customer = {
+            _id: '',
+            customerName: newCustomer.name.trim(),
+            phoneNumber: newCustomer.phone.trim(),
+            email: newCustomer.email.trim() || undefined,
+          };
+          
+          onCustomerAdded(customer);
+          handleClose();
+          return;
+        }
+      }
+
+      // For other errors, show error message
       const errorMessage = error?.response?.data?.message || error?.message || 'Failed to add customer';
       Alert.alert('Error', errorMessage);
       console.error('Error adding customer:', error);
@@ -196,6 +293,16 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                       value={newCustomer.lastOrder}
                       onChangeText={(text) => setNewCustomer({ ...newCustomer, lastOrder: text })}
                     />
+                    <TouchableOpacity
+                      style={styles.todayButton}
+                      onPress={() => {
+                        const today = new Date();
+                        const formattedDate = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+                        setNewCustomer({ ...newCustomer, lastOrder: formattedDate });
+                      }}
+                    >
+                      <Text style={styles.todayButtonText}>Today</Text>
+                    </TouchableOpacity>
                     <Ionicons name="calendar-outline" size={20} color="#6B7280" style={styles.calendarIcon} />
                   </View>
                 </View>
@@ -216,6 +323,18 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
+              {onSkipCustomer && (
+                <TouchableOpacity
+                  style={[styles.button, styles.skipButton]}
+                  onPress={() => {
+                    handleClose();
+                    onSkipCustomer();
+                  }}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.skipButtonText}>Maybe next time</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.button, styles.submitButton, isLoading && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
@@ -342,10 +461,25 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   dateInput: {
     flex: 1,
-    paddingRight: 40,
+    paddingRight: 100,
+  },
+  todayButton: {
+    position: 'absolute',
+    right: 40,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    zIndex: 1,
+  },
+  todayButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   calendarIcon: {
     position: 'absolute',
@@ -394,6 +528,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  skipButton: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  skipButtonText: {
+    color: '#6B7280',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   submitButton: {
     backgroundColor: '#2563EB',
   },
@@ -408,4 +552,5 @@ const styles = StyleSheet.create({
 });
 
 export default AddCustomerModal;
+
 

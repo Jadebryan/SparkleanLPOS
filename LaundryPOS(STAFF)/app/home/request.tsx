@@ -20,6 +20,7 @@ import Header from './components/Header';
 import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
 
 type ExpenseCategory = 'Supplies' | 'Utilities' | 'Maintenance' | 'Salaries' | 'Other';
 
@@ -57,8 +58,8 @@ export default function Request() {
   const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [imageUris, setImageUris] = useState<string[]>([]);
 
   // Receipt upload state
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -114,6 +115,7 @@ export default function Request() {
       const input = window.document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+      input.multiple = true; // Allow multiple file selection
       input.style.display = 'none';
       input.style.position = 'absolute';
       input.style.opacity = '0';
@@ -122,42 +124,84 @@ export default function Request() {
       fileInputRef.current = input as any;
       
       input.onchange = (e: any) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          // Validate file size (max 10MB)
-          if (file.size > 10 * 1024 * 1024) {
-            Alert.alert('Error', 'Image size must be less than 10MB');
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length > 0) {
+          // Check total image count limit (max 10)
+          const currentCount = selectedImages.length;
+          if (currentCount + files.length > 10) {
+            Alert.alert('Error', `You can only upload up to 10 images. You currently have ${currentCount} image(s).`);
             input.value = ''; // Reset input
             return;
           }
 
-          // Validate file type
-          if (!file.type.startsWith('image/')) {
-            Alert.alert('Error', 'Please select an image file');
-            input.value = ''; // Reset input
-            return;
-          }
-
-          const reader = new FileReader();
-          reader.onerror = () => {
-            Alert.alert('Error', 'Failed to read image file');
-            input.value = ''; // Reset input
-          };
-          reader.onloadend = () => {
-            try {
-              const base64 = reader.result as string;
-              if (base64) {
-                setSelectedImage(base64);
-                setImageUri(URL.createObjectURL(file));
-              }
-            } catch (error) {
-              console.error('Error processing image:', error);
-              Alert.alert('Error', 'Failed to process image');
-            } finally {
-              input.value = ''; // Reset input for next use
+          // Validate all files
+          const validFiles: File[] = [];
+          const invalidFiles: string[] = [];
+          
+          files.forEach((file, index) => {
+            // Validate file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+              invalidFiles.push(`${file.name || `File ${index + 1}`}: Image size must be less than 10MB`);
+              return;
             }
-          };
-          reader.readAsDataURL(file);
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+              invalidFiles.push(`${file.name || `File ${index + 1}`}: Please select an image file`);
+              return;
+            }
+
+            validFiles.push(file);
+          });
+
+          if (invalidFiles.length > 0) {
+            Alert.alert('Error', invalidFiles.join('\n'));
+            input.value = ''; // Reset input
+            if (validFiles.length === 0) return;
+          }
+
+          // Process all valid files
+          let processedCount = 0;
+          const newImages: string[] = [];
+          const newUris: string[] = [];
+
+          validFiles.forEach((file) => {
+            const reader = new FileReader();
+            reader.onerror = () => {
+              processedCount++;
+              if (processedCount === validFiles.length) {
+                if (newImages.length > 0) {
+                  setSelectedImages(prev => [...prev, ...newImages]);
+                  setImageUris(prev => [...prev, ...newUris]);
+                }
+                input.value = ''; // Reset input
+              }
+            };
+            reader.onloadend = () => {
+              try {
+                const base64 = reader.result as string;
+                if (base64) {
+                  newImages.push(base64);
+                  newUris.push(URL.createObjectURL(file));
+                }
+              } catch (error) {
+                console.error('Error processing image:', error);
+              } finally {
+                processedCount++;
+                if (processedCount === validFiles.length) {
+                  if (newImages.length > 0) {
+                    setSelectedImages(prev => [...prev, ...newImages]);
+                    setImageUris(prev => [...prev, ...newUris]);
+                  }
+                  input.value = ''; // Reset input
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+        } else {
+          // User cancelled
+          input.value = ''; // Reset input
         }
       };
       
@@ -177,8 +221,12 @@ export default function Request() {
       setCategory('');
       setAmount('');
       setDescription('');
-      setSelectedImage(null);
-      setImageUri(null);
+      // Clear images - revoke URLs in state update callback
+      setImageUris(prev => {
+        prev.forEach(uri => URL.revokeObjectURL(uri));
+        return [];
+      });
+      setSelectedImages([]);
       setSubmitting(false);
     }
   }, [showAddModal]);
@@ -385,9 +433,15 @@ export default function Request() {
     }
   };
 
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImageUri(null);
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImageUris(prev => {
+      // Revoke the object URL to free memory
+      if (prev[index]) {
+        URL.revokeObjectURL(prev[index]);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const openReceiptUpload = (expense: Expense) => {
@@ -498,23 +552,29 @@ export default function Request() {
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      // Compress image if available
-      let compressedImage = selectedImage;
-      if (selectedImage) {
+      // Compress images if available
+      let compressedImages: string[] = [];
+      if (selectedImages.length > 0) {
         try {
           const { compressImage, shouldCompress, getImageSize } = await import('@/utils/imageCompression');
-          if (shouldCompress(selectedImage, 500)) { // Compress if > 500KB
-            console.log('📦 Compressing image (original size:', getImageSize(selectedImage).toFixed(2), 'KB)');
-            compressedImage = await compressImage(selectedImage, {
-              maxWidth: 1920,
-              maxHeight: 1920,
-              quality: 0.8,
-            });
-            console.log('✅ Image compressed (new size:', getImageSize(compressedImage).toFixed(2), 'KB)');
-          }
+          const compressionPromises = selectedImages.map(async (image, index) => {
+            if (shouldCompress(image, 500)) { // Compress if > 500KB
+              console.log(`📦 Compressing image ${index + 1} (original size:`, getImageSize(image).toFixed(2), 'KB)');
+              const compressed = await compressImage(image, {
+                maxWidth: 1920,
+                maxHeight: 1920,
+                quality: 0.8,
+              });
+              console.log(`✅ Image ${index + 1} compressed (new size:`, getImageSize(compressed).toFixed(2), 'KB)');
+              return compressed;
+            }
+            return image;
+          });
+          compressedImages = await Promise.all(compressionPromises);
         } catch (error) {
           console.warn('⚠️ Image compression failed, using original:', error);
-          // Continue with original image if compression fails
+          // Continue with original images if compression fails
+          compressedImages = selectedImages;
         }
       }
 
@@ -522,7 +582,7 @@ export default function Request() {
         category: category,
         amount: amountNum,
         description: description.trim(),
-        images: compressedImage ? [compressedImage] : [],
+        images: compressedImages,
       };
 
       console.log('📤 Sending request to:', `${API_BASE_URL}/expenses`);
@@ -544,8 +604,10 @@ export default function Request() {
       setCategory('');
       setAmount('');
       setDescription('');
-      setSelectedImage(null);
-      setImageUri(null);
+      // Revoke all object URLs to free memory
+      imageUris.forEach(uri => URL.revokeObjectURL(uri));
+      setSelectedImages([]);
+      setImageUris([]);
       setShowAddModal(false);
 
       // Refresh expenses
@@ -843,7 +905,7 @@ export default function Request() {
       <ModernSidebar />
 
       <View style={GlobalStyles.mainContent}>
-        <Header title="Expense Requests" />
+        <Header title="Money Request" />
 
         {/* Success Banner */}
         {showSuccessMessage && (
@@ -861,8 +923,8 @@ export default function Request() {
           <View style={styles.titleSection}>
             <Ionicons name="receipt-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
             <View>
-              <Text style={styles.pageTitle}>Expense Requests</Text>
-              <Text style={styles.pageSubtitle}>Submit and track your expense requests</Text>
+              <Text style={styles.pageTitle}>Money Request</Text>
+              <Text style={styles.pageSubtitle}>Submit and track your money requests</Text>
             </View>
           </View>
 
@@ -947,13 +1009,38 @@ export default function Request() {
                     <View key={expense._id} style={[styles.expenseCard, styles.expenseCardGrid]}>
                   <View style={styles.expenseHeader}>
                     <View style={styles.expenseHeaderLeft}>
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(expense.status) + '20' }]}>
+                      <View style={[
+                        badgeStyles.base,
+                        expense.status === 'Approved' 
+                          ? badgeStyles.paid 
+                          : expense.status === 'Rejected'
+                          ? badgeStyles.unpaid
+                          : expense.status === 'Appealed'
+                          ? badgeStyles.partial
+                          : { backgroundColor: colors.warning[50], borderWidth: 1, borderColor: colors.warning[500] }
+                      ]}>
                         <Ionicons 
                           name={getStatusIcon(expense.status)} 
-                          size={16} 
-                          color={getStatusColor(expense.status)} 
+                          size={14} 
+                          color={
+                            expense.status === 'Approved'
+                              ? badgeStyles.paidText.color
+                              : expense.status === 'Rejected'
+                              ? badgeStyles.unpaidText.color
+                              : expense.status === 'Appealed'
+                              ? badgeStyles.partialText.color
+                              : colors.warning[700]
+                          } 
                         />
-                        <Text style={[styles.statusText, { color: getStatusColor(expense.status) }]}>
+                        <Text style={[
+                          expense.status === 'Approved'
+                            ? badgeStyles.paidText 
+                            : expense.status === 'Rejected'
+                            ? badgeStyles.unpaidText
+                            : expense.status === 'Appealed'
+                            ? badgeStyles.partialText
+                            : { fontSize: badgeStyles.paidText.fontSize, fontWeight: badgeStyles.paidText.fontWeight, fontFamily: badgeStyles.paidText.fontFamily, color: colors.warning[700] }
+                        ]}>
                           {expense.status}
                         </Text>
                       </View>
@@ -1026,8 +1113,8 @@ export default function Request() {
                     </TouchableOpacity>
                   )}
 
-                        <View style={styles.expenseFooter}>
-                          <Text style={styles.dateText}>{formatDate(expense.date)}</Text>
+                  <View style={styles.expenseFooter}>
+                    <Text style={styles.dateText}>{formatDate(expense.date)}</Text>
                           {!showArchived ? (
                             <TouchableOpacity onPress={() => handleArchive(expense)} style={styles.archiveButton}>
                               <Ionicons name="archive-outline" size={16} color="#6B7280" />
@@ -1061,7 +1148,7 @@ export default function Request() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
-                  <Text style={styles.modalTitle}>New Expense Request</Text>
+                  <Text style={styles.modalTitle}>New Money Request</Text>
                 </View>
                 <TouchableOpacity 
                   onPress={() => !submitting && setShowAddModal(false)}
@@ -1118,16 +1205,35 @@ export default function Request() {
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Proof Image (Optional)</Text>
-                  {imageUri ? (
-                    <View style={styles.imagePreviewContainer}>
-                      <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                      <TouchableOpacity 
-                        style={styles.removeImageButton}
-                        onPress={removeImage}
-                      >
-                        <Ionicons name="close-circle" size={24} color="#EF4444" />
-                      </TouchableOpacity>
+                  <Text style={styles.label}>Proof Images (Optional)</Text>
+                  {imageUris.length > 0 ? (
+                    <View style={{ gap: 12 }}>
+                      {imageUris.map((uri, index) => (
+                        <View key={index} style={styles.imagePreviewContainer}>
+                          <Image source={{ uri: uri }} style={styles.imagePreview} />
+                          <TouchableOpacity 
+                            style={styles.removeImageButton}
+                            onPress={() => removeImage(index)}
+                          >
+                            <Ionicons name="close-circle" size={24} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      {imageUris.length < 10 && (
+                        <TouchableOpacity 
+                          style={[styles.imagePickerButton, { height: 80 }]}
+                          onPress={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Image picker button pressed');
+                            handleImagePicker(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add-circle-outline" size={20} color="#2563EB" />
+                          <Text style={styles.imagePickerText}>Add More Images ({imageUris.length}/10)</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ) : (
                     <TouchableOpacity 
@@ -1141,12 +1247,17 @@ export default function Request() {
                       activeOpacity={0.7}
                     >
                       <Ionicons name="camera-outline" size={24} color="#2563EB" />
-                      <Text style={styles.imagePickerText}>Select Image</Text>
+                      <Text style={styles.imagePickerText}>Select Images (Up to 10)</Text>
                     </TouchableOpacity>
                   )}
                   {Platform.OS === 'web' && typeof window === 'undefined' && (
                     <Text style={styles.hintText}>
                       ⚠️ Image upload may not work in this environment
+                    </Text>
+                  )}
+                  {imageUris.length > 0 && (
+                    <Text style={styles.hintText}>
+                      {imageUris.length} image(s) selected. You can add up to 10 images total.
                     </Text>
                   )}
                 </View>
@@ -1492,31 +1603,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
+    ...typography.h2,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'Poppins_400Regular',
+    ...typography.body,
+    color: colors.text.secondary,
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
+    ...buttonStyles.primary,
   },
   addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
   },
   contentScroll: {
     flex: 1,

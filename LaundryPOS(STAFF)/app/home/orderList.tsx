@@ -11,11 +11,13 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import BrandIcon from '../components/BrandIcon';
 import GlobalStyles from "../styles/GlobalStyle";
+import designSystem, { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles, tabletUtils } from '@/app/theme/designSystem';
 
 // Components
 import ModernSidebar from "./components/ModernSidebar";
@@ -46,10 +48,16 @@ type Order = {
 };
 
 // Helper: print invoice/receipt preview & print (supports both invoice and receipt formats)
-const printInvoiceWindow = (invoiceData: any) => {
+const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
+  // Debug logging
+  console.log('printInvoiceWindow called with stationInfo:', stationInfo);
+  console.log('printInvoiceWindow invoiceData.format:', invoiceData?.format);
+  
   // Prefer explicit format flag; fallback to heuristic
   const format = invoiceData.format || (invoiceData.time !== undefined || invoiceData.change !== undefined ? 'receipt' : 'invoice');
   const isReceipt = format === 'receipt';
+  
+  console.log('printInvoiceWindow - format:', format, 'isReceipt:', isReceipt);
   const logoSvg = `
   <svg width="40" height="40" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs>
@@ -94,6 +102,7 @@ const printInvoiceWindow = (invoiceData: any) => {
   };
 
   if (!isReceipt) {
+    console.log('Building INVOICE format with stationInfo:', stationInfo);
     const subtotal = parseAmount(invoiceData.subtotal ?? invoiceData.amount ?? 0);
     const discountAmount = parseAmount(invoiceData.discountAmount ?? (subtotal - parseAmount(invoiceData.total ?? invoiceData.totalFee ?? subtotal)));
     const total = parseAmount(invoiceData.total ?? invoiceData.totalFee ?? (subtotal - discountAmount));
@@ -113,15 +122,22 @@ const printInvoiceWindow = (invoiceData: any) => {
         </div>`;
     }).join('');
 
+    // Build station info strings
+    const stationName = stationInfo?.name ? ` - ${stationInfo.name}` : '';
+    const stationAddress = stationInfo?.address || '123 Laundry Street, Clean City';
+    const stationPhone = stationInfo?.phone ? `Phone: ${stationInfo.phone}` : 'Phone: +63 912 345 6789';
+    
+    console.log('Invoice station details:', { stationName, stationAddress, stationPhone });
+
     const content = `
       <div class="order-receipt">
         <div class="receipt-header">
           <div class="company-info">
             <div class="company-logo">${logoSvg}</div>
             <div class="company-details">
-              <h2>Sparklean Laundry Shop</h2>
-              <p>123 Laundry Street, Clean City</p>
-              <p>Phone: +63 912 345 6789</p>
+              <h2>Sparklean Laundry Shop${stationName}</h2>
+              <p>${stationAddress}</p>
+              <p>${stationPhone}</p>
             </div>
           </div>
           <div class="receipt-info">
@@ -264,9 +280,9 @@ const printInvoiceWindow = (invoiceData: any) => {
           <div class="company-info">
             <div class="company-logo">${logoSvg}</div>
             <div class="company-details">
-              <h2>Sparklean Laundry Shop</h2>
-              <p>123 Laundry Street, Clean City</p>
-              <p>Phone: +63 912 345 6789</p>
+              <h2>Sparklean Laundry Shop${stationInfo?.name ? ` - ${stationInfo.name}` : ''}</h2>
+              <p>${stationInfo?.address || '123 Laundry Street, Clean City'}</p>
+              <p>${stationInfo?.phone ? `Phone: ${stationInfo.phone}` : 'Phone: +63 912 345 6789'}</p>
             </div>
           </div>
           <div class="receipt-info">
@@ -724,8 +740,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const spinValue = useRef(new Animated.Value(0)).current;
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [invoiceStationInfo, setInvoiceStationInfo] = useState<any>(null);
   const [showDrafts, setShowDrafts] = useState(false);
   const [filterPayment, setFilterPayment] = useState("All");
   const [showFiltersModal, setShowFiltersModal] = useState(false);
@@ -797,7 +815,7 @@ export default function Dashboard() {
     }
   }, [showTransaction]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (updateSelectedOrder: boolean = false) => {
     setLoading(true);
     try {
       // Build query parameters
@@ -886,6 +904,22 @@ export default function Dashboard() {
 
       logger.debug("Normalized orders:", ordersArray);
       setOrders(ordersArray);
+      
+      // Update selectedOrder if requested (e.g., after order update)
+      if (updateSelectedOrder && selectedOrder) {
+        const orderId = selectedOrder.orderId || (selectedOrder as any)?.id || (selectedOrder as any)?._id;
+        const updatedOrder = ordersArray.find(o => 
+          (o.orderId === orderId) || 
+          (o.__raw && (o.__raw.id === orderId || o.__raw._id === orderId))
+        );
+        if (updatedOrder) {
+          setSelectedOrder({
+            ...updatedOrder,
+            __raw: updatedOrder.__raw || updatedOrder
+          } as any);
+        }
+      }
+      
       calculateStats(ordersArray);
     } catch (error: any) {
       logger.error("Error fetching orders:", error);
@@ -918,10 +952,27 @@ export default function Dashboard() {
     
     setLastRefreshTime(now);
     setRefreshing(true);
+    
+    // Start spinning animation
+    spinValue.setValue(0);
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start();
+    
     try {
-    await fetchOrders();
+      await fetchOrders();
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
     } finally {
-      setRefreshing(false);
+      setTimeout(() => {
+        setRefreshing(false);
+        spinValue.stopAnimation();
+        spinValue.setValue(0);
+      }, 500);
     }
   };
 
@@ -1036,13 +1087,75 @@ export default function Dashboard() {
     setShowTransaction(true);
   };
 
-  const handlePrintReceipt = (order: any) => {
+  const handlePrintReceipt = async (order: any) => {
     try {
       logger.debug("handlePrintReceipt called with order:", order);
       
       if (!order) {
         Alert.alert("Error", "Order data not available.");
         return;
+      }
+      
+      // Fetch station information - check multiple possible locations for stationId
+      let stationInfo = null;
+      const orderStationId = order.stationId || order.__raw?.stationId || null;
+      
+      if (orderStationId) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/stations`, {
+            headers: {
+              'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`
+            }
+          });
+          if (response.ok) {
+            const stations = await response.json();
+            const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+            const stationIdToMatch = String(orderStationId).toUpperCase().trim();
+            stationInfo = stationsArray.find((s: any) => {
+              const stationStationId = String(s.stationId || '').toUpperCase().trim();
+              const stationId = String(s._id || s.id || '');
+              return stationStationId === stationIdToMatch || stationId === stationIdToMatch;
+            });
+            if (stationInfo) {
+              console.log('Station found for receipt:', stationInfo);
+            } else {
+              console.warn('Station not found for stationId:', orderStationId);
+            }
+          }
+        } catch (stationError) {
+          console.warn('Could not fetch station info:', stationError);
+        }
+      } else {
+        // Try to get stationId from logged-in user as fallback
+        try {
+          const userData = await AsyncStorage.getItem('user');
+          if (userData) {
+            const parsedUser = JSON.parse(userData);
+            const userStationId = parsedUser.stationId;
+            if (userStationId) {
+              const response = await fetch(`${API_BASE_URL}/stations`, {
+                headers: {
+                  'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`
+                }
+              });
+              if (response.ok) {
+                const stations = await response.json();
+                const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+                const stationIdToMatch = String(userStationId).toUpperCase().trim();
+                stationInfo = stationsArray.find((s: any) => {
+                  const stationStationId = String(s.stationId || '').toUpperCase().trim();
+                  const stationId = String(s._id || s.id || '');
+                  return stationStationId === stationIdToMatch || stationId === stationIdToMatch;
+                });
+                if (stationInfo) {
+                  console.log('Station found from user stationId:', stationInfo);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not get station from user:', e);
+        }
       }
 
       const orderId = order.orderId || order.id || order._id || "N/A";
@@ -1121,20 +1234,84 @@ export default function Dashboard() {
       };
 
       // Use the existing printInvoiceWindow function but with receipt format
-      printInvoiceWindow(receiptData);
+      printInvoiceWindow(receiptData, stationInfo);
     } catch (error: any) {
       logger.error("Error generating receipt:", error);
       Alert.alert("Error", "Failed to generate receipt. " + (error.message || ""));
     }
   };
 
-  const handleViewInvoice = (order: any) => {
+  const handleViewInvoice = async (order: any) => {
     try {
       logger.debug("handleViewInvoice called with order:", order);
       
       if (!order) {
         Alert.alert("Error", "Order data not available.");
         return;
+      }
+      
+      // Fetch station information - check multiple possible locations for stationId
+      let stationInfo = null;
+      const orderStationId = order.stationId || order.__raw?.stationId || null;
+      
+      if (orderStationId) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/stations`, {
+            headers: {
+              'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`
+            }
+          });
+          if (response.ok) {
+            const stations = await response.json();
+            const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+            const stationIdToMatch = String(orderStationId).toUpperCase().trim();
+            stationInfo = stationsArray.find((s: any) => {
+              const stationStationId = String(s.stationId || '').toUpperCase().trim();
+              const stationId = String(s._id || s.id || '');
+              return stationStationId === stationIdToMatch || stationId === stationIdToMatch;
+            });
+            if (stationInfo) {
+              console.log('Station found for invoice:', stationInfo);
+            } else {
+              console.warn('Station not found for stationId:', orderStationId);
+            }
+          }
+        } catch (stationError) {
+          console.warn('Could not fetch station info:', stationError);
+        }
+      }
+      
+      // If order doesn't have stationId, try to get it from the logged-in user
+      if (!stationInfo) {
+        try {
+          const userData = await AsyncStorage.getItem('user');
+          if (userData) {
+            const parsedUser = JSON.parse(userData);
+            const userStationId = parsedUser.stationId;
+            if (userStationId) {
+              const response = await fetch(`${API_BASE_URL}/stations`, {
+                headers: {
+                  'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`
+                }
+              });
+              if (response.ok) {
+                const stations = await response.json();
+                const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+                const stationIdToMatch = String(userStationId).toUpperCase().trim();
+                stationInfo = stationsArray.find((s: any) => {
+                  const stationStationId = String(s.stationId || '').toUpperCase().trim();
+                  const stationId = String(s._id || s.id || '');
+                  return stationStationId === stationIdToMatch || stationId === stationIdToMatch;
+                });
+                if (stationInfo) {
+                  console.log('Station found from user stationId for invoice:', stationInfo);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Could not get station from user:', e);
+        }
       }
 
       const orderId = order.orderId || order.id || order._id || "N/A";
@@ -1229,7 +1406,12 @@ export default function Dashboard() {
         format: 'invoice'
       };
 
+      console.log('Invoice - stationInfo:', stationInfo);
+      console.log('Invoice - invoiceData:', invoiceData);
+      console.log('Invoice - invoiceData.format:', invoiceData.format);
+      
       setInvoiceData(invoiceData);
+      setInvoiceStationInfo(stationInfo);
       setShowInvoice(true);
     } catch (error: any) {
       logger.error("Error generating invoice:", error);
@@ -1275,17 +1457,26 @@ export default function Dashboard() {
                 </View>
             <View style={styles.headerActions}>
               <TouchableOpacity 
-                style={styles.resetButton}
-                onPress={() => {
-                  setShowStats(true);
-                  setSearchQuery("");
-                  setFilterPayment("All");
-                  setShowDrafts(false);
-                  setShowExportDropdown(false);
-                }}
+                style={styles.actionButton}
+                onPress={handleRefresh}
+                disabled={refreshing || loading}
               >
-                <Ionicons name="refresh-outline" size={18} color="#374151" />
-                <Text style={styles.resetButtonText}>Reset</Text>
+                <Animated.View
+                  style={{
+                    transform: [{
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg'],
+                      }),
+                    }],
+                  }}
+                >
+                  <Ionicons 
+                    name="refresh" 
+                    size={18} 
+                    color={refreshing ? "#9CA3AF" : "#6B7280"}
+                  />
+                </Animated.View>
               </TouchableOpacity>
                 <TouchableOpacity
                 style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
@@ -1384,7 +1575,9 @@ export default function Dashboard() {
           }}
           orderData={selectedOrder}
           initialEditMode={editMode}
-          onOrderUpdated={fetchOrders}
+          onOrderUpdated={async () => {
+            await fetchOrders(true); // Pass true to update selectedOrder
+          }}
           onViewInvoice={handleViewInvoice}
         />
         
@@ -1411,11 +1604,11 @@ export default function Dashboard() {
                       </View>
                       <View>
                         <Text style={styles.companyName}>
-                          <Text style={styles.brandPart1}>Sparklean</Text> <Text style={styles.brandPart2}>Laundry Shop</Text>
+                          <Text style={styles.brandPart1}>Sparklean</Text> <Text style={styles.brandPart2}>Laundry Shop{invoiceStationInfo?.name ? ` - ${invoiceStationInfo.name}` : ''}</Text>
                         </Text>
                         <Text style={styles.companyDetails}>
-                          123 Laundry Street, Clean City{'\n'}
-                          Phone: +63 912 345 6789{'\n'}
+                          {invoiceStationInfo?.address || '123 Laundry Street, Clean City'}{'\n'}
+                          {invoiceStationInfo?.phone ? `Phone: ${invoiceStationInfo.phone}` : 'Phone: +63 912 345 6789'}{'\n'}
                           Email: sparklean@example.com{'\n'}
                           Facebook: fb.com/SparkleanLaundryShop
                         </Text>
@@ -1553,7 +1746,13 @@ export default function Dashboard() {
                 {/* Modal Footer Buttons */}
                 <View style={styles.modalFooter}>
                   <TouchableOpacity
-                    onPress={() => invoiceData && printInvoiceWindow(invoiceData)}
+                    onPress={() => {
+                      console.log('Print invoice - invoiceStationInfo:', invoiceStationInfo);
+                      console.log('Print invoice - invoiceData:', invoiceData);
+                      if (invoiceData) {
+                        printInvoiceWindow(invoiceData, invoiceStationInfo);
+                      }
+                    }}
                     style={styles.primaryButton}
                   >
                     <Text style={styles.primaryButtonText}>Print</Text>
@@ -1721,7 +1920,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   titleSection: {
     flex: 1,
@@ -1731,39 +1930,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
+    ...typography.h1,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '400',
-    fontFamily: 'Poppins_400Regular',
+    ...typography.body,
+    color: colors.text.secondary,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   resetButton: {
+    ...buttonStyles.secondary,
+    gap: spacing.xs + 2,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 6,
+  },
+  refreshingButton: {
+    opacity: 0.6,
   },
   resetButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Poppins_500Medium',
+    ...buttonStyles.secondaryText,
   },
   toggleButton: {
     flexDirection: 'row',
@@ -1792,24 +1988,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
   },
   exportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    ...buttonStyles.primary,
   },
   exportButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-    marginLeft: 8,
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
+    marginLeft: spacing.sm,
   },
   exportDropdownContainer: {
     position: 'relative',

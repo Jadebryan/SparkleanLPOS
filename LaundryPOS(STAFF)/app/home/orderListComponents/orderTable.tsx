@@ -11,6 +11,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from "@/constants/api";
+import { badgeStyles } from '@/app/theme/designSystem';
 
 type Order = {
   orderId: string;
@@ -51,6 +52,8 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   // Use provided orders/loading or fetch internally (for backward compatibility)
   const [internalOrders, setInternalOrders] = useState<Order[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
+  const PAGE_SIZE = 5;
+  const [page, setPage] = useState(1);
 
   // Use props if provided, otherwise use internal state
   const orders = ordersProp !== undefined ? ordersProp : internalOrders;
@@ -157,19 +160,27 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   );
   }, [orders, searchQuery]);
 
-  // Pagination: 5 per page
-  const PAGE_SIZE = 5;
-  const [page, setPage] = useState(1);
+  // Pagination calculations
+  const totalPages = useMemo(() => {
+    const pages = Math.ceil(filteredOrders.length / PAGE_SIZE);
+    return Math.max(1, pages || 1);
+  }, [filteredOrders.length]);
 
-  // Reset to first page on search/orders change
+  // Ensure current page is valid when filters change
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, orders.length]);
+  }, [searchQuery]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [totalPages, page]);
+
   const paginatedOrders = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return filteredOrders.slice(start, start + PAGE_SIZE);
+    const end = start + PAGE_SIZE;
+    return filteredOrders.slice(start, end);
   }, [filteredOrders, page]);
 
   // Memoize formatDate function
@@ -205,20 +216,36 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
               <View style={[orderStyle.cell, { flex: 1, paddingLeft: 12 }]}>
                 <View style={{ flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                   <View style={[
-                    orderStyle.paymentBadge,
+                    badgeStyles.base,
                     item.feeStatus === "Paid" 
-                      ? orderStyle.paymentBadgePaid 
+                      ? badgeStyles.paid 
                       : item.feeStatus === "Partial"
-                      ? orderStyle.paymentBadgePartial
-                      : orderStyle.paymentBadgeUnpaid
+                      ? badgeStyles.partial
+                      : badgeStyles.unpaid
                   ]}>
+                    <Ionicons 
+                      name={
+                        item.feeStatus === "Paid" 
+                          ? "checkmark-circle" 
+                          : item.feeStatus === "Partial"
+                          ? "time"
+                          : "alert-circle"
+                      } 
+                      size={14} 
+                      color={
+                        item.feeStatus === "Paid"
+                          ? badgeStyles.paidText.color
+                          : item.feeStatus === "Partial"
+                          ? badgeStyles.partialText.color
+                          : badgeStyles.unpaidText.color
+                      } 
+                    />
                     <Text style={[
-                      orderStyle.paymentBadgeText,
                   item.feeStatus === "Paid"
-                        ? orderStyle.paymentBadgeTextPaid 
+                        ? badgeStyles.paidText 
                         : item.feeStatus === "Partial"
-                        ? orderStyle.paymentBadgeTextPartial
-                        : orderStyle.paymentBadgeTextUnpaid
+                        ? badgeStyles.partialText
+                        : badgeStyles.unpaidText
                     ]}>
                       {item.feeStatus?.toUpperCase() || 'UNPAID'}
                     </Text>
@@ -341,6 +368,27 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
         keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={() => (
+          <View style={orderStyle.paginationBar}>
+            <TouchableOpacity
+              style={[orderStyle.pageButton, page === 1 && orderStyle.pageButtonDisabled]}
+              onPress={() => page > 1 && setPage(page - 1)}
+              disabled={page === 1}
+            >
+              <Ionicons name="chevron-back" size={18} color={page === 1 ? '#9CA3AF' : '#111827'} />
+              <Text style={[orderStyle.pageButtonText, page === 1 && orderStyle.pageButtonTextDisabled]}>Prev</Text>
+            </TouchableOpacity>
+            <Text style={orderStyle.pageInfo}>Page {page} of {totalPages}</Text>
+            <TouchableOpacity
+              style={[orderStyle.pageButton, page >= totalPages && orderStyle.pageButtonDisabled]}
+              onPress={() => page < totalPages && setPage(page + 1)}
+              disabled={page >= totalPages}
+            >
+              <Text style={[orderStyle.pageButtonText, page >= totalPages && orderStyle.pageButtonTextDisabled]}>Next</Text>
+              <Ionicons name="chevron-forward" size={18} color={page >= totalPages ? '#9CA3AF' : '#111827'} />
+            </TouchableOpacity>
+          </View>
+        )}
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
@@ -351,27 +399,6 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
           offset: 80 * index,
           index,
         })}
-        ListFooterComponent={() => (
-          <View style={orderStyle.paginationBar}>
-            <TouchableOpacity
-              onPress={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              style={[orderStyle.pageBtn, page <= 1 && orderStyle.pageBtnDisabled]}
-            >
-              <Ionicons name="chevron-back" size={16} color={page <= 1 ? '#9CA3AF' : '#2563EB'} />
-              <Text style={[orderStyle.pageBtnText, page <= 1 && orderStyle.pageBtnTextDisabled]}>Prev</Text>
-            </TouchableOpacity>
-            <Text style={orderStyle.pageInfo}>Page {page} of {totalPages}</Text>
-            <TouchableOpacity
-              onPress={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              style={[orderStyle.pageBtn, page >= totalPages && orderStyle.pageBtnDisabled]}
-            >
-              <Text style={[orderStyle.pageBtnText, page >= totalPages && orderStyle.pageBtnTextDisabled]}>Next</Text>
-              <Ionicons name="chevron-forward" size={16} color={page >= totalPages ? '#9CA3AF' : '#2563EB'} />
-            </TouchableOpacity>
-          </View>
-        )}
       />
     </View>
   );
@@ -395,6 +422,44 @@ const orderStyle = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     backgroundColor: "rgba(255, 255, 255, 0.98)",
+  },
+  paginationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fafafa',
+  },
+  pageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+  },
+  pageButtonDisabled: {
+    backgroundColor: '#f3f4f6',
+  },
+  pageButtonText: {
+    fontSize: 13,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  pageButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
+  pageInfo: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   TableHeader: {
     flexDirection: "row",
@@ -440,34 +505,16 @@ const orderStyle = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  paymentBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-  },
-  paymentBadgePaid: {
-    backgroundColor: '#D1FAE5',
-  },
-  paymentBadgePartial: {
-    backgroundColor: '#FEF3C7',
-  },
-  paymentBadgeUnpaid: {
-    backgroundColor: '#FEE2E2',
-  },
-  paymentBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  paymentBadgeTextPaid: {
-    color: '#059669',
-  },
-  paymentBadgeTextPartial: {
-    color: '#D97706',
-  },
-  paymentBadgeTextUnpaid: {
-    color: '#DC2626',
-  },
+  // Status badges now use badgeStyles from design system
+  // These are kept for backward compatibility but not actively used
+  paymentBadge: {},
+  paymentBadgePaid: {},
+  paymentBadgePartial: {},
+  paymentBadgeUnpaid: {},
+  paymentBadgeText: {},
+  paymentBadgeTextPaid: {},
+  paymentBadgeTextPartial: {},
+  paymentBadgeTextUnpaid: {},
   actionButton: {
     width: 32,
     height: 32,
@@ -475,44 +522,6 @@ const orderStyle = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  paginationBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#F9FAFB',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  pageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  pageBtnDisabled: {
-    opacity: 0.6,
-  },
-  pageBtnText: {
-    color: '#2563EB',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  pageBtnTextDisabled: {
-    color: '#9CA3AF',
-  },
-  pageInfo: {
-    color: '#6B7280',
-    fontSize: 13,
-    fontWeight: '600',
   },
   greenStatus: {
     color: "#16a34a",

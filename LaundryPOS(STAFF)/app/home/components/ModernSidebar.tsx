@@ -39,11 +39,11 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
         onPress={onPress}
         activeOpacity={0.7}
       >
-        <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive]}>
+        <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive, hovered && !isActive && styles.navIconContainerHovered]}>
           <Ionicons
             name={item.icon}
-            size={22}
-            color={isActive ? '#FFFFFF' : '#6B7280'}
+            size={24}
+            color={isActive ? '#FFFFFF' : isLogout ? '#DC2626' : '#9CA3AF'}
           />
         </View>
       </TouchableOpacity>
@@ -66,16 +66,16 @@ const ModernSidebar: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems: NavItem[] = [
-    { icon: 'list-outline', route: '/home/orderList', label: 'Orders' },
-    { icon: 'add-circle-outline', route: '/home/addOrder', label: 'Add Order' },
-    { icon: 'people-outline', route: '/home/customer', label: 'Customers' },
-    { icon: 'document-text-outline', route: '/home/request', label: 'Requests' },
+    { icon: 'receipt', route: '/home/orderList', label: 'Orders' },
+    { icon: 'add-circle', route: '/home/addOrder', label: 'Add Order' },
+    { icon: 'people', route: '/home/customer', label: 'Customers' },
+    { icon: 'document-text', route: '/home/request', label: 'Requests' },
   ];
 
   const generalItems: NavItem[] = [
-    { icon: 'settings-outline', route: '/home/settings', label: 'Settings' },
-    { icon: 'help-circle-outline', route: '/home/help', label: 'Help' },
-    { icon: 'log-out-outline', route: '/home/orderList', label: 'Logout' },
+    { icon: 'settings', route: '/home/settings', label: 'Settings' },
+    { icon: 'help-circle', route: '/home/help', label: 'Help' },
+    { icon: 'log-out', route: '/home/orderList', label: 'Logout' },
   ];
 
   const handleNavigation = (route: RouteLiteral, isLogout: boolean = false) => {
@@ -195,11 +195,11 @@ const ModernSidebar: React.FC = () => {
 
 const styles = StyleSheet.create({
   sidebar: {
-    width: 70,
-    backgroundColor: '#FFFFFF',
+    width: 72,
+    backgroundColor: '#FAFAFA',
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 24,
     height: '100%',
   },
@@ -217,8 +217,8 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   navSection: {
-    paddingHorizontal: 8,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    marginBottom: 12,
   },
   navItemWrapper: {
     position: 'relative',
@@ -227,40 +227,48 @@ const styles = StyleSheet.create({
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 8,
-    marginVertical: 2,
-    borderRadius: 10,
-    minHeight: 44,
+    marginVertical: 4,
+    borderRadius: 12,
+    minHeight: 52,
     width: '100%',
   },
   navItemActive: {
     backgroundColor: 'transparent',
   },
   navIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   navIconContainerActive: {
     backgroundColor: '#2563EB',
-  },
-  tooltip: {
-    position: 'absolute',
-    left: 78,
-    top: 8,
-    backgroundColor: '#111827',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    zIndex: 1000,
-    shadowColor: '#000',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    elevation: 4,
+  },
+  navIconContainerHovered: {
+    backgroundColor: '#F3F4F6',
+  },
+  tooltip: {
+    position: 'absolute',
+    left: 80,
+    top: 10,
+    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 8,
   },
   tooltipLogout: {

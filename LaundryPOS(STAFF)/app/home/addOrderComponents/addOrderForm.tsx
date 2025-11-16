@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AddCustomerModal from './AddCustomerModal';
+import designSystem, { colors, typography, spacing, borderRadius, cardStyles, inputStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
 
 // Interface for order data
 export interface OrderData {
@@ -47,6 +48,7 @@ interface Service {
   category?: string;
   isActive?: boolean;
   isArchived?: boolean;
+  isPopular?: boolean;
 }
 
 interface Discount {
@@ -58,6 +60,10 @@ interface Discount {
   minPurchase?: number;
   active?: boolean;
   isArchived?: boolean;
+  usageCount?: number;
+  maxUsage?: number;
+  validFrom?: string;
+  validUntil?: string;
 }
 
 interface ServiceItem {
@@ -112,13 +118,26 @@ export const addOrder = async (orderData: any) => {
     console.error("Error response data:", error?.response?.data);
     console.error("Full error object:", error);
     
-    const message = error?.response?.data?.message || 
-                   error?.response?.data?.error || 
+    // Extract detailed error information
+    const errorData = error?.response?.data || {};
+    const message = errorData.message || 
+                   errorData.error || 
                    error?.message || 
                    "Something went wrong. Please check the console for details.";
     
-    console.error("Alert message:", message);
-    Alert.alert("Error creating order", String(message));
+    // If there are detailed validation errors, show them
+    let errorDetails = '';
+    if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+      errorDetails = '\n\nValidation errors:\n' + errorData.errors.join('\n');
+    } else if (errorData.errorDetails && Array.isArray(errorData.errorDetails) && errorData.errorDetails.length > 0) {
+      errorDetails = '\n\nValidation errors:\n' + errorData.errorDetails.map((e: any) => `${e.field}: ${e.message}`).join('\n');
+    }
+    
+    const fullMessage = message + errorDetails;
+    console.error("Alert message:", fullMessage);
+    console.error("Error details:", errorData);
+    
+    Alert.alert("Error creating order", fullMessage);
     throw error;
   }
 };
@@ -173,6 +192,8 @@ const AddOrderForm = () => {
   // Modal states
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [pendingCustomerData, setPendingCustomerData] = useState<{ name: string; phone: string } | null>(null);
+  const [skipCustomerCreation, setSkipCustomerCreation] = useState(false);
+  const [showCustomerConfirmationModal, setShowCustomerConfirmationModal] = useState(false);
   
   // Success feedback state
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
@@ -226,6 +247,7 @@ const AddOrderForm = () => {
             category: s.category,
             isActive: true,
             isArchived: false,
+            isPopular: s.isPopular || false,
           }));
         setServices(activeServices);
         
@@ -251,19 +273,33 @@ const AddOrderForm = () => {
         const discountsData = Array.isArray(discountsRes.data)
           ? discountsRes.data
           : discountsRes.data?.data || discountsRes.data?.discounts || [];
-        const activeDiscounts = discountsData
-          .filter((d: any) => d.active !== false && !d.isArchived)
-          .map((d: any) => ({
+        const now = new Date();
+        const processedDiscounts: Discount[] = discountsData.map((d: any) => ({
             _id: d._id || d.id,
             code: d.code,
             name: d.name,
             type: d.type || 'fixed',
             value: d.value,
             minPurchase: d.minPurchase || 0,
-            active: true,
-            isArchived: false,
-          }));
-        setDiscountOptions(activeDiscounts);
+          active: d.isActive !== false,
+          isArchived: !!d.isArchived,
+          usageCount: d.usageCount || 0,
+          maxUsage: d.maxUsage || 0,
+          validFrom: d.validFrom,
+          validUntil: d.validUntil,
+        }));
+
+        const availableDiscounts = processedDiscounts.filter(d => {
+          if (!d.active || d.isArchived) return false;
+          if (d.maxUsage && d.maxUsage > 0 && d.usageCount !== undefined && d.usageCount >= d.maxUsage) {
+            return false;
+          }
+          const validFrom = d.validFrom ? new Date(d.validFrom) : new Date(0);
+          const validUntil = d.validUntil ? new Date(d.validUntil) : new Date('2100-01-01');
+          return validFrom <= now && validUntil >= now;
+        });
+
+        setDiscountOptions(availableDiscounts);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -415,11 +451,8 @@ const AddOrderForm = () => {
               discountValue = selectedDiscount.value;
             }
           } else if (selectedDiscount.minPurchase > 0) {
-            // Show warning if minimum purchase not met
-            Alert.alert(
-              "Discount Not Applicable",
-              `Minimum purchase of ₱${selectedDiscount.minPurchase} required for this discount`
-            );
+            // Silently remove discount if minimum purchase not met (e.g., when items are removed)
+            // The discount will be hidden from the dropdown automatically
             setSelectedDiscountId("");
             discountValue = 0;
           }
@@ -524,6 +557,8 @@ const AddOrderForm = () => {
 
   // Create order
   const handleCreateOrder = async () => {
+    console.log("=== handleCreateOrder called ===");
+    try {
     Keyboard.dismiss();
 
     if (!customerName.trim()) {
@@ -537,19 +572,32 @@ const AddOrderForm = () => {
     }
 
     // Check if customer exists
-    if (!isExistingCustomer(customerName, customerPhone)) {
-      // Customer doesn't exist, show add customer modal
+      const customerExists = isExistingCustomer(customerName, customerPhone);
+      console.log("Customer exists check:", customerExists, "Name:", customerName, "Phone:", customerPhone);
+
+      if (!customerExists) {
+        // Customer doesn't exist, show confirmation modal first
       setPendingCustomerData({ name: customerName.trim(), phone: customerPhone.trim() });
-      setIsAddCustomerModalOpen(true);
+        console.log("Showing customer confirmation modal");
+        setShowCustomerConfirmationModal(true);
       return;
     }
 
     // Customer exists, proceed with order creation
+      console.log("Customer exists - proceeding with order creation");
     await createOrder();
+    } catch (error) {
+      console.error("Error in handleCreateOrder:", error);
+      Alert.alert("Error", "An error occurred. Please try again.");
+    }
   };
 
-  const createOrder = async () => {
+  const createOrder = async (skipCustomer: boolean = false) => {
     try {
+      // Use the passed parameter or fall back to state
+      const shouldSkip = skipCustomer || skipCustomerCreation;
+      console.log("createOrder called with skipCustomer:", skipCustomer, "shouldSkip:", shouldSkip);
+      
       // Validation: Only prevent negative amounts (overpayment is allowed)
       const paidValue = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
       
@@ -571,12 +619,14 @@ const AddOrderForm = () => {
           changeDue
         });
         setPendingOrderCreation(true);
+        // Store skip flag in overpayment data so it's preserved
+        setSkipCustomerCreation(shouldSkip);
         setShowOverpaymentModal(true);
         return;
       }
 
       // Normal payment, proceed with order creation
-      await createOrderConfirmed(paidValue);
+      await createOrderConfirmed(paidValue, shouldSkip);
     } catch (error: any) {
       console.error("Create order failed:", error);
       if (!error?.response) {
@@ -585,14 +635,17 @@ const AddOrderForm = () => {
     }
   };
 
-  const createOrderConfirmed = async (paidValue: number) => {
+  const createOrderConfirmed = async (paidValue: number, skipCustomer: boolean = false) => {
     try {
+      // Use the passed parameter or fall back to state
+      const shouldSkip = skipCustomer || skipCustomerCreation;
       console.log("=== Starting order creation ===");
       console.log("Order Services:", orderServices);
       console.log("Customer Name:", customerName);
       console.log("Customer Phone:", customerPhone);
       console.log("Paid Amount:", paidValue);
       console.log("Selected Discount ID:", selectedDiscountId);
+      console.log("skipCustomerCreation flag:", shouldSkip);
 
       // Prepare order items with proper unit handling
       // Note: Backend generates orderId automatically
@@ -650,7 +703,16 @@ const AddOrderForm = () => {
         orderData.notes = notes.trim();
       }
 
+      // Include stationId if available (many backends require it for staff orders)
+      if (userStation && String(userStation).trim() !== '') {
+        orderData.stationId = String(userStation).trim();
+      }
+
+      // Add skipCustomerCreation flag (always send it explicitly)
+      orderData.skipCustomerCreation = shouldSkip;
+
       console.log("Order data to send:", JSON.stringify(orderData, null, 2));
+      console.log("skipCustomerCreation flag being sent:", shouldSkip);
 
       const response = await addOrder(orderData);
       console.log("Order creation response:", response);
@@ -670,6 +732,7 @@ const AddOrderForm = () => {
       setPaymentStatus("Unpaid");
       setNotes("");
       setShowCustomerSuggestions(false);
+      setSkipCustomerCreation(false); // Reset the flag
       
       // Success modal
       setSuccessMessage("Order created successfully!");
@@ -700,9 +763,48 @@ const AddOrderForm = () => {
   };
 
   const handleCustomerAdded = (newCustomer: { _id: string; customerName: string; phoneNumber: string; email?: string }) => {
+    // Check if customer already exists in the list (avoid duplicates)
+    const customerExists = customers.some(c => 
+      c._id === newCustomer._id || 
+      (c.phoneNumber === newCustomer.phoneNumber && newCustomer.phoneNumber) ||
+      (c.customerName?.toLowerCase() === newCustomer.customerName?.toLowerCase() && newCustomer.customerName)
+    );
+    
+    if (!customerExists && newCustomer._id) {
+      // Only add if customer has an ID and doesn't already exist
     setCustomers([...customers, newCustomer]);
+    } else if (!customerExists && !newCustomer._id) {
+      // If no ID, try to find it in the existing list or refresh
+      console.log('Customer added but no ID provided, refreshing customers list...');
+      // Refresh customers list
+      const refreshCustomers = async () => {
+        try {
+          const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+          const headers: any = { 'Content-Type': 'application/json' };
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const customersRes = await axios.get(`${API_BASE_URL}/customers`, { headers });
+          const customersRaw = Array.isArray(customersRes.data)
+            ? customersRes.data
+            : customersRes.data?.data || customersRes.data?.customers || [];
+          const customersData = customersRaw
+            .filter((c: any) => c && (c.name || c.customerName))
+            .map((c: any) => ({
+              _id: c._id || c.id,
+              customerName: c.name || c.customerName || '',
+              phoneNumber: c.phone || c.phoneNumber || '',
+              email: c.email || '',
+            }));
+          setCustomers(customersData);
+        } catch (error) {
+          console.error('Error refreshing customers:', error);
+        }
+      };
+      refreshCustomers();
+    }
+    
     setIsAddCustomerModalOpen(false);
     setPendingCustomerData(null);
+    setSkipCustomerCreation(false); // Reset the flag when customer is added
     
     // After adding customer, create the order
     createOrder();
@@ -712,6 +814,21 @@ const AddOrderForm = () => {
     setIsAddCustomerModalOpen(false);
     setPendingCustomerData(null);
     Alert.alert("Info", "Order creation cancelled. Please add customer information first.");
+  };
+
+  const handleCustomerConfirmationYes = () => {
+    setShowCustomerConfirmationModal(false);
+    setIsAddCustomerModalOpen(true);
+  };
+
+  const handleCustomerConfirmationSkip = async () => {
+    console.log("=== handleCustomerConfirmationSkip called ===");
+    setShowCustomerConfirmationModal(false);
+    setPendingCustomerData(null);
+    setSkipCustomerCreation(true);
+    console.log("skipCustomerCreation set to: true");
+    // Pass the flag directly to avoid React state timing issues
+    await createOrder(true);
   };
 
   const handleSaveDraft = async () => {
@@ -887,7 +1004,41 @@ const AddOrderForm = () => {
     }
   };
 
-  const handlePrintSummary = () => {
+  const handlePrintSummary = async () => {
+    // Fetch station information if userStation is available
+    let stationInfo = null;
+    if (userStation) {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/stations`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const stations = await response.json();
+          const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+          const stationIdToMatch = String(userStation).toUpperCase().trim();
+          stationInfo = stationsArray.find((s: any) => {
+            const stationStationId = String(s.stationId || '').toUpperCase().trim();
+            const stationId = String(s._id || s.id || '').toUpperCase().trim();
+            return stationStationId === stationIdToMatch || stationId === stationIdToMatch;
+          });
+          if (stationInfo) {
+            console.log('Create order - Station found for receipt:', stationInfo);
+          }
+        }
+      } catch (stationError) {
+        console.warn('Create order - Could not fetch station info:', stationError);
+      }
+    }
+    
+    // Build station info strings
+    const stationName = stationInfo?.name ? ` - ${stationInfo.name}` : '';
+    const stationAddress = stationInfo?.address || '123 Laundry Street, Clean City';
+    const stationPhone = stationInfo?.phone ? `Phone: ${stationInfo.phone}` : 'Phone: +63 912 345 6789';
+    const companyName = `Sparklean Laundry Shop${stationName}`;
+    
     // Native path: use expo-print with thermal 58mm layout
     if (Platform.OS !== 'web') {
       try {
@@ -934,7 +1085,9 @@ const AddOrderForm = () => {
             </head>
             <body>
               <div class=\"ticket\">
-                <div class=\"center big\">La Bubbles Laundry Shop</div>
+                <div class=\"center big\">${companyName}</div>
+                <div class=\"center\" style=\"color:#6B7280;font-size:10px\">${stationAddress}</div>
+                <div class=\"center\" style=\"color:#6B7280;font-size:10px\">${stationPhone}</div>
                 <div class=\"center\" style=\"color:#6B7280;font-size:11px\">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
                 <div class=\"divider\"></div>
                 <div class=\"row\"><div class=\"big\">ITEMS</div><div></div></div>
@@ -1053,9 +1206,9 @@ const AddOrderForm = () => {
                 </svg>
               </div>
               <div class="company-details">
-                <h2>Sparklean Laundry Shop</h2>
-                <p>123 Laundry Street, Clean City</p>
-                <p>Phone: +63 912 345 6789</p>
+                <h2>${companyName}</h2>
+                <p>${stationAddress}</p>
+                <p>${stationPhone}</p>
               </div>
             </div>
             <div class="receipt-info">
@@ -1563,7 +1716,15 @@ const AddOrderForm = () => {
 
       {/* Success Modal for Create Order */}
       {showSuccessModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowSuccessModal(false)}>
+        <Modal 
+          visible={showSuccessModal} 
+          transparent 
+          animationType="fade" 
+          onRequestClose={() => {
+            setShowSuccessModal(false);
+            setSuccessMessage("");
+          }}
+        >
           <View style={styles.feedbackOverlay}>
             <View style={styles.feedbackCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1572,8 +1733,15 @@ const AddOrderForm = () => {
               </View>
               <Text style={styles.feedbackText}>{successMessage || 'Order created successfully!'}</Text>
               <View style={{ marginTop: 16, alignItems: 'flex-end' }}>
-                <TouchableOpacity style={styles.saveButton} onPress={() => setShowSuccessModal(false)}>
-                  <Text style={styles.saveButtonText}>OK</Text>
+                <TouchableOpacity 
+                  style={styles.createButton} 
+                  onPress={() => {
+                    setShowSuccessModal(false);
+                    setSuccessMessage("");
+                  }}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.createButtonText}>OK</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1688,11 +1856,22 @@ const AddOrderForm = () => {
                     containerStyle={styles.dropdownContainer}
                     data={services
                       .filter(s => !orderServices.find(os => os.serviceId === s._id))
+                      .sort((a, b) => {
+                        // Sort by popularity first (isPopular = true comes first)
+                        const aPopular = a.isPopular ? 1 : 0;
+                        const bPopular = b.isPopular ? 1 : 0;
+                        if (aPopular !== bPopular) {
+                          return bPopular - aPopular; // Popular services first
+                        }
+                        // Then sort by name
+                        return a.name.localeCompare(b.name);
+                      })
                       .map((s) => {
                       const unitLabel = s.unit === 'kg' ? 'kg' : s.unit === 'flat' ? 'flat' : 'item';
                       const price = s.price || s.base_price;
+                      const isPopular = s.isPopular || false;
                       return {
-                        label: `${s.name} - ₱${price}/${unitLabel}${s.category ? ` (${s.category})` : ''}`,
+                        label: `${s.name} - ₱${price}/${unitLabel}${s.category ? ` (${s.category})` : ''}${isPopular ? ' 🔥 Popular' : ''}`,
                         value: s._id
                       };
                     })}
@@ -1775,30 +1954,57 @@ const AddOrderForm = () => {
               <View style={styles.inputRow}>
                 <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
                   <Text style={styles.label}>Pickup Date</Text>
-                  <MaskInput
-                    style={styles.textInput}
-                    value={pickupDate}
-                    onChangeText={(masked) => setPickupDate(masked)}
-                    mask={[/\d/, /\d/, "/", /\d/, /\d/, "/", /\d/, /\d/, /\d/, /\d/]}
-                    keyboardType="numeric"
-                    placeholder="mm/dd/yyyy"
-              />
+                  <View style={styles.dateInputWrapper}>
+                    <MaskInput
+                      style={[styles.textInput, styles.dateInput]}
+                      value={pickupDate}
+                      onChangeText={(masked) => setPickupDate(masked)}
+                      mask={[/\d/, /\d/, "/", /\d/, /\d/, "/", /\d/, /\d/, /\d/, /\d/]}
+                      keyboardType="numeric"
+                      placeholder="mm/dd/yyyy"
+                    />
+                    <TouchableOpacity
+                      style={styles.todayButton}
+                      onPress={() => {
+                        const today = new Date();
+                        const month = String(today.getMonth() + 1).padStart(2, '0');
+                        const day = String(today.getDate()).padStart(2, '0');
+                        const year = today.getFullYear();
+                        setPickupDate(`${month}/${day}/${year}`);
+                      }}
+                    >
+                      <Text style={styles.todayButtonText}>Today</Text>
+                    </TouchableOpacity>
+                  </View>
             </View>
                 <View style={[styles.inputContainer, { flex: 1 }]}>
                   <Text style={styles.label}>Discount</Text>
             <Dropdown
                     style={styles.dropdown}
                     containerStyle={styles.dropdownContainer}
-                    data={[{ label: "No Discount", value: "" }, ...discountOptions.map(d => {
-                      const discountText = d.type === 'percentage' 
-                        ? `${d.code || d.name} - ${d.name} (${d.value}%)`
-                        : `${d.code || d.name} - ${d.name} (₱${d.value})`;
-                      const minPurchaseText = d.minPurchase > 0 ? ` (Min: ₱${d.minPurchase})` : '';
-                      return {
-                        label: discountText + minPurchaseText,
-                        value: d._id
-                      };
-                    })]}
+                    data={(() => {
+                      const currentSubtotal = orderServices.reduce((sum, item) => sum + item.amount, 0);
+                      const applicableDiscounts = discountOptions
+                        .filter(d => d.active !== false && !d.isArchived)
+                        .filter(d => {
+                          // Hide discounts that don't meet minimum purchase requirement
+                          if (d.minPurchase && d.minPurchase > 0) {
+                            return currentSubtotal >= d.minPurchase;
+                          }
+                          return true; // Show discounts with no minimum purchase requirement
+                        })
+                        .map(d => {
+                          const discountText = d.type === 'percentage' 
+                            ? `${d.code || d.name} - ${d.name} (${d.value}%)`
+                            : `${d.code || d.name} - ${d.name} (₱${d.value})`;
+                          const minPurchaseText = d.minPurchase > 0 ? ` (Min: ₱${d.minPurchase})` : '';
+                          return {
+                            label: discountText + minPurchaseText,
+                            value: d._id
+                          };
+                        });
+                      return [{ label: "No Discount", value: "" }, ...applicableDiscounts];
+                    })()}
               labelField="label"
               valueField="value"
                     placeholder={loadingDiscounts ? "Loading..." : "No Discount"}
@@ -2026,6 +2232,55 @@ const AddOrderForm = () => {
         </View>
       </ScrollView>
       
+      {/* Customer Confirmation Modal */}
+      <Modal
+        visible={showCustomerConfirmationModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCustomerConfirmationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmationModalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="person-add-outline" size={24} color="#2563EB" />
+                <Text style={styles.modalTitle}>New Customer Detected</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCustomerConfirmationModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <Text style={styles.confirmationMessage}>
+                The customer "{pendingCustomerData?.name}" is not in the system.
+              </Text>
+              <Text style={styles.confirmationQuestion}>
+                Do you want to add this customer to the system?
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={handleCustomerConfirmationSkip}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Maybe Next Time</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleCustomerConfirmationYes}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Yes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
       {/* Add Customer Modal */}
       <AddCustomerModal
         visible={isAddCustomerModalOpen}
@@ -2116,7 +2371,8 @@ const AddOrderForm = () => {
                 onPress={async () => {
                   setShowOverpaymentModal(false);
                   if (overpaymentData && pendingOrderCreation) {
-                    await createOrderConfirmed(overpaymentData.paidValue);
+                    // Preserve skipCustomerCreation flag when handling overpayment
+                    await createOrderConfirmed(overpaymentData.paidValue, skipCustomerCreation);
                   }
                   setOverpaymentData(null);
                   setPendingOrderCreation(false);
@@ -2141,115 +2397,112 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pageHeader: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
+    padding: spacing.xl,
+    backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border.light,
   },
   titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
+    ...typography.h2,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'Poppins_400Regular',
+    ...typography.body,
+    color: colors.text.secondary,
   },
   twoColumnLayout: {
     flexDirection: 'row',
-    padding: 16,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
     flexWrap: 'wrap',
   },
   leftColumn: {
     flex: 1,
     minWidth: 400,
-    gap: 16,
+    gap: spacing.lg,
   },
   rightColumn: {
     width: 380,
     minWidth: 300,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+    ...cardStyles.base,
     overflow: 'visible',
     zIndex: 1,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    fontFamily: 'Poppins_600SemiBold',
+    ...typography.h4,
   },
   divider: {
-    height: 1,
-    backgroundColor: '#F59E0B',
-    marginBottom: 16,
+    height: 2,
+    backgroundColor: colors.accent[500],
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.sm,
   },
   inputRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
     alignItems: 'flex-start',
     overflow: 'visible',
     zIndex: 1,
   },
   inputContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 6,
-    fontFamily: 'Poppins_500Medium',
+    ...typography.label,
+    marginBottom: spacing.xs + 2,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
-    fontFamily: 'Poppins_400Regular',
+    ...inputStyles.base,
+  },
+  dateInputWrapper: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateInput: {
+    flex: 1,
+    paddingRight: 70, // Make room for the "Today" button
+  },
+  todayButton: {
+    position: 'absolute',
+    right: spacing.sm,
+    backgroundColor: colors.primary[500],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.md,
+    zIndex: 10,
+    ...buttonStyles.primary,
+    minHeight: undefined,
+    paddingVertical: spacing.xs + 2,
+  },
+  todayButtonText: {
+    color: colors.text.inverse,
+    fontSize: typography.caption.fontSize,
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
   dropdown: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    minHeight: 44,
-    fontFamily: 'Poppins_400Regular',
+    ...inputStyles.base,
+    minHeight: inputStyles.base.minHeight,
   },
   dropdownContainer: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    marginTop: 4,
+    borderRadius: borderRadius.lg,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    marginTop: spacing.xs,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -2335,21 +2588,12 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   addServiceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
-    height: 44,
-    borderRadius: 8,
-    gap: 6,
+    ...buttonStyles.primary,
     alignSelf: 'auto',
-    marginTop: 26,
+    marginTop: spacing.xl + 2,
   },
   addServiceButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
   },
   servicesListTitle: {
     fontSize: 16,
@@ -2540,38 +2784,18 @@ const styles = StyleSheet.create({
     minHeight: 100,
   },
   createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563EB',
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 8,
+    ...buttonStyles.primary,
+    marginBottom: spacing.sm,
   },
   createButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
   },
   secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 8,
+    ...buttonStyles.secondary,
+    marginBottom: spacing.sm,
   },
   secondaryButtonText: {
-    color: '#6B7280',
-    fontWeight: '500',
-    fontSize: 14,
-    fontFamily: 'Poppins_500Medium',
+    ...buttonStyles.secondaryText,
   },
   successBanner: {
     flexDirection: 'row',
@@ -2627,6 +2851,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
   },
+  saveButtonText: {
+    ...buttonStyles.primaryText,
+  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2640,9 +2867,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   textInputError: {
-    borderColor: '#DC2626',
-    borderWidth: 2,
-    backgroundColor: '#FEF2F2',
+    ...inputStyles.error,
   },
   hintText: {
     fontSize: 12,
@@ -2692,6 +2917,17 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   overpaymentModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  confirmationModalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     width: '100%',
@@ -2798,6 +3034,37 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
+  },
+  confirmationMessage: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  confirmationQuestion: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#2563EB',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  modalButtonTextPrimary: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalButtonTextSecondary: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
   },
 });
 

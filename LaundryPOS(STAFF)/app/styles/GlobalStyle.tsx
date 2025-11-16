@@ -176,13 +176,13 @@ export default StyleSheet.create({
     alignSelf: "center",
   },
 
-  // 🔹 Base Card
+  // 🔹 Base Card (Enhanced with design system)
   cardSection: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 0.5,
-    borderColor: "rgba(210,210,210,0.8)",
+    borderRadius: 16, // Increased from 12 for modern look
+    padding: 16, // Increased from 10 for better spacing
+    borderWidth: 1,
+    borderColor: "#E5E7EB", // Using design system color
     justifyContent: "space-between",
 
     flexGrow: 1,
@@ -192,11 +192,11 @@ export default StyleSheet.create({
     minWidth: 200,
     maxWidth: "100%",
 
-    // Shadow
+    // Enhanced Shadow
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
   },
 

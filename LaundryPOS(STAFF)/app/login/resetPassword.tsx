@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { API_BASE_URL } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
+import { checkPasswordStrength, generateStrongPassword, PasswordStrength } from "@/app/utils/passwordStrength";
 
 export default function ResetPassword() {
   const router = useRouter();
@@ -14,10 +15,28 @@ export default function ResetPassword() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Check password strength
+  const passwordStrength = useMemo(() => {
+    if (!password) return null;
+    return checkPasswordStrength(password);
+  }, [password]);
+
+  const handleSuggestPassword = () => {
+    const suggested = generateStrongPassword(16);
+    setPassword(suggested);
+    setConfirm(suggested);
+    setError(null);
+  };
 
   const validatePassword = (p: string) => {
-    if (p.length < 8) return "Password must be at least 8 characters";
-    if (!/\d/.test(p)) return "Password must include at least one number";
+    if (!p) return "Password is required";
+    const strength = checkPasswordStrength(p);
+    if (!strength.isValid) {
+      return strength.feedback[0] || "Password does not meet requirements";
+    }
     return null;
   };
 
@@ -62,7 +81,7 @@ export default function ResetPassword() {
 };
 
 
-  const isDisabled = !!validatePassword(password) || password !== confirm || !password || !confirm;
+  const isDisabled = !!validatePassword(password) || password !== confirm || !password || !confirm || (passwordStrength && !passwordStrength.isValid);
 
   return (
     <LinearGradient colors={["#DBEAFE", "#FED7AA"]} style={styles.bg}>
@@ -77,8 +96,59 @@ export default function ResetPassword() {
             <View style={styles.labelRow}>
               <Ionicons name="lock-closed-outline" size={14} color="#6B7280" />
               <Text style={styles.label}>New Password</Text>
+              <TouchableOpacity 
+                onPress={handleSuggestPassword}
+                style={styles.suggestBtn}
+              >
+                <Ionicons name="sparkles-outline" size={14} color="#3B82F6" />
+                <Text style={styles.suggestText}>Suggest</Text>
+              </TouchableOpacity>
             </View>
-            <TextInput style={styles.input} value={password} onChangeText={(t) => { setPassword(t); if (error) setError(null); }} secureTextEntry placeholder="Enter new password" placeholderTextColor="#9CA3AF" />
+            <View style={styles.passwordInputContainer}>
+              <TextInput 
+                style={styles.passwordInput} 
+                value={password} 
+                onChangeText={(t) => { setPassword(t); if (error) setError(null); }} 
+                secureTextEntry={!showPassword}
+                placeholder="Enter new password" 
+                placeholderTextColor="#9CA3AF" 
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  size={20}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
+            {passwordStrength && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBar}>
+                  <View 
+                    style={[
+                      styles.strengthFill,
+                      {
+                        width: `${passwordStrength.score}%`,
+                        backgroundColor: getStrengthColor(passwordStrength.strength)
+                      }
+                    ]} 
+                  />
+                </View>
+                <View style={styles.strengthInfo}>
+                  <Text style={[styles.strengthText, { color: getStrengthColor(passwordStrength.strength) }]}>
+                    {passwordStrength.strength.toUpperCase()}
+                  </Text>
+                  {passwordStrength.feedback.length > 0 && (
+                    <Text style={styles.strengthFeedback}>
+                      {passwordStrength.feedback[0]}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -86,7 +156,26 @@ export default function ResetPassword() {
               <Ionicons name="lock-closed-outline" size={14} color="#6B7280" />
               <Text style={styles.label}>Confirm Password</Text>
             </View>
-            <TextInput style={styles.input} value={confirm} onChangeText={(t) => { setConfirm(t); if (error) setError(null); }} secureTextEntry placeholder="Confirm new password" placeholderTextColor="#9CA3AF" />
+            <View style={styles.passwordInputContainer}>
+              <TextInput 
+                style={styles.passwordInput} 
+                value={confirm} 
+                onChangeText={(t) => { setConfirm(t); if (error) setError(null); }} 
+                secureTextEntry={!showConfirmPassword}
+                placeholder="Confirm new password" 
+                placeholderTextColor="#9CA3AF" 
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                  size={20}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -133,6 +222,17 @@ export default function ResetPassword() {
   );
 }
 
+const getStrengthColor = (strength: PasswordStrength | null): string => {
+  if (!strength) return '#E5E7EB';
+  switch (strength) {
+    case 'weak': return '#EF4444';
+    case 'fair': return '#F59E0B';
+    case 'good': return '#3B82F6';
+    case 'strong': return '#10B981';
+    default: return '#E5E7EB';
+  }
+}
+
 const styles = StyleSheet.create({
   bg:{ flex:1 },
   container:{ flex:1, alignItems:'center', justifyContent:'center' },
@@ -143,13 +243,24 @@ const styles = StyleSheet.create({
   labelRow:{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 },
   label:{ fontSize:13, fontWeight:'600', color:'#374151', fontFamily:'Poppins_600SemiBold' },
   input:{ borderWidth:2, borderColor:'#E5E7EB', borderRadius:10, paddingVertical:11, paddingHorizontal:14, fontSize:16, backgroundColor:'#F9FAFB', color:'#111827', fontFamily:'Poppins_400Regular' },
+  passwordInputContainer:{ position:'relative', width:'100%' },
+  passwordInput:{ borderWidth:2, borderColor:'#E5E7EB', borderRadius:10, paddingVertical:11, paddingLeft:14, paddingRight:44, fontSize:16, backgroundColor:'#F9FAFB', color:'#111827', fontFamily:'Poppins_400Regular', width:'100%' },
+  eyeIcon:{ position:'absolute', right:12, top:'50%', transform:[{ translateY:-10 }], padding:4 },
   errorText:{ color:'#dc2626', marginTop:8, fontSize:12, width:'100%', textAlign:'left' },
   actionsRow:{ flexDirection:'row', gap:12, marginTop:16, width:'100%', justifyContent:'flex-end' },
   backBtn:{ paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#E5E7EB' },
   backText:{ color:'#374151', fontWeight:'700', fontFamily:'Poppins_700Bold' },
   primaryBtn:{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#3B82F6' },
   primaryDisabled:{ backgroundColor:'#9fb7f7' },
-  primaryText:{ color:'#FFFFFF', fontWeight:'700', fontFamily:'Poppins_700Bold' }
+  primaryText:{ color:'#FFFFFF', fontWeight:'700', fontFamily:'Poppins_700Bold' },
+  suggestBtn:{ flexDirection:'row', alignItems:'center', gap:4, paddingVertical:4, paddingHorizontal:8, borderRadius:6, backgroundColor:'#EFF6FF', marginLeft:'auto' },
+  suggestText:{ color:'#3B82F6', fontSize:12, fontWeight:'600', fontFamily:'Poppins_600SemiBold' },
+  strengthContainer:{ marginTop:8 },
+  strengthBar:{ height:4, backgroundColor:'#E5E7EB', borderRadius:2, overflow:'hidden', marginBottom:6 },
+  strengthFill:{ height:'100%', borderRadius:2 },
+  strengthInfo:{ flexDirection:'row', alignItems:'center', gap:8 },
+  strengthText:{ fontSize:11, fontWeight:'700', fontFamily:'Poppins_700Bold' },
+  strengthFeedback:{ fontSize:11, color:'#6B7280', fontFamily:'Poppins_400Regular', flex:1 }
   ,
   // Success Modal styles
   modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center' },

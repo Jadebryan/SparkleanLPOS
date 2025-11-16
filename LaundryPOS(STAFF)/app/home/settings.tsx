@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/constants/api';
 import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
+import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, inputStyles } from '@/app/theme/designSystem';
 
 type UserProfile = {
   _id?: string;
@@ -641,6 +642,7 @@ export default function Settings() {
               )}
               </View>
               )}
+
             </View>
           </View>
         </ScrollView>
@@ -751,19 +753,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
-    fontFamily: 'Poppins_400Regular',
+    ...inputStyles.base,
   },
   inputDisabled: {
-    backgroundColor: '#F3F4F6',
-    color: '#6B7280',
+    ...inputStyles.disabled,
   },
   passwordInputContainer: {
     flexDirection: 'row',
@@ -790,24 +783,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#2563EB',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 8,
+    ...buttonStyles.primary,
+    marginTop: spacing.sm,
   },
   saveButtonDisabled: {
-    opacity: 0.6,
+    ...buttonStyles.disabled,
   },
   saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
   },
   successBanner: {
     flexDirection: 'row',
@@ -873,16 +856,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
+    ...typography.h1,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'Poppins_400Regular',
+    ...typography.body,
+    color: colors.text.secondary,
   },
   currentEmailValue: {
     fontSize: 16,

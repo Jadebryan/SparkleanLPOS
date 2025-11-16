@@ -41,6 +41,8 @@ type Order = {
   lastEditedBy?: any;
   lastEditedAt?: string | Date;
   stationId?: string;
+  isCompleted?: boolean;
+  __raw?: any;
 };
 
 type ViewTransactionProps = {
@@ -95,7 +97,14 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
       } else {
         setOrderStatus("Pending");
       }
-      setIsEditing(initialEditMode);
+      
+      // If order is completed, force editing to false
+      if (isOrderCompleted()) {
+        setIsEditing(false);
+      } else {
+        setIsEditing(initialEditMode);
+      }
+      
       const initialPaid = orderData.paid || orderData.amountPaid || 0;
       setFinalPaidInput("");
       setOriginalPayment(orderData.payment || orderData.feeStatus || "Unpaid");
@@ -123,6 +132,13 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
 
   const handleSave = async () => {
     if (!orderData) return;
+
+    // Check if order is completed and locked
+    if (isOrderCompleted()) {
+      Alert.alert("Order Locked", "This order has been marked as completed and cannot be edited.");
+      setIsEditing(false);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -218,9 +234,23 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
       console.log("Update response:", response.status, data);
 
       if (response.ok) {
+        // Check if order is now completed from the response
+        const updatedOrderData = data.data || data;
+        if (updatedOrderData?.isCompleted) {
+          // Update the orderData prop by calling onOrderUpdated which will refresh the list
+          // and the parent will update selectedOrder with the new data
+          console.log("Order is now completed and locked");
+        }
+        
         setSuccessMessage("Order updated successfully!");
         setShowSuccessModal(true);
         setIsEditing(false);
+        
+        // Force exit edit mode if order is completed
+        if (updatedOrderData?.isCompleted) {
+          setIsEditing(false);
+        }
+        
         if (onOrderUpdated) {
           onOrderUpdated();
         }
@@ -238,6 +268,12 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
   };
 
   const handleEdit = () => {
+    // Check if order is completed and locked
+    if (isOrderCompleted()) {
+      Alert.alert("Order Locked", "This order has been marked as completed and cannot be edited.");
+      setIsEditing(false);
+      return;
+    }
     setIsEditing(true);
   };
 
@@ -248,6 +284,11 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
   };
 
   if (!orderData) return null;
+
+  // Helper function to check if order is completed
+  const isOrderCompleted = () => {
+    return orderData.isCompleted || (orderData as any)?.__raw?.isCompleted || false;
+  };
 
   const formatDate = (dateStr?: string | Date) => {
     if (!dateStr) return "N/A";
@@ -345,15 +386,36 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
               <View style={styles.detailColumn}>
                 <DetailCard label="ORDER ID" value={getOrderId()} />
                 <DetailCard label="CUSTOMER NAME" value={getCustomerName()} />
-                <DetailCard 
-                  label="PAYMENT STATUS" 
-                  value={paymentStatus}
-                  editable={isEditing && paymentStatus !== 'Paid' && originalPayment !== 'Paid'}
-                  type="select"
-                  options={["Unpaid", "Partial", "Paid"]}
-                  selectedValue={paymentStatus}
-                  onValueChange={setPaymentStatus}
-                />
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailLabel}>PAYMENT STATUS</Text>
+                  <DetailCard 
+                    label="" 
+                    value={paymentStatus}
+                    editable={isEditing && !isOrderCompleted()}
+                    type="select"
+                    options={["Unpaid", "Partial", "Paid"]}
+                    selectedValue={paymentStatus}
+                    onValueChange={setPaymentStatus}
+                  />
+                  {isOrderCompleted() && (
+                    <View style={{ 
+                      marginTop: 8,
+                      padding: 8, 
+                      backgroundColor: '#FEF3C7', 
+                      borderWidth: 1, 
+                      borderColor: '#F59E0B', 
+                      borderRadius: 6,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6
+                    }}>
+                      <Ionicons name="lock-closed" size={14} color="#92400E" />
+                      <Text style={{ color: '#92400E', fontSize: 12, flex: 1 }}>
+                        This order is paid and locked from editing
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 {orderData.stationId && (
                   <DetailCard 
                     label="STATION/BRANCH" 
@@ -373,7 +435,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                   value={`₱${(orderData.paid || orderData.amountPaid || 0).toFixed(2)}`}
                   amount
                 />
-                {(isEditing && paymentStatus === 'Paid' && originalPayment !== 'Paid') || (isEditing && paymentStatus === 'Partial') ? (
+                {((isEditing && paymentStatus === 'Paid' && originalPayment !== 'Paid') || (isEditing && paymentStatus === 'Partial')) && !isOrderCompleted() ? (
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>{paymentStatus === 'Partial' ? 'PARTIAL PAYMENT' : 'FINAL PAYMENT'}</Text>
                     <TextInput
@@ -382,6 +444,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                       onChangeText={(txt)=> setFinalPaidInput(txt)}
                       placeholder="0.00"
                       style={{ borderWidth:1, borderColor:'#E5E7EB', borderRadius:6, paddingHorizontal:12, height:40 }}
+                      editable={!isOrderCompleted()}
                     />
                     <Text style={{ marginTop:6, fontSize:12, color:'#6B7280' }}>
                       {(() => {
@@ -414,15 +477,36 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                     </Text>
                   </View>
                 )}
-                <DetailCard 
-                  label="ORDER STATUS" 
-                  value={orderStatus}
-                editable={isEditing}
-                  type="select"
-                  options={["Pending", "In Progress", "Ready for Pickup", "Completed"]}
-                  selectedValue={orderStatus}
-                  onValueChange={setOrderStatus}
-              />
+                <View style={styles.detailCard}>
+                  <Text style={styles.detailLabel}>ORDER STATUS</Text>
+                  <DetailCard 
+                    label="" 
+                    value={orderStatus}
+                    editable={isEditing && !isOrderCompleted()}
+                    type="select"
+                    options={["Pending", "In Progress", "Ready for Pickup", "Completed"]}
+                    selectedValue={orderStatus}
+                    onValueChange={setOrderStatus}
+                  />
+                  {isOrderCompleted() && (
+                    <View style={{ 
+                      marginTop: 8,
+                      padding: 8, 
+                      backgroundColor: '#FEF3C7', 
+                      borderWidth: 1, 
+                      borderColor: '#F59E0B', 
+                      borderRadius: 6,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6
+                    }}>
+                      <Ionicons name="lock-closed" size={14} color="#92400E" />
+                      <Text style={{ color: '#92400E', fontSize: 12, flex: 1 }}>
+                        This order is completed and locked from editing
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -479,7 +563,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 <Text style={styles.secondaryButtonText}>View Invoice</Text>
               </TouchableOpacity>
             )}
-            {!isEditing ? (
+            {!isEditing && !isOrderCompleted() && (
               <TouchableOpacity 
                 onPress={handleEdit} 
                 style={[styles.footerButton, styles.secondaryButton]}
@@ -487,7 +571,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 <Ionicons name="create-outline" size={18} color="#374151" style={{ marginRight: 8 }} />
                 <Text style={styles.secondaryButtonText}>Edit</Text>
               </TouchableOpacity>
-          ) : (
+            )}
+            {isEditing && (
               <TouchableOpacity 
                 onPress={handleSave} 
                 style={[styles.footerButton, styles.primaryButton]}

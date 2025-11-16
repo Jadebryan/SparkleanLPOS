@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
+import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
 
 // Components
 import ModernSidebar from './components/ModernSidebar';
@@ -44,6 +45,8 @@ export default function Customer() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const spinValue = useRef(new Animated.Value(0)).current;
 
   // Load stats visibility preference from AsyncStorage
   useEffect(() => {
@@ -111,13 +114,31 @@ export default function Customer() {
   };
 
   const handleReset = async () => {
-    // Reset all filters (keep stats preference)
-    setSearchTerm("");
-    setSortBy('name-asc');
-    // Don't reset showStats - let it use saved preference
-    // Force refresh of customer data
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 500);
+    // Refresh customer data
+    setIsRefreshing(true);
+    
+    // Start spinning animation
+    spinValue.setValue(0);
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start();
+    
+    try {
+      // Increment refreshTrigger to force CustomerTable to remount and fetch fresh data
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error('Error refreshing customers:', error);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+        spinValue.stopAnimation();
+        spinValue.setValue(0);
+      }, 1000);
+    }
   };
 
   const handleExport = (format: 'CSV' | 'Excel' | 'JSON' | 'PDF') => {
@@ -220,9 +241,24 @@ export default function Customer() {
             <TouchableOpacity 
               style={styles.actionButton} 
               onPress={handleReset}
-              title="Reset filters"
+              disabled={isRefreshing}
             >
-              <Ionicons name="refresh-outline" size={18} color="#6B7280" />
+              <Animated.View
+                style={{
+                  transform: [{
+                    rotate: spinValue.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  }],
+                }}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={18} 
+                  color={isRefreshing ? "#9CA3AF" : "#6B7280"}
+                />
+              </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.actionButton, !showStats && styles.actionButtonActive]} 
@@ -429,10 +465,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
+    padding: spacing.xl,
+    backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border.light,
   },
   titleSection: {
     flex: 1,
@@ -440,21 +476,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pageTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
+    ...typography.h2,
+    marginBottom: spacing.xs,
   },
   pageSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'Poppins_400Regular',
+    ...typography.body,
+    color: colors.text.secondary,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   actionButton: {
     flexDirection: 'row',
@@ -472,19 +504,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
   },
   primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
+    ...buttonStyles.primary,
   },
   primaryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
   },
   scrollView: {
     flex: 1,
@@ -565,24 +588,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   exportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563EB',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    ...buttonStyles.primary,
   },
   exportButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
-    marginLeft: 8,
-    fontFamily: 'Poppins_600SemiBold',
+    ...buttonStyles.primaryText,
+    marginLeft: spacing.sm,
   },
   exportDropdownOverlay: {
     flex: 1,
