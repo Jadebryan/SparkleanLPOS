@@ -1,6 +1,7 @@
 const Expense = require('../models/ExpenseModel');
 const User = require('../models/UserModel');
 const NotificationController = require('./NotificationController');
+const cloudinaryService = require('../utils/cloudinaryService');
 
 class ExpenseController {
   // Get all expenses with role-based filtering
@@ -102,6 +103,23 @@ class ExpenseController {
         });
       }
 
+      // Upload images to Cloudinary if provided
+      let imageUrls = [];
+      if (images && Array.isArray(images) && images.length > 0) {
+        try {
+          const expenseId = `expense_${Date.now()}`;
+          const baseFileName = `expense_${expenseId}_${category}_${amount}`;
+          imageUrls = await cloudinaryService.uploadImages(images, baseFileName);
+          console.log(`✅ Uploaded ${imageUrls.length} images to Cloudinary for expense`);
+        } catch (uploadError) {
+          console.error('Error uploading images to Cloudinary:', uploadError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to upload images. Please try again.'
+          });
+        }
+      }
+
       const expense = new Expense({
         date: date || new Date(),
         category,
@@ -109,7 +127,7 @@ class ExpenseController {
         amount,
         requestedBy: req.user._id,
         receipt: receipt || '',
-        images: images || [],
+        images: imageUrls, // Store Cloudinary URLs instead of base64
         status: 'Pending',
         stationId: req.user.stationId || null
       });
@@ -194,7 +212,24 @@ class ExpenseController {
       if (description) expense.description = description;
       if (amount !== undefined) expense.amount = amount;
       if (receipt !== undefined) expense.receipt = receipt;
-      if (images !== undefined) expense.images = images;
+      // Upload images to Cloudinary if provided
+      if (images !== undefined && Array.isArray(images) && images.length > 0) {
+        try {
+          const expenseId = expense._id.toString();
+          const baseFileName = `expense_${expenseId}_${category || expense.category}_${amount || expense.amount}`;
+          const imageUrls = await cloudinaryService.uploadImages(images, baseFileName);
+          expense.images = imageUrls;
+          console.log(`✅ Uploaded ${imageUrls.length} images to Cloudinary for expense update`);
+        } catch (uploadError) {
+          console.error('Error uploading images to Cloudinary:', uploadError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to upload images. Please try again.'
+          });
+        }
+      } else if (images !== undefined) {
+        expense.images = [];
+      }
 
       await expense.save();
       await expense.populate('requestedBy', 'username email');
@@ -430,13 +465,26 @@ class ExpenseController {
         });
       }
 
-      // Add receipts with timestamps (separate from initial proof images)
+      // Upload receipt images to Cloudinary if provided
       if (images && Array.isArray(images) && images.length > 0) {
-        const newReceipts = images.map(image => ({
-          image: image,
-          uploadedAt: new Date()
-        }));
-        expense.receipts = [...(expense.receipts || []), ...newReceipts];
+        try {
+          const expenseId = expense._id.toString();
+          const baseFileName = `receipt_${expenseId}_${Date.now()}`;
+          const receiptUrls = await cloudinaryService.uploadImages(images, baseFileName);
+          
+          const newReceipts = receiptUrls.map(url => ({
+            image: url, // Store Cloudinary URL
+            uploadedAt: new Date()
+          }));
+          expense.receipts = [...(expense.receipts || []), ...newReceipts];
+          console.log(`✅ Uploaded ${receiptUrls.length} receipt images to Cloudinary`);
+        } catch (uploadError) {
+          console.error('Error uploading receipt images to Cloudinary:', uploadError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to upload receipt images. Please try again.'
+          });
+        }
       }
 
       // Update receipt if provided (legacy support)
@@ -588,9 +636,21 @@ class ExpenseController {
       expense.approvedBy = null;
       expense.approvedAt = null;
       
-      // Add appeal images if provided
+      // Upload appeal images to Cloudinary if provided
       if (appealImages && Array.isArray(appealImages) && appealImages.length > 0) {
-        expense.appealImages = appealImages;
+        try {
+          const expenseId = expense._id.toString();
+          const baseFileName = `appeal_${expenseId}_${Date.now()}`;
+          const appealImageUrls = await cloudinaryService.uploadImages(appealImages, baseFileName);
+          expense.appealImages = appealImageUrls; // Store Cloudinary URLs
+          console.log(`✅ Uploaded ${appealImageUrls.length} appeal images to Cloudinary`);
+        } catch (uploadError) {
+          console.error('Error uploading appeal images to Cloudinary:', uploadError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to upload appeal images. Please try again.'
+          });
+        }
       } else {
         expense.appealImages = [];
       }

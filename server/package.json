@@ -6,17 +6,29 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "generate-cert": "node scripts/generateSelfSignedCert.js",
+    "backup": "node scripts/backup.js",
+    "backup:list": "node scripts/backup.js --list",
+    "backup:stats": "node scripts/backup.js --stats",
+    "backup:cleanup": "node scripts/backup.js --cleanup",
+    "restore": "node scripts/restore.js"
   },
   "dependencies": {
+    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "body-parser": "^2.2.0",
+    "cloudinary": "^2.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
+    "googleapis": "^165.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
     "nodemailer": "^7.0.10",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "pdfkit": "^0.17.2",
+    "puppeteer": "^24.29.1",
+    "twilio": "^5.10.4"
   }
 }

@@ -1,6 +1,7 @@
 const Customer = require('../models/CustomerModel');
 const User = require('../models/UserModel');
 const NotificationController = require('./NotificationController');
+const auditLogger = require('../utils/auditLogger');
 
 class CustomerController {
   // Get all customers (both admin and staff can view)
@@ -120,7 +121,7 @@ class CustomerController {
   // Create customer (both admin and staff can create)
   static async createCustomer(req, res) {
     try {
-      const { name, email, phone, notes } = req.body;
+      const { name, email, phone, notes, stationId: stationIdFromBody } = req.body;
 
       if (!name || !phone) {
         return res.status(400).json({
@@ -144,16 +145,20 @@ class CustomerController {
       if (existingCustomer) {
         return res.status(409).json({
           success: false,
-          message: 'Customer with this phone or email already exists'
+          message: 'Customer with this phone or email already exists',
+          data: existingCustomer // Include existing customer data
         });
       }
+
+      // Use the same station ID logic: prefer stationId from body (admin selecting branch), then user's stationId, then null
+      const customerStationId = stationIdFromBody || req.user.stationId || null;
 
       const customer = new Customer({
         name,
         email: email?.toLowerCase(),
         phone,
         notes: notes || '',
-        stationId: req.user.stationId || null
+        stationId: customerStationId
       });
 
       await customer.save();
@@ -173,6 +178,18 @@ class CustomerController {
       } catch (notifyErr) {
         console.error('Notification (customer create) error:', notifyErr);
       }
+
+      // Log audit event
+      await auditLogger.logDataModification('create', req.user._id, 'customer', customer._id.toString(), {
+        method: req.method,
+        endpoint: req.originalUrl || req.url,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        status: 'success',
+        changes: { name, phone, email }
+      }).catch(err => console.error('Audit logging error:', err));
 
       res.status(201).json({
         success: true,
@@ -252,6 +269,18 @@ class CustomerController {
       } catch (notifyErr) {
         console.error('Notification (customer update) error:', notifyErr);
       }
+
+      // Log audit event
+      await auditLogger.logDataModification('update', req.user._id, 'customer', id, {
+        method: req.method,
+        endpoint: req.originalUrl || req.url,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        status: 'success',
+        changes: { name, phone, email }
+      }).catch(err => console.error('Audit logging error:', err));
 
       res.status(200).json({
         success: true,
@@ -388,6 +417,18 @@ class CustomerController {
           message: 'Customer not found'
         });
       }
+
+      // Log audit event
+      await auditLogger.logDataModification('delete', req.user._id, 'customer', id, {
+        method: req.method,
+        endpoint: req.originalUrl || req.url,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        status: 'success',
+        changes: { name: customer.name, phone: customer.phone }
+      }).catch(err => console.error('Audit logging error:', err));
 
       res.status(200).json({
         success: true,

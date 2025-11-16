@@ -266,15 +266,26 @@ class EmployeeController {
       if (hireDate) employee.hireDate = hireDate;
       if (email) employee.email = email.toLowerCase();
       if (phone !== undefined) employee.phone = phone;
+      const previousStatus = employee.status;
       if (status) employee.status = status;
       if (notes !== undefined) employee.notes = notes;
       if (stationId !== undefined) employee.stationId = stationId;
 
       await employee.save();
 
-      // Update User's stationId if employee has a linked user account
-      if (employee.userId && stationId !== undefined) {
-        await User.findByIdAndUpdate(employee.userId, { stationId: stationId || null });
+      // Update linked User document when employee is edited
+      if (employee.userId) {
+        const userUpdates = {};
+        if (stationId !== undefined) {
+          userUpdates.stationId = stationId || null;
+        }
+        // If status changed, reflect it in User.isActive so login/access is enforced server-side
+        if (status && status !== previousStatus) {
+          userUpdates.isActive = status === 'Active';
+        }
+        if (Object.keys(userUpdates).length > 0) {
+          await User.findByIdAndUpdate(employee.userId, userUpdates);
+        }
       }
 
       res.status(200).json({

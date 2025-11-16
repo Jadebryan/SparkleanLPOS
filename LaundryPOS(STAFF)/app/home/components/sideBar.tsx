@@ -3,6 +3,8 @@ import { View, TouchableOpacity, Image, Alert } from "react-native";
 import GlobalStyles from "../../styles/GlobalStyle";
 import { useRouter, usePathname } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { API_BASE_URL } from "@/constants/api";
 
 // Define literal route types
 type RouteLiteral =
@@ -29,6 +31,19 @@ const SideBar: React.FC = () => {
   // Async logout and navigate to login
   const logoutAndRedirect = async () => {
     try {
+      // Call logout API to log the audit event
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (token) {
+        try {
+          await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (apiError) {
+          // Log error but continue with logout even if API fails
+          console.error('Logout API error (continuing with local logout):', apiError);
+        }
+      }
+      
       // Remove all user session data
       await AsyncStorage.multiRemove(["token", "userToken", "user"]);
       

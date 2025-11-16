@@ -1,5 +1,15 @@
 {
-  "plugins": [
-    "expo-font"
-  ]
+  "expo": {
+    "plugins": [
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "This app uses location to help admin track staff positions.",
+          "locationAlwaysPermission": "This app uses location to help admin track staff positions.",
+          "locationWhenInUsePermission": "This app uses location to help admin track staff positions."
+        }
+      ]
+    ]
+  }
 }

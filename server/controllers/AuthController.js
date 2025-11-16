@@ -1,8 +1,11 @@
 const User = require("../models/UserModel");
 const bcrypt = require("bcryptjs");
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/emailService");
 const { verifyRecaptchaV3 } = require('../utils/recaptcha');
+const auditLogger = require('../utils/auditLogger');
+const logger = require('../utils/logger');
 require('dotenv').config();
 
 // Generate JWT token
@@ -12,6 +15,72 @@ const generateToken = (userId) => {
     process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
     { expiresIn: process.env.JWT_EXPIRE || '7d' }
   );
+};
+
+// Reverse geocode coordinates to address using OpenStreetMap Nominatim API
+const reverseGeocode = async (latitude, longitude) => {
+  try {
+    // Use OpenStreetMap Nominatim API (free, no API key required)
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        lat: latitude,
+        lon: longitude,
+        format: 'json',
+        addressdetails: 1
+      },
+      headers: {
+        'User-Agent': 'LaundryPOS-App/1.0' // Required by Nominatim
+      },
+      timeout: 5000 // 5 second timeout
+    });
+
+    if (response.data && response.data.address) {
+      const addr = response.data.address;
+      // Build a readable address string
+      const addressParts = [];
+      
+      // Add street address if available
+      if (addr.road) {
+        if (addr.house_number) {
+          addressParts.push(`${addr.house_number} ${addr.road}`);
+        } else {
+          addressParts.push(addr.road);
+        }
+      }
+      
+      // Add city/town/suburb
+      if (addr.city) {
+        addressParts.push(addr.city);
+      } else if (addr.town) {
+        addressParts.push(addr.town);
+      } else if (addr.suburb) {
+        addressParts.push(addr.suburb);
+      }
+      
+      // Add state/province
+      if (addr.state) {
+        addressParts.push(addr.state);
+      }
+      
+      // Add postal code
+      if (addr.postcode) {
+        addressParts.push(addr.postcode);
+      }
+      
+      // Add country
+      if (addr.country) {
+        addressParts.push(addr.country);
+      }
+
+      return addressParts.join(', ') || response.data.display_name || null;
+    }
+
+    return response.data.display_name || null;
+  } catch (error) {
+    console.error('Reverse geocoding error:', error.message);
+    // Return coordinates as fallback address
+    return `${latitude}, ${longitude}`;
+  }
 };
 
 class AuthController {
@@ -106,22 +175,36 @@ class AuthController {
         });
       }
 
-      // reCAPTCHA v3 validation (required if secret key configured)
-      if (process.env.RECAPTCHA_SECRET_KEY) {
-        if (!recaptchaToken) {
-          return res.status(400).json({ success: false, message: 'Missing reCAPTCHA token' });
-        }
-        const { ok, data, reason } = await verifyRecaptchaV3(recaptchaToken, { action: 'login', minScore: 0.7, remoteIp: req.ip });
-        if (!ok) {
-          return res.status(403).json({
-            success: false,
-            message: 'reCAPTCHA validation failed',
-            details: data || { reason }
+      // reCAPTCHA disabled per request; enable by setting RECAPTCHA_ENFORCE=true
+      if (process.env.RECAPTCHA_SECRET_KEY && process.env.RECAPTCHA_ENFORCE === 'true') {
+        let requireRecaptcha = false;
+        try {
+          const candidate = await User.findOne({
+            $or: [
+              email ? { email: email.toLowerCase() } : null,
+              username ? { username } : null,
+            ].filter(Boolean)
           });
-        }
-        // Optional: log score for observability (do not expose secrets)
-        if (data && typeof data.score === 'number') {
-          console.log(`reCAPTCHA v3 score for ${email || username}:`, data.score, 'action:', data.action);
+          if (candidate && candidate.role === 'admin') {
+            requireRecaptcha = true;
+          }
+        } catch {}
+
+        if (requireRecaptcha) {
+          if (!recaptchaToken) {
+            return res.status(400).json({ success: false, message: 'Missing reCAPTCHA token' });
+          }
+          const { ok, data, reason } = await verifyRecaptchaV3(recaptchaToken, { action: 'login', minScore: 0.7, remoteIp: req.ip });
+          if (!ok) {
+            return res.status(403).json({
+              success: false,
+              message: 'reCAPTCHA validation failed',
+              details: data || { reason }
+            });
+          }
+          if (data && typeof data.score === 'number') {
+            console.log(`reCAPTCHA v3 score for ${email || username}:`, data.score, 'action:', data.action);
+          }
         }
       }
 
@@ -150,6 +233,15 @@ class AuthController {
       // Generate JWT token
       const token = generateToken(user._id);
 
+      // Log successful login
+      await auditLogger.logLogin(user._id, user.email, true, {
+        role: user.role,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent')
+      });
+
+      logger.info('User logged in successfully', { userId: user._id, email: user.email, role: user.role });
+
       res.status(200).json({
         success: true,
         message: "Login successful",
@@ -165,7 +257,24 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error", { error: error.message, stack: error.stack });
+      
+      // Log failed login attempt
+      const loginIdentifier = req.body.email || req.body.username;
+      await auditLogger.logLogin(null, loginIdentifier, false, {
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        errorMessage: error.message
+      });
+
+      // Log security event for account lockout
+      if (error.message.includes('Account is temporarily locked')) {
+        await auditLogger.logSecurityEvent('account_locked', {
+          userEmail: loginIdentifier,
+          ipAddress: req.ip || req.connection.remoteAddress,
+          details: { reason: 'Too many failed login attempts' }
+        });
+      }
       
       if (error.message === 'Invalid credentials' || error.message.includes('Account is temporarily locked')) {
         return res.status(401).json({
@@ -247,10 +356,10 @@ class AuthController {
   static async updateProfile(req, res) {
     try {
       const userId = req.user._id;
-      const { email, username } = req.body;
+      const { email, username, location } = req.body;
 
       // Staff cannot change their role, only admin can
-      const allowedFields = ['email', 'username'];
+      const allowedFields = ['email', 'username', 'location'];
       const updates = {};
       
       Object.keys(req.body).forEach(key => {
@@ -299,6 +408,53 @@ class AuthController {
         user.username = updates.username;
       }
 
+      // Handle location update
+      if (updates.location) {
+        const { latitude, longitude } = updates.location;
+        if (latitude !== undefined && longitude !== undefined) {
+          // Validate coordinates
+          if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+            return res.status(400).json({
+              success: false,
+              message: "Latitude and longitude must be valid numbers"
+            });
+          }
+          if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            return res.status(400).json({
+              success: false,
+              message: "Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180"
+            });
+          }
+          user.location = {
+            latitude,
+            longitude,
+            locationUpdatedAt: new Date()
+          };
+
+          // If user is staff and has a stationId, update the station's address
+          if (user.role === 'staff' && user.stationId) {
+            try {
+              const Station = require('../models/StationModel');
+              const station = await Station.findOne({ stationId: user.stationId });
+              
+              if (station) {
+                // Reverse geocode coordinates to get address
+                const address = await reverseGeocode(latitude, longitude);
+                
+                if (address) {
+                  station.address = address;
+                  await station.save();
+                  console.log(`Station ${station.stationId} address updated to: ${address}`);
+                }
+              }
+            } catch (stationError) {
+              console.error('Error updating station address:', stationError);
+              // Don't fail the request if station update fails, just log it
+            }
+          }
+        }
+      }
+
       await user.save();
 
       res.status(200).json({
@@ -309,6 +465,7 @@ class AuthController {
           email: user.email,
           username: user.username,
           role: user.role,
+          location: user.location,
           updatedAt: user.updatedAt
         }
       });
@@ -849,6 +1006,33 @@ class AuthController {
       res.status(500).json({
         success: false,
         message: "Internal server error"
+      });
+    }
+  }
+
+  // User Logout
+  static async logout(req, res) {
+    try {
+      // Log logout event before responding
+      await auditLogger.logLogout(req.user._id, {
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent')
+      });
+
+      logger.info('User logged out', { userId: req.user._id, email: req.user.email });
+
+      res.status(200).json({
+        success: true,
+        message: "Logout successful"
+      });
+    } catch (error) {
+      logger.error('Logout error', { error: error.message, userId: req.user?._id });
+      // Still return success even if audit logging fails
+      res.status(200).json({
+        success: true,
+        message: "Logout successful"
       });
     }
   }

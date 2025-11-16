@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dropdown } from "react-native-element-dropdown";
 import { Ionicons } from "@expo/vector-icons";
 import orderListStyle from "./oderListStyle";
@@ -72,6 +72,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
   const [finalPaidInput, setFinalPaidInput] = useState<string>("");
   const [originalPayment, setOriginalPayment] = useState<string>("Unpaid");
   const [originalPaid, setOriginalPaid] = useState<number>(0);
+  const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean } | null>(null);
+  const lockCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -109,11 +111,100 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
       setFinalPaidInput("");
       setOriginalPayment(orderData.payment || orderData.feeStatus || "Unpaid");
       setOriginalPaid(initialPaid);
-    }
-  }, [orderData, initialEditMode]);
 
-  const handleCancel = () => {
+      // Check lock status when order data changes and start polling
+      const orderId = orderData.orderId || orderData.id || orderData._id;
+      if (orderId) {
+        checkLockStatus();
+        // Start polling immediately when modal opens (not just when editing)
+        startLockStatusPolling(orderId);
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      stopLockStatusPolling();
+    };
+  }, [orderData, initialEditMode, visible]);
+
+  // Check lock status
+  const checkLockStatus = async () => {
     if (!orderData) return;
+    
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("userToken");
+      const orderId = orderData.orderId || orderData.id || orderData._id;
+      
+      if (!token || !orderId) return;
+
+      const response = await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update lock status - if not locked, set to null to hide indicator
+        if (data.isLocked) {
+          setLockStatus({
+            isLocked: data.isLocked,
+            lockedBy: data.lockedBy,
+            isLockedByMe: data.isLockedByMe
+          });
+        } else {
+          // Lock released - clear status
+          setLockStatus(null);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check lock status:", error);
+    }
+  };
+
+  // Start polling lock status
+  const startLockStatusPolling = (orderId: string) => {
+    stopLockStatusPolling();
+    
+    checkLockStatus();
+    
+    lockCheckIntervalRef.current = setInterval(() => {
+      checkLockStatus();
+    }, 2000);
+  };
+
+  // Stop polling lock status
+  const stopLockStatusPolling = () => {
+    if (lockCheckIntervalRef.current) {
+      clearInterval(lockCheckIntervalRef.current);
+      lockCheckIntervalRef.current = null;
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!orderData) return;
+    
+    // Release edit lock if in edit mode
+    if (isEditing) {
+      try {
+        const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("userToken");
+        const orderId = orderData.orderId || orderData.id || orderData._id;
+        
+        if (token && orderId) {
+          await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Failed to release lock:", error);
+      }
+      stopLockStatusPolling();
+    }
+    
     setPaymentStatus(orderData.payment || orderData.feeStatus || "Unpaid");
     if (orderData.items && orderData.items.length > 0 && orderData.items[0].status) {
       setOrderStatus(orderData.items[0].status);
@@ -242,6 +333,19 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
           console.log("Order is now completed and locked");
         }
         
+        // Release edit lock after saving
+        try {
+          await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          });
+        } catch (err) {
+          console.error("Failed to release lock:", err);
+        }
+        stopLockStatusPolling();
+        
         setSuccessMessage("Order updated successfully!");
         setShowSuccessModal(true);
         setIsEditing(false);
@@ -267,14 +371,73 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
     }
   };
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
+    if (!orderData) return;
+    
     // Check if order is completed and locked
     if (isOrderCompleted()) {
       Alert.alert("Order Locked", "This order has been marked as completed and cannot be edited.");
       setIsEditing(false);
       return;
     }
-    setIsEditing(true);
+
+    // Check if already locked by another user
+    if (lockStatus?.isLocked && !lockStatus?.isLockedByMe) {
+      Alert.alert(
+        "Order Being Edited", 
+        `This order is currently being edited by ${lockStatus.lockedBy?.name || 'another user'}. Please wait for them to finish.`
+      );
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Error", "Authentication required.");
+        return;
+      }
+
+      const orderId = orderData.orderId || orderData.id || orderData._id;
+      if (!orderId) {
+        Alert.alert("Error", "Order ID not found.");
+        return;
+      }
+
+      // Acquire edit lock
+      const response = await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        if (response.status === 409) {
+          Alert.alert("Order Being Edited", data.message || "This order is currently being edited by another user.");
+          // Update lock status
+          if (data.lockedBy) {
+            setLockStatus({
+              isLocked: true,
+              lockedBy: data.lockedBy,
+              isLockedByMe: false
+            });
+          }
+        } else {
+          Alert.alert("Error", "Failed to acquire edit lock. Please try again.");
+        }
+        return;
+      }
+
+      setIsEditing(true);
+      // Start checking lock status
+      startLockStatusPolling(orderId);
+    } catch (error: any) {
+      console.error("Failed to acquire edit lock:", error);
+      Alert.alert("Error", "Failed to acquire edit lock. Please try again.");
+    }
   };
 
   const handleViewInvoiceClick = () => {
@@ -376,8 +539,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
             <Text style={styles.modalTitle}>Order Details - {getOrderId()}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#111827" />
-          </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
+          </View>
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
             {/* Details Grid */}
@@ -391,13 +554,13 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                   <DetailCard 
                     label="" 
                     value={paymentStatus}
-                    editable={isEditing && !isOrderCompleted()}
+                    editable={isEditing && !isOrderCompleted() && paymentStatus !== 'Paid' && !(lockStatus?.isLocked && !lockStatus?.isLockedByMe)}
                     type="select"
                     options={["Unpaid", "Partial", "Paid"]}
                     selectedValue={paymentStatus}
                     onValueChange={setPaymentStatus}
                   />
-                  {isOrderCompleted() && (
+                  {(isOrderCompleted() || paymentStatus === 'Paid') && (
                     <View style={{ 
                       marginTop: 8,
                       padding: 8, 
@@ -411,7 +574,11 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                     }}>
                       <Ionicons name="lock-closed" size={14} color="#92400E" />
                       <Text style={{ color: '#92400E', fontSize: 12, flex: 1 }}>
-                        This order is paid and locked from editing
+                        {isOrderCompleted()
+                          ? 'This order is completed and locked from editing'
+                          : paymentStatus === 'Paid'
+                          ? 'This order is paid and locked from editing'
+                          : ''}
                       </Text>
                     </View>
                   )}
@@ -441,10 +608,10 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                     <TextInput
                       keyboardType="numeric"
                       value={finalPaidInput}
+                      editable={!isOrderCompleted() && !(lockStatus?.isLocked && !lockStatus?.isLockedByMe)}
                       onChangeText={(txt)=> setFinalPaidInput(txt)}
                       placeholder="0.00"
                       style={{ borderWidth:1, borderColor:'#E5E7EB', borderRadius:6, paddingHorizontal:12, height:40 }}
-                      editable={!isOrderCompleted()}
                     />
                     <Text style={{ marginTop:6, fontSize:12, color:'#6B7280' }}>
                       {(() => {
@@ -482,7 +649,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                   <DetailCard 
                     label="" 
                     value={orderStatus}
-                    editable={isEditing && !isOrderCompleted()}
+                    editable={isEditing && !isOrderCompleted() && !(lockStatus?.isLocked && !lockStatus?.isLockedByMe)}
                     type="select"
                     options={["Pending", "In Progress", "Ready for Pickup", "Completed"]}
                     selectedValue={orderStatus}
@@ -544,7 +711,50 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
               </View>
             </View>
             )}
-          </ScrollView>
+            </ScrollView>
+
+          {/* Lock Status Indicator - Above Action Buttons */}
+          {lockStatus?.isLocked && !lockStatus?.isLockedByMe && (
+            <View style={{
+              padding: 10,
+              backgroundColor: "#FEE2E2",
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderTopColor: "#DC2626",
+              borderBottomColor: "#DC2626",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10
+            }}>
+              <Ionicons name="lock-closed" size={16} color="#991B1B" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: "#991B1B", fontWeight: "600" }}>
+                  Locked by <Text style={{ fontWeight: "bold" }}>{lockStatus.lockedBy?.name || "another user"}</Text>
+                </Text>
+                <Text style={{ fontSize: 11, color: "#991B1B", marginTop: 2 }}>
+                  You cannot edit until they finish
+                </Text>
+              </View>
+            </View>
+          )}
+          {lockStatus?.isLockedByMe && isEditing && (
+            <View style={{
+              padding: 10,
+              backgroundColor: "#D1FAE5",
+              borderTopWidth: 1,
+              borderBottomWidth: 1,
+              borderTopColor: "#059669",
+              borderBottomColor: "#059669",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10
+            }}>
+              <Ionicons name="create-outline" size={16} color="#065F46" />
+              <Text style={{ fontSize: 13, color: "#065F46", fontWeight: "600" }}>
+                You are editing this order
+              </Text>
+            </View>
+          )}
 
           {/* Footer */}
           <View style={styles.modalFooter}>
@@ -566,7 +776,12 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
             {!isEditing && !isOrderCompleted() && (
               <TouchableOpacity 
                 onPress={handleEdit} 
-                style={[styles.footerButton, styles.secondaryButton]}
+                style={[
+                  styles.footerButton, 
+                  styles.secondaryButton,
+                  lockStatus?.isLocked && !lockStatus?.isLockedByMe && { opacity: 0.5 }
+                ]}
+                disabled={lockStatus?.isLocked && !lockStatus?.isLockedByMe}
               >
                 <Ionicons name="create-outline" size={18} color="#374151" style={{ marginRight: 8 }} />
                 <Text style={styles.secondaryButtonText}>Edit</Text>
@@ -576,7 +791,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
               <TouchableOpacity 
                 onPress={handleSave} 
                 style={[styles.footerButton, styles.primaryButton]}
-                disabled={isSaving}
+                disabled={isSaving || (lockStatus?.isLocked && !lockStatus?.isLockedByMe)}
               >
                 {isSaving ? (
                   <>
@@ -589,8 +804,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                     <Text style={styles.primaryButtonText}>Save Changes</Text>
                   </>
                 )}
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            )}
         </View>
       </View>
       </View>

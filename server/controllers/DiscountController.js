@@ -6,12 +6,20 @@ class DiscountController {
     try {
       const { search, status, showArchived = false } = req.query;
 
+      const isAdmin = req.user && req.user.role === 'admin';
+
       const query = {};
       
-      if (showArchived === 'true') {
-        query.isArchived = true;
+      if (isAdmin) {
+        if (showArchived === 'true') {
+          query.isArchived = true;
+        } else {
+          query.isArchived = false;
+        }
       } else {
+        // Staff should only ever see active, non-archived discounts
         query.isArchived = false;
+        query.isActive = true;
       }
 
       if (search) {
@@ -21,7 +29,7 @@ class DiscountController {
         ];
       }
 
-      if (status && status !== 'All') {
+      if (isAdmin && status && status !== 'All') {
         if (status === 'Active') {
           query.isActive = true;
         } else if (status === 'Inactive') {
@@ -29,7 +37,19 @@ class DiscountController {
         }
       }
 
-      const discounts = await Discount.find(query).sort({ code: 1 });
+      let discounts = await Discount.find(query).sort({ code: 1 });
+
+      // For staff users, additionally filter out expired or fully used discounts
+      if (!isAdmin) {
+        const now = new Date();
+        discounts = discounts.filter(discount => {
+          const validFrom = discount.validFrom ? new Date(discount.validFrom) : new Date(0);
+          const validUntil = discount.validUntil ? new Date(discount.validUntil) : new Date('2100-01-01');
+          const withinDateRange = validFrom <= now && validUntil >= now;
+          const underUsageLimit = discount.maxUsage === 0 || discount.usageCount < discount.maxUsage;
+          return withinDateRange && underUsageLimit;
+        });
+      }
 
       res.status(200).json({
         success: true,
@@ -267,6 +287,37 @@ class DiscountController {
       res.status(500).json({
         success: false,
         message: 'Internal server error'
+      });
+    }
+  }
+
+  // Reset discount usage counter (admin only)
+  static async resetUsage(req, res) {
+    try {
+      const { id } = req.params;
+
+      const discount = await Discount.findById(id);
+
+      if (!discount) {
+        return res.status(404).json({
+          success: false,
+          message: 'Discount not found'
+        });
+      }
+
+      discount.usageCount = 0;
+      await discount.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Discount usage counter has been reset',
+        data: discount
+      });
+    } catch (error) {
+      console.error('Reset discount usage error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to reset discount usage counter'
       });
     }
   }

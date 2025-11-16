@@ -3,8 +3,10 @@ import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView, Animated, R
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
 import BrandIcon from '../../components/BrandIcon';
 import { api } from '@/utils/api';
+import { API_BASE_URL } from '@/constants/api';
 import { colors, typography, spacing, borderRadius, tabletUtils } from '@/app/theme/designSystem';
 
 interface HeaderProps {
@@ -165,6 +167,20 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
 
   const handleLogout = async () => {
     try {
+      // Call logout API to log the audit event
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (token) {
+        try {
+          await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (apiError) {
+          // Log error but continue with logout even if API fails
+          console.error('Logout API error (continuing with local logout):', apiError);
+        }
+      }
+      
+      // Clear local storage
       await AsyncStorage.multiRemove(['token', 'userToken', 'user']);
       setShowLogoutModal(false);
       setUserMenuOpen(false);
@@ -173,6 +189,7 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
       console.error('Logout error:', error);
       setShowLogoutModal(false);
       setUserMenuOpen(false);
+      // Still navigate to login even if there's an error
       router.replace('/login');
     }
   };

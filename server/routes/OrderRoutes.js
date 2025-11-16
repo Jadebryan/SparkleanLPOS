@@ -37,5 +37,13 @@ router.put('/:id/schedule-deletion', authenticate, OrderController.scheduleDraft
 // Delete order permanently (admin only)
 router.delete('/:id', authorize('admin'), OrderController.deleteOrder);
 
+// Send invoice via email
+router.post('/:id/send-email', OrderController.sendInvoiceEmail);
+
+// Edit lock management (acquire/release/check)
+router.post('/:id/lock', OrderController.acquireEditLock);
+router.delete('/:id/lock', OrderController.releaseEditLock);
+router.get('/:id/lock', OrderController.checkEditLock);
+
 module.exports = router;
 

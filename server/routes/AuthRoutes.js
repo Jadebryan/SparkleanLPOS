@@ -12,6 +12,8 @@ router.post("/verify-reset-code", AuthController.verifyResetCode);
 router.post("/reset-password", AuthController.resetPassword);
 
 // Protected routes (authentication required)
+// Logout
+router.post("/logout", authenticate, AuthController.logout);
 // Get current user profile
 router.get("/me", authenticate, AuthController.getCurrentUser);
 router.put("/me", authenticate, AuthController.updateProfile);

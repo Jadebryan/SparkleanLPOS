@@ -3,7 +3,10 @@ const router = express.Router();
 const StationController = require('../controllers/StationController');
 const { authenticate } = require('../middleware/auth');
 
-// All station routes require authentication
+// Public route for landing page (no authentication required)
+router.get('/public', StationController.getPublicStations);
+
+// All other station routes require authentication
 router.use(authenticate);
 
 // Get all stations (both admin and staff can view)

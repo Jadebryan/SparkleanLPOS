@@ -1,12 +1,12 @@
 require('dotenv').config();
 
+// Works for both v2 and v3 tokens
 async function verifyRecaptchaV3(token, { action = 'login', minScore = 0.5, remoteIp = '' } = {}) {
   if (!token) {
     return { ok: false, reason: 'missing_token' };
   }
   const secret = process.env.RECAPTCHA_SECRET_KEY;
   if (!secret) {
-    // If no secret configured, treat as fail in production; allow in dev if explicitly opted-in
     return { ok: false, reason: 'missing_secret' };
   }
 
@@ -24,9 +24,11 @@ async function verifyRecaptchaV3(token, { action = 'login', minScore = 0.5, remo
     });
     const data = await res.json();
 
+    // v2 tokens only have success, no action/score
+    // v3 tokens have success, action, and score
     const ok = data.success === true
-      && (data.action ? data.action === action : true)
-      && (typeof data.score === 'number' ? data.score >= minScore : true);
+      && (data.action ? data.action === action : true) // v2: no action, so passes
+      && (typeof data.score === 'number' ? data.score >= minScore : true); // v2: no score, so passes
 
     return { ok, data };
   } catch (error) {

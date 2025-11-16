@@ -3,6 +3,8 @@ import { View, TouchableOpacity, Text, StyleSheet, Alert, ScrollView, Modal } fr
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { API_BASE_URL } from '@/constants/api';
 
 type RouteLiteral =
   | '/home/orderList'
@@ -88,12 +90,27 @@ const ModernSidebar: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      // Call logout API to log the audit event
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (token) {
+        try {
+          await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (apiError) {
+          // Log error but continue with logout even if API fails
+          console.error('Logout API error (continuing with local logout):', apiError);
+        }
+      }
+      
+      // Clear local storage
       await AsyncStorage.multiRemove(['token', 'userToken', 'user']);
       setShowLogoutModal(false);
       router.replace('/login');
     } catch (error) {
       console.error('Logout error:', error);
       setShowLogoutModal(false);
+      // Still navigate to login even if there's an error
       router.replace('/login');
     }
   };

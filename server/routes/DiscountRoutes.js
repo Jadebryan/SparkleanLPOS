@@ -25,5 +25,8 @@ router.put('/:id/archive', authorize('admin'), DiscountController.archiveDiscoun
 // Unarchive discount (admin only)
 router.put('/:id/unarchive', authorize('admin'), DiscountController.unarchiveDiscount);
 
+// Reset discount usage counter (admin only)
+router.put('/:id/reset-usage', authorize('admin'), DiscountController.resetUsage);
+
 module.exports = router;
 

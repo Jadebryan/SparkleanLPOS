@@ -1,6 +1,32 @@
 const Station = require('../models/StationModel');
 
 class StationController {
+  // Get public stations (for landing page - no auth required)
+  static async getPublicStations(req, res) {
+    try {
+      // Only return active, non-archived stations with addresses
+      const stations = await Station.find({
+        isArchived: false,
+        isActive: true,
+        address: { $exists: true, $ne: '' }
+      })
+      .select('stationId name address phone')
+      .sort({ stationId: 1 });
+
+      res.status(200).json({
+        success: true,
+        data: stations,
+        count: stations.length
+      });
+    } catch (error) {
+      console.error('Get public stations error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
   // Get all stations
   static async getAllStations(req, res) {
     try {

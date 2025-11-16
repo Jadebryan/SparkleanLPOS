@@ -1,5 +1,6 @@
 const Service = require('../models/ServiceModel');
 const User = require('../models/UserModel');
+const auditLogger = require('../utils/auditLogger');
 const NotificationController = require('./NotificationController');
 
 class ServiceController {
@@ -117,6 +118,18 @@ class ServiceController {
         console.error('Notification (service create) error:', notifyErr);
       }
 
+      // Log audit event
+      await auditLogger.logDataModification('create', req.user._id, 'service', service._id.toString(), {
+        method: req.method,
+        endpoint: req.originalUrl || req.url,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        status: 'success',
+        changes: { name, category, price, unit }
+      }).catch(err => console.error('Audit logging error:', err));
+
       res.status(201).json({
         success: true,
         message: 'Service created successfully',
@@ -189,6 +202,18 @@ class ServiceController {
       } catch (notifyErr) {
         console.error('Notification (service update) error:', notifyErr);
       }
+
+      // Log audit event
+      await auditLogger.logDataModification('update', req.user._id, 'service', id, {
+        method: req.method,
+        endpoint: req.originalUrl || req.url,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('user-agent'),
+        userEmail: req.user.email,
+        userRole: req.user.role,
+        status: 'success',
+        changes: { name, category, price, unit, isActive }
+      }).catch(err => console.error('Audit logging error:', err));
 
       res.status(200).json({
         success: true,

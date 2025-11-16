@@ -507,7 +507,7 @@ export default function Request() {
       descriptionTrimmed: description.trim(),
       descriptionLength: description.trim().length,
       submitting: submitting,
-      hasImage: !!selectedImage
+      hasImage: !!selectedImages && selectedImages.length > 0
     });
     
     // Check validation step by step
