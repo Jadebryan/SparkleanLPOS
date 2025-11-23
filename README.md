@@ -179,7 +179,8 @@ This project is proprietary software.
 
 ## 👥 Authors
 
-- Your Team Name
+- Salahag, Bryan Jade H.
+- Pingcas, Jimmy A.
 
 ## 🙏 Acknowledgments
 
