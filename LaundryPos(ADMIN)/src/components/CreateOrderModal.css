@@ -1,28 +1,18 @@
 /* Create Order Modal Styles */
-.com-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 10000;
-}
+/* Note: Uses global .modal-overlay class from index.css */
 
 .com-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
+  position: relative;
   background: var(--color-white);
   border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 1400px;
   width: calc(100% - 40px);
-  max-height: 95vh;
+  max-height: 90vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  z-index: 10001;
+  z-index: 1001;
 }
 
 .com-header {

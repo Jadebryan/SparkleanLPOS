@@ -1,4 +1,5 @@
 import React from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface AccessInfoModalProps {
   isOpen: boolean
@@ -6,10 +7,23 @@ interface AccessInfoModalProps {
 }
 
 const AccessInfoModal: React.FC<AccessInfoModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-small" onClick={(e) => e.stopPropagation()}>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="modal-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="modal-small"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
         <div className="modal-header">
           <h3 className="modal-title">Request Admin Access</h3>
           <button className="btn-icon" onClick={onClose}>×</button>
@@ -26,8 +40,10 @@ const AccessInfoModal: React.FC<AccessInfoModalProps> = ({ isOpen, onClose }) =>
         <div className="modal-footer">
           <button className="btn" onClick={onClose}>Close</button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

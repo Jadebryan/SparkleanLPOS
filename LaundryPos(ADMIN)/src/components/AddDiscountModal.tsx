@@ -194,7 +194,13 @@ const AddDiscountModal: React.FC<AddDiscountModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="add-discount-modal-overlay" onClick={onClose}>
+        <motion.div
+          className="modal-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
           <motion.div
             className="add-discount-modal-container"
             initial={{ scale: 0.9, opacity: 0 }}
@@ -369,7 +375,7 @@ const AddDiscountModal: React.FC<AddDiscountModalProps> = ({
               </div>
             </form>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   )

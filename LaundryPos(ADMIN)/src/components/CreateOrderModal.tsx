@@ -1390,19 +1390,18 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     <>
       <AnimatePresence>
         {isOpen && (
-          <>
-            <motion.div
-              className="com-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={onClose}
-            />
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          >
             <motion.div
               className="com-modal"
-              initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
-              animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-              exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%' }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1836,7 +1835,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 </div>
               </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
 

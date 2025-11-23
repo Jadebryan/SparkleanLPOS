@@ -5,6 +5,7 @@ import {
   Text, 
   TextInput, 
   TouchableOpacity, 
+  Pressable,
   StyleSheet, 
   Alert,
   ActivityIndicator,
@@ -1496,11 +1497,10 @@ export default function Request() {
         <Modal
           visible={showAddModal}
           transparent={true}
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => !submitting && setShowAddModal(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
@@ -1650,18 +1650,16 @@ export default function Request() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
 
         {/* Upload Receipt Modal */}
         <Modal
           visible={showReceiptModal}
           transparent={true}
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => !uploadingReceipt && closeReceiptModal()}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="receipt-outline" size={24} color="#2563EB" />
@@ -1743,18 +1741,16 @@ export default function Request() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
 
         {/* Appeal Modal */}
         <Modal
           visible={showAppealModal}
           transparent={true}
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => !submittingAppeal && closeAppealModal()}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="alert-circle-outline" size={24} color="#3B82F6" />
@@ -1892,8 +1888,7 @@ export default function Request() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
       </View>
     </View>
   );
@@ -2384,18 +2379,16 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontFamily: 'Poppins_400Regular',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   modalContent: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     width: '90%',
     maxWidth: 600,
     maxHeight: '90%',
+    alignSelf: 'center',
+    marginTop: 'auto',
+    marginBottom: 'auto',
   },
   modalHeader: {
     flexDirection: 'row',
