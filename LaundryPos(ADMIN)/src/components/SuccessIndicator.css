@@ -1,0 +1,82 @@
+.success-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-success, #059669);
+}
+
+.success-indicator-inline {
+  display: inline-flex;
+}
+
+.success-indicator-absolute {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+}
+
+.success-indicator-fixed {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: var(--color-white);
+  padding: 12px 16px;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.1));
+}
+
+.success-indicator-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-success-bg, #d1fae5);
+  color: var(--color-success, #059669);
+  flex-shrink: 0;
+}
+
+.success-indicator-small .success-indicator-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.success-indicator-medium .success-indicator-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+}
+
+.success-indicator-large .success-indicator-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+}
+
+.success-indicator-message {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-success, #059669);
+}
+
+.success-indicator-small .success-indicator-message {
+  font-size: 12px;
+}
+
+.success-indicator-large .success-indicator-message {
+  font-size: 16px;
+}
+
+/* Dark mode */
+[data-theme="dark"] .success-indicator-fixed {
+  background: var(--color-gray-800, #1f2937);
+}
+
+[data-theme="dim"] .success-indicator-fixed {
+  background: var(--color-gray-800, #1f2937);
+}
+

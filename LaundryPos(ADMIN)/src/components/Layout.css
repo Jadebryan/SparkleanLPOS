@@ -1,0 +1,76 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-container {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+.main-content {
+  flex: 1;
+  padding: 24px;
+  margin-left: 250px;
+  overflow-y: auto;
+  min-height: calc(100vh - 70px);
+  background: var(--color-gray-100);
+  transition: background-color 0.3s ease, margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 60px;
+}
+
+/* Dark Mode Styles */
+[data-theme="dark"] .main-content {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+[data-theme="dark"] .main-content * {
+  color: inherit;
+}
+
+[data-theme="dark"] .main-content p,
+[data-theme="dark"] .main-content span,
+[data-theme="dark"] .main-content div {
+  color: var(--color-gray-700);
+}
+
+[data-theme="dark"] .main-content h1,
+[data-theme="dark"] .main-content h2,
+[data-theme="dark"] .main-content h3,
+[data-theme="dark"] .main-content h4,
+[data-theme="dark"] .main-content h5,
+[data-theme="dark"] .main-content h6 {
+  color: var(--color-gray-900);
+}
+
+/* Dim Mode Styles */
+[data-theme="dim"] .main-content {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+[data-theme="dim"] .main-content * {
+  color: inherit;
+}
+
+[data-theme="dim"] .main-content p,
+[data-theme="dim"] .main-content span,
+[data-theme="dim"] .main-content div {
+  color: var(--color-gray-700);
+}
+
+[data-theme="dim"] .main-content h1,
+[data-theme="dim"] .main-content h2,
+[data-theme="dim"] .main-content h3,
+[data-theme="dim"] .main-content h4,
+[data-theme="dim"] .main-content h5,
+[data-theme="dim"] .main-content h6 {
+  color: var(--color-gray-900);
+}
+

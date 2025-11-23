@@ -1,0 +1,290 @@
+.shortcuts-trigger {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-gray-200);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 18px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.shortcuts-trigger:hover {
+  background: var(--color-gray-200);
+  color: var(--color-gray-800);
+}
+
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.shortcuts-modal {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.shortcuts-modal h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-gray-900);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcuts-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.shortcut-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px;
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  gap: 4px;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+kbd {
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-200);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-family: var(--font-family);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-gray-700);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.shortcut-keys span {
+  color: var(--color-gray-400);
+  font-size: 12px;
+}
+
+.shortcut-description {
+  color: var(--color-gray-600);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.page-info {
+  font-size: 12px;
+  color: var(--color-gray-500);
+  text-align: center;
+  margin-bottom: 16px;
+  background: var(--color-gray-100);
+  padding: 4px 8px;
+  border-radius: 12px;
+  display: inline-block;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.next-btn {
+  flex: 1;
+  padding: 12px;
+  background: var(--color-white);
+  color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.next-btn:hover {
+  background: var(--color-gray-50);
+  color: var(--color-gray-800);
+}
+
+.shortcuts-close {
+  flex: 1;
+  padding: 12px;
+  background: var(--color-primary-blue);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.shortcuts-close:hover {
+  background: var(--color-dark-blue);
+}
+
+/* Dark Mode Styles */
+[data-theme="dark"] .shortcuts-trigger {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-gray-700);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .shortcuts-trigger:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--color-gray-700);
+}
+
+[data-theme="dark"] .shortcuts-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .shortcuts-modal {
+  background: var(--color-gray-800);
+  border: 1px solid var(--color-gray-700);
+}
+
+[data-theme="dark"] .shortcuts-modal h3 {
+  color: var(--color-gray-50);
+}
+
+[data-theme="dark"] .shortcut-item {
+  background: var(--color-gray-700);
+  border: 1px solid var(--color-gray-600);
+}
+
+[data-theme="dark"] kbd {
+  background: var(--color-gray-600);
+  border: 2px solid var(--color-gray-500);
+  color: var(--color-gray-100);
+}
+
+[data-theme="dark"] .shortcut-keys span {
+  color: var(--color-gray-400);
+}
+
+[data-theme="dark"] .shortcut-description {
+  color: var(--color-gray-200);
+}
+
+[data-theme="dark"] .shortcuts-close {
+  background: var(--color-primary-blue);
+  color: white;
+}
+
+[data-theme="dark"] .shortcuts-close:hover {
+  background: var(--color-dark-blue);
+}
+
+[data-theme="dark"] .page-info {
+  color: var(--color-gray-400);
+  background: var(--color-gray-700);
+}
+
+[data-theme="dark"] .next-btn {
+  background: var(--color-gray-800);
+  color: var(--color-gray-200);
+  border: 1px solid var(--color-gray-600);
+}
+
+[data-theme="dark"] .next-btn:hover {
+  background: var(--color-gray-700);
+  color: var(--color-gray-100);
+}
+
+/* Dim Mode Styles */
+[data-theme="dim"] .shortcuts-trigger {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-gray-700);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dim"] .shortcuts-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-gray-700);
+}
+
+[data-theme="dim"] .shortcuts-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dim"] .shortcuts-modal {
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-300);
+}
+
+[data-theme="dim"] .shortcuts-modal h3 {
+  color: var(--color-gray-800);
+}
+
+[data-theme="dim"] .shortcut-item {
+  background: var(--color-gray-200);
+  border: 1px solid var(--color-gray-300);
+}
+
+[data-theme="dim"] kbd {
+  background: var(--color-gray-300);
+  border: 2px solid var(--color-gray-400);
+  color: var(--color-gray-700);
+}
+
+[data-theme="dim"] .shortcut-keys span {
+  color: var(--color-gray-500);
+}
+
+[data-theme="dim"] .shortcut-description {
+  color: var(--color-gray-600);
+}
+
+[data-theme="dim"] .shortcuts-close {
+  background: var(--color-primary-blue);
+  color: white;
+}
+
+[data-theme="dim"] .shortcuts-close:hover {
+  background: var(--color-dark-blue);
+}
+
+[data-theme="dim"] .page-info {
+  color: var(--color-gray-600);
+  background: var(--color-gray-200);
+}
+
+[data-theme="dim"] .next-btn {
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-300);
+}
+
+[data-theme="dim"] .next-btn:hover {
+  background: var(--color-gray-200);
+  color: var(--color-gray-800);
+}
+

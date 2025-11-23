@@ -1,0 +1,124 @@
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  min-height: 400px;
+}
+
+.empty-state-icon {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state-emoji {
+  font-size: 80px;
+  opacity: 0.5;
+  display: block;
+}
+
+.empty-state-svg-icon {
+  width: 80px;
+  height: 80px;
+  color: var(--color-gray-400, #9ca3af);
+  opacity: 0.6;
+}
+
+.empty-state-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-gray-700, #374151);
+  margin-bottom: 12px;
+}
+
+.empty-state-description {
+  font-size: 16px;
+  color: var(--color-gray-500, #6b7280);
+  margin-bottom: 32px;
+  max-width: 500px;
+  line-height: 1.6;
+}
+
+.empty-state-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.empty-state-no-results .empty-state-icon {
+  color: var(--color-primary-blue, #2563eb);
+}
+
+.empty-state-error .empty-state-icon {
+  color: var(--color-error, #dc2626);
+}
+
+.empty-state-empty .empty-state-icon {
+  color: var(--color-gray-400, #9ca3af);
+}
+
+/* Dark mode */
+[data-theme="dark"] .empty-state-title {
+  color: var(--color-gray-200, #e5e7eb);
+}
+
+[data-theme="dark"] .empty-state-description {
+  color: var(--color-gray-400, #9ca3af);
+}
+
+[data-theme="dark"] .empty-state-svg-icon {
+  color: var(--color-gray-500, #6b7280);
+}
+
+[data-theme="dim"] .empty-state-title {
+  color: var(--color-gray-200, #e5e7eb);
+}
+
+[data-theme="dim"] .empty-state-description {
+  color: var(--color-gray-400, #9ca3af);
+}
+
+[data-theme="dim"] .empty-state-svg-icon {
+  color: var(--color-gray-500, #6b7280);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .empty-state {
+    padding: 40px 16px;
+    min-height: 300px;
+  }
+  
+  .empty-state-emoji {
+    font-size: 64px;
+  }
+  
+  .empty-state-svg-icon {
+    width: 64px;
+    height: 64px;
+  }
+  
+  .empty-state-title {
+    font-size: 20px;
+  }
+  
+  .empty-state-description {
+    font-size: 14px;
+  }
+  
+  .empty-state-actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .empty-state-actions button {
+    width: 100%;
+  }
+}
+
