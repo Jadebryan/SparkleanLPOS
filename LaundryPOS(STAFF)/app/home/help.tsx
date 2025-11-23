@@ -58,37 +58,65 @@ export default function Help() {
         {
           id: 'create-order',
           question: 'How do I create a new order?',
-          answer: 'Click "Add Order" from the sidebar. Select or add a customer, choose services, set quantities, apply discounts if needed, and process payment. You can save orders as drafts to complete later.',
+          answer: 'Click "Add Order" from the sidebar or use the floating action button. Select or add a customer, choose services, set quantities, apply discounts if needed, and process payment. You can save orders as drafts to complete later.',
           category: 'orders',
-          tags: ['create', 'new-order', 'customer', 'services']
+          tags: ['create', 'new-order', 'customer', 'services', 'draft']
+        },
+        {
+          id: 'add-customer-during-order',
+          question: 'Can I add a new customer while creating an order?',
+          answer: 'Yes! When creating an order, if the customer doesn\'t exist, you can click "Add Customer" to create them on the spot. The customer will be automatically added and selected for the current order.',
+          category: 'orders',
+          tags: ['customer', 'add', 'create', 'during-order']
         },
         {
           id: 'order-payment',
           question: 'How do I handle payments and change?',
           answer: 'Enter the amount paid by the customer. If the amount exceeds the total, the system will calculate the change and ask for confirmation. Always verify the change amount before completing the transaction.',
           category: 'orders',
-          tags: ['payment', 'change', 'cash', 'transaction']
+          tags: ['payment', 'change', 'cash', 'transaction', 'verification']
         },
         {
           id: 'order-status',
           question: 'How do I update order status?',
-          answer: 'Go to Order List, click on any order to view details. You can update the payment status and order status (Pending → Processing → Ready → Completed).',
+          answer: 'Go to Order List, click on any order to view details. You can update the payment status (Unpaid/Paid/Partial) and order status (Pending → Processing → Ready → Completed). Changes are saved automatically.',
           category: 'orders',
-          tags: ['status', 'update', 'workflow']
+          tags: ['status', 'update', 'workflow', 'payment-status']
+        },
+        {
+          id: 'edit-order',
+          question: 'Can I edit an order after creating it?',
+          answer: 'Yes, you can edit orders by clicking on them in the Order List. However, completed or paid orders are locked and cannot be edited to maintain data integrity.',
+          category: 'orders',
+          tags: ['edit', 'update', 'locked', 'completed', 'paid']
         },
         {
           id: 'print-receipt',
           question: 'How do I print a receipt?',
-          answer: 'After creating an order, click "Print Summary" to generate and print a receipt. You can also print receipts from the order details view.',
+          answer: 'After creating an order, click "Print Summary" to generate and print a receipt. You can also print receipts from the order details view. The receipt includes all order details, customer information, and payment breakdown.',
           category: 'orders',
-          tags: ['print', 'receipt', 'summary']
+          tags: ['print', 'receipt', 'summary', 'details']
         },
         {
           id: 'order-search',
           question: 'How do I find a specific order?',
-          answer: 'Use the search bar in Order List to search by order ID, customer name, or phone number. You can also filter by status and date range.',
+          answer: 'Use the search bar in Order List to search by order ID, customer name, or phone number. You can also filter by status (Pending, Processing, Ready, Completed) and payment status (Paid, Unpaid, Partial).',
           category: 'orders',
-          tags: ['search', 'find', 'filter']
+          tags: ['search', 'find', 'filter', 'status', 'payment']
+        },
+        {
+          id: 'order-view-modes',
+          question: 'Can I switch between different views?',
+          answer: 'Yes! The Order List supports both grid view (card layout) and list view (table layout). Use the view toggle button in the header to switch between views. Your preference is saved automatically.',
+          category: 'orders',
+          tags: ['view-mode', 'grid', 'list', 'toggle', 'preference']
+        },
+        {
+          id: 'order-stats',
+          question: 'What statistics are shown on the order page?',
+          answer: 'The order page displays summary statistics including total orders, pending orders, completed orders, and total revenue. You can hide/show these stats using the eye icon toggle in the header.',
+          category: 'orders',
+          tags: ['stats', 'summary', 'orders', 'revenue', 'toggle']
         },
       ]
     },
@@ -101,23 +129,37 @@ export default function Help() {
         {
           id: 'add-customer',
           question: 'How do I add a new customer?',
-          answer: 'Go to Customer Management and click "Add Customer". Fill in the customer name, phone number, and email (optional). The system will automatically assign a customer ID.',
+          answer: 'Go to Customer Management and click "Add Customer". Fill in the customer name, phone number, and email (optional). The system will automatically assign a customer ID. Customers are automatically assigned to your station.',
           category: 'customers',
-          tags: ['add', 'new-customer', 'registration']
+          tags: ['add', 'new-customer', 'registration', 'station']
         },
         {
           id: 'view-customer',
           question: 'How do I view customer details?',
-          answer: 'In Customer Management, click on any customer to view their full details including order history, total orders, and total spent.',
+          answer: 'In Customer Management, click on any customer to view their full details including order history, total orders, total spent, and contact information. You can see all their past transactions.',
           category: 'customers',
-          tags: ['view', 'details', 'history']
+          tags: ['view', 'details', 'history', 'transactions']
         },
         {
           id: 'edit-customer',
           question: 'Can I edit customer information?',
-          answer: 'Yes, click on a customer to view details, then click "Edit Customer" to update their name, phone, or email. Note: You cannot delete or archive customers - only admins have that permission.',
+          answer: 'Yes, click on a customer to view details, then click "Edit Customer" to update their name, phone, or email. Note: You cannot delete customers - only admins have that permission. Customer ID cannot be changed.',
           category: 'customers',
-          tags: ['edit', 'update', 'information']
+          tags: ['edit', 'update', 'information', 'permissions']
+        },
+        {
+          id: 'search-customers',
+          question: 'How do I search for a customer?',
+          answer: 'Use the search bar in Customer Management to search by customer name, phone number, or customer ID. The search works in real-time and filters customers as you type.',
+          category: 'customers',
+          tags: ['search', 'filter', 'name', 'phone', 'id']
+        },
+        {
+          id: 'customer-view-modes',
+          question: 'Can I switch between grid and list view for customers?',
+          answer: 'Yes! Use the view toggle button in the header to switch between grid view (card layout) and list view (table layout). Your preference is automatically saved.',
+          category: 'customers',
+          tags: ['view-mode', 'grid', 'list', 'toggle']
         },
       ]
     },
@@ -130,30 +172,86 @@ export default function Help() {
         {
           id: 'submit-expense',
           question: 'How do I submit an expense request?',
-          answer: 'Go to Requests, click "Add Request". Select a category, enter the amount and description, and attach proof images. Submit the request and wait for admin approval.',
+          answer: 'Go to Requests, click "Add Request" (or use the floating action button). Select a category (Supplies, Utilities, Maintenance, Salaries, or Other), enter the amount and description, and attach proof images. Submit the request and wait for admin approval.',
           category: 'expenses',
-          tags: ['submit', 'request', 'proof', 'image']
+          tags: ['submit', 'request', 'proof', 'image', 'category', 'fab']
+        },
+        {
+          id: 'expense-categories',
+          question: 'What expense categories are available?',
+          answer: 'You can choose from five categories: Supplies (office supplies, cleaning materials), Utilities (electricity, water, internet), Maintenance (repairs, equipment), Salaries (staff payments), and Other (miscellaneous expenses).',
+          category: 'expenses',
+          tags: ['categories', 'supplies', 'utilities', 'maintenance', 'salaries']
+        },
+        {
+          id: 'upload-proof',
+          question: 'How do I attach proof images?',
+          answer: 'When submitting an expense, you can attach multiple proof images by tapping the image upload area. These images help admins verify your expense request. You can take photos directly or select from your gallery.',
+          category: 'expenses',
+          tags: ['proof', 'images', 'upload', 'camera', 'gallery']
         },
         {
           id: 'upload-receipt',
           question: 'How do I upload receipts after approval?',
-          answer: 'Once your expense is approved, you can upload purchase receipts by clicking "Upload Receipt" on the approved expense card. Receipts are separate from initial proof images.',
+          answer: 'Once your expense is approved, you can upload purchase receipts by clicking "Upload Receipt" on the approved expense card. Receipts are separate from initial proof images and are used for final verification.',
           category: 'expenses',
-          tags: ['receipt', 'upload', 'approved']
+          tags: ['receipt', 'upload', 'approved', 'verification']
         },
         {
           id: 'appeal-expense',
           question: 'Can I appeal a rejected expense?',
-          answer: 'Yes, if your expense is rejected, you can click "Appeal This Decision" to provide additional information and supporting images. The admin will review your appeal.',
+          answer: 'Yes, if your expense is rejected, you can click "Appeal This Decision" to provide additional information, an appeal reason, and supporting images. The admin will review your appeal and make a final decision.',
           category: 'expenses',
-          tags: ['appeal', 'rejected', 'review']
+          tags: ['appeal', 'rejected', 'review', 'supporting-documents']
         },
         {
           id: 'expense-status',
           question: 'What do the expense statuses mean?',
-          answer: 'Pending: Waiting for admin review. Approved: Request approved, you can upload receipts. Rejected: Request denied (you can appeal). Appealed: Your appeal is being reviewed.',
+          answer: 'Pending: Waiting for admin review. Approved: Request approved, you can now upload receipts. Rejected: Request denied (you can appeal if needed). Appealed: Your appeal is being reviewed by admin.',
           category: 'expenses',
-          tags: ['status', 'pending', 'approved', 'rejected']
+          tags: ['status', 'pending', 'approved', 'rejected', 'appealed']
+        },
+        {
+          id: 'view-modes',
+          question: 'Can I switch between grid and list view?',
+          answer: 'Yes! Use the view toggle button in the header to switch between grid view (card layout) and list view (compact table layout). Your preference is automatically saved and remembered for next time.',
+          category: 'expenses',
+          tags: ['view-mode', 'grid', 'list', 'toggle', 'preference']
+        },
+        {
+          id: 'search-expenses',
+          question: 'How do I search for specific expenses?',
+          answer: 'Use the search bar at the top to search by description, category, or amount. The search works in real-time and filters your expenses as you type.',
+          category: 'expenses',
+          tags: ['search', 'filter', 'description', 'category', 'amount']
+        },
+        {
+          id: 'filter-by-status',
+          question: 'How do I filter expenses by status?',
+          answer: 'Use the status filter buttons (All, Pending, Approved, Rejected, Appealed) at the top. Each button shows the count of expenses in that status. Click any button to filter expenses accordingly.',
+          category: 'expenses',
+          tags: ['filter', 'status', 'buttons', 'count']
+        },
+        {
+          id: 'expense-stats',
+          question: 'What do the summary cards show?',
+          answer: 'The summary cards display key statistics: Pending requests count, Approved requests count, Rejected requests count, and Total Approved Amount. You can hide/show these stats using the eye icon toggle in the header.',
+          category: 'expenses',
+          tags: ['stats', 'summary', 'cards', 'pending', 'approved', 'rejected', 'total']
+        },
+        {
+          id: 'refresh-expenses',
+          question: 'How do I refresh the expense list?',
+          answer: 'Click the refresh button (circular arrow icon) in the header to reload all expenses from the server. The button shows a spinning animation while refreshing.',
+          category: 'expenses',
+          tags: ['refresh', 'reload', 'sync', 'update']
+        },
+        {
+          id: 'admin-feedback',
+          question: 'How do I see admin feedback?',
+          answer: 'When an expense is approved or rejected, admin feedback (if provided) is displayed on the expense card. For rejected expenses, you\'ll see the reason for rejection, which can help you when appealing.',
+          category: 'expenses',
+          tags: ['feedback', 'admin', 'comments', 'rejection-reason']
         },
       ]
     },
@@ -166,16 +264,52 @@ export default function Help() {
         {
           id: 'update-profile',
           question: 'How do I update my profile?',
-          answer: 'Go to Settings → Profile tab. You can update your username and email. Your station ID cannot be changed and is managed by administrators.',
+          answer: 'Go to Settings → Profile tab. You can update your username and email. Your station ID and employee ID cannot be changed and are managed by administrators.',
           category: 'account',
-          tags: ['profile', 'update', 'settings']
+          tags: ['profile', 'update', 'settings', 'station-id']
         },
         {
           id: 'change-password',
           question: 'How do I change my password?',
-          answer: 'Go to Settings → Security tab. Enter your current password, then your new password (at least 6 characters), and confirm it. Click "Update Password" to save.',
+          answer: 'Go to Settings → Security tab. Enter your current password, then your new password (at least 6 characters), and confirm it. Click "Update Password" to save. Make sure to use a strong password for security.',
           category: 'account',
-          tags: ['password', 'security', 'change']
+          tags: ['password', 'security', 'change', 'strong-password']
+        },
+        {
+          id: 'view-station-info',
+          question: 'Can I see my station information?',
+          answer: 'Yes, your station ID and station name are displayed in your profile settings. This information is assigned by administrators and cannot be changed by staff members.',
+          category: 'account',
+          tags: ['station', 'information', 'profile', 'view']
+        },
+      ]
+    },
+    {
+      id: 'offline',
+      title: 'Offline Mode & Sync',
+      icon: 'cloud-offline-outline',
+      description: 'Working offline and syncing data',
+      items: [
+        {
+          id: 'offline-indicator',
+          question: 'What does the offline indicator mean?',
+          answer: 'The red banner at the top indicates you\'re offline. When offline, you can still view cached data and perform actions. All actions are queued and will sync automatically when you reconnect to the internet.',
+          category: 'offline',
+          tags: ['offline', 'indicator', 'sync', 'queue']
+        },
+        {
+          id: 'offline-queue',
+          question: 'How does the offline queue work?',
+          answer: 'When you perform actions while offline (like creating orders or submitting expenses), they are saved in a queue. Once you reconnect, the system automatically syncs all queued actions to the server.',
+          category: 'offline',
+          tags: ['queue', 'sync', 'automatic', 'reconnect']
+        },
+        {
+          id: 'view-queue',
+          question: 'Can I see what\'s in the sync queue?',
+          answer: 'Yes, click on the offline indicator banner to expand it and see all pending actions in the sync queue. You can see how many actions are waiting to be synced.',
+          category: 'offline',
+          tags: ['queue', 'view', 'pending', 'sync']
         },
       ]
     },
@@ -211,6 +345,7 @@ export default function Help() {
     { id: 'customers', name: 'Customers', icon: 'people-outline' as keyof typeof Ionicons.glyphMap },
     { id: 'expenses', name: 'Expenses', icon: 'receipt-outline' as keyof typeof Ionicons.glyphMap },
     { id: 'account', name: 'Account', icon: 'settings-outline' as keyof typeof Ionicons.glyphMap },
+    { id: 'offline', name: 'Offline Mode', icon: 'cloud-offline-outline' as keyof typeof Ionicons.glyphMap },
   ];
 
   return (

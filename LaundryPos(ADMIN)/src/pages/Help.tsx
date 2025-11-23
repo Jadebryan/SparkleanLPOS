@@ -206,6 +206,78 @@ const Help: React.FC = () => {
           answer: 'In Services Management, click on any service to edit details. Update the price and save changes. The new pricing will apply to all future orders.',
           category: 'services',
           tags: ['pricing', 'update', 'edit']
+        },
+        {
+          id: 'archive-service',
+          question: 'Can I archive or delete services?',
+          answer: 'Yes, you can archive services that are no longer active. Archived services won\'t appear in the service list when creating orders, but historical orders using those services will still be accessible. You can also permanently delete services if needed.',
+          category: 'services',
+          tags: ['archive', 'delete', 'inactive', 'historical']
+        },
+        {
+          id: 'service-categories',
+          question: 'What service categories are available?',
+          answer: 'Services can be organized into categories like Wash & Fold, Dry Cleaning, Ironing, etc. Categories help organize services and can be used for reporting and filtering.',
+          category: 'services',
+          tags: ['categories', 'organization', 'filtering']
+        }
+      ]
+    },
+    {
+      id: 'discounts',
+      title: 'Discounts & Promotions',
+      icon: <FiPercent />,
+      description: 'Managing discounts and promotional offers',
+      items: [
+        {
+          id: 'create-discount',
+          question: 'How do I create a discount?',
+          answer: 'Go to Discounts Management and click "Add Discount". Set the discount code, type (percentage or fixed amount), minimum purchase requirement, and validity dates. Discounts can be applied during order creation.',
+          category: 'discounts',
+          tags: ['create', 'discount', 'promotion', 'code']
+        },
+        {
+          id: 'discount-minimum',
+          question: 'What is the minimum purchase requirement?',
+          answer: 'The minimum purchase requirement ensures discounts are only applied to orders that meet a certain subtotal. When creating orders, only applicable discounts (those meeting the minimum) are shown in the dropdown.',
+          category: 'discounts',
+          tags: ['minimum', 'purchase', 'requirement', 'filtering']
+        },
+        {
+          id: 'archive-discount',
+          question: 'How do I deactivate a discount?',
+          answer: 'You can archive discounts to deactivate them without deleting them. Archived discounts won\'t appear in the discount dropdown when creating orders, but you can unarchive them later if needed.',
+          category: 'discounts',
+          tags: ['archive', 'deactivate', 'unarchive']
+        }
+      ]
+    },
+    {
+      id: 'stations',
+      title: 'Station & Branch Management',
+      icon: <FiSettings />,
+      description: 'Managing branches and stations',
+      items: [
+        {
+          id: 'add-station',
+          question: 'How do I add a new station or branch?',
+          answer: 'Go to Station Management and click "Add Station". Enter the station ID, name, address, and contact information. Station addresses are automatically displayed on invoices and receipts.',
+          category: 'stations',
+          tags: ['add', 'station', 'branch', 'address']
+        },
+        {
+          id: 'station-address',
+          question: 'Why is the station address important?',
+          answer: 'Station addresses are automatically included on all invoices, receipts, and print summaries sent to customers. Make sure to keep station addresses up to date for accurate customer communications.',
+          category: 'stations',
+          tags: ['address', 'invoice', 'receipt', 'customer']
+        },
+        {
+          id: 'archive-station',
+          question: 'Can I archive inactive stations?',
+          answer: 'Yes, you can archive stations that are no longer in operation. Archived stations won\'t appear in dropdowns when creating orders or assigning customers, but historical data will be preserved.',
+          category: 'stations',
+          tags: ['archive', 'inactive', 'historical']
         }
       ]
     },
@@ -218,9 +290,23 @@ const Help: React.FC = () => {
         {
           id: 'generate-report',
           question: 'How do I generate a sales report?',
-          answer: 'Go to Reports Generation, select the report type (Sales, Customer, Service), choose date range, and click "Generate Report". You can export as PDF or Excel.',
+          answer: 'Go to Reports Generation, select the report type (Sales, Revenue, Customers, Services, Employees, Expenses, Cashflow, Sales per Branch), choose date range and filters, then click "Generate Report". You can export as PDF, Excel, CSV, or JSON.',
           category: 'reports',
-          tags: ['generate', 'sales', 'export', 'pdf']
+          tags: ['generate', 'sales', 'export', 'pdf', 'excel', 'csv']
+        },
+        {
+          id: 'report-types',
+          question: 'What types of reports are available?',
+          answer: 'The system offers multiple report types: Sales Reports, Revenue Reports, Customer Reports, Service Performance, Employee Performance, Expense Reports, Cashflow Reports, and Sales per Branch. Each report can be filtered by date range and other criteria.',
+          category: 'reports',
+          tags: ['types', 'revenue', 'customers', 'services', 'employees', 'expenses']
+        },
+        {
+          id: 'export-formats',
+          question: 'What export formats are supported?',
+          answer: 'Reports can be exported in multiple formats: PDF (for printing and sharing), Excel (for data analysis), CSV (for spreadsheet import), and JSON (for data processing). Choose the format that best suits your needs.',
+          category: 'reports',
+          tags: ['export', 'pdf', 'excel', 'csv', 'json', 'format']
         },
         {
           id: 'report-scheduling',
@@ -232,11 +318,120 @@ const Help: React.FC = () => {
       ]
     },
     {
+      id: 'expenses',
+      title: 'Expense Management',
+      icon: <FiCreditCard />,
+      description: 'Reviewing and managing expense requests',
+      items: [
+        {
+          id: 'review-expenses',
+          question: 'How do I review expense requests?',
+          answer: 'Go to Expense Management to see all expense requests from staff. You can filter by status (Pending, Approved, Rejected), view proof images, and approve or reject requests with feedback.',
+          category: 'expenses',
+          tags: ['review', 'approve', 'reject', 'feedback']
+        },
+        {
+          id: 'expense-feedback',
+          question: 'How do I provide feedback on expenses?',
+          answer: 'When approving or rejecting an expense, you can add feedback comments that will be visible to the staff member who submitted the request. This helps communicate the reason for your decision.',
+          category: 'expenses',
+          tags: ['feedback', 'comments', 'communication']
+        },
+        {
+          id: 'expense-receipts',
+          question: 'Can I view purchase receipts uploaded by staff?',
+          answer: 'Yes, once an expense is approved, staff can upload purchase receipts. You can view these receipts in the expense details to verify purchases and maintain proper records.',
+          category: 'expenses',
+          tags: ['receipts', 'upload', 'verification', 'records']
+        }
+      ]
+    },
+    {
+      id: 'rbac',
+      title: 'Role-Based Access Control',
+      icon: <FiUsers />,
+      description: 'Managing user roles and permissions',
+      items: [
+        {
+          id: 'rbac-overview',
+          question: 'What is RBAC?',
+          answer: 'RBAC (Role-Based Access Control) allows you to define roles with specific permissions. Users are assigned roles that determine what actions they can perform in the system. This ensures proper access control and security.',
+          category: 'rbac',
+          tags: ['rbac', 'roles', 'permissions', 'security', 'access-control']
+        },
+        {
+          id: 'manage-roles',
+          question: 'How do I manage roles and permissions?',
+          answer: 'Go to RBAC Management to view and manage roles. You can create custom roles, assign permissions to roles, and assign roles to users. The system includes predefined roles like Admin, Manager, and Staff.',
+          category: 'rbac',
+          tags: ['roles', 'permissions', 'custom', 'assign']
+        },
+        {
+          id: 'rbac-documentation',
+          question: 'Where can I learn more about RBAC?',
+          answer: 'The RBAC Documentation page provides detailed information about the role-based access control system, including available permissions, role hierarchy, and best practices for managing access.',
+          category: 'rbac',
+          tags: ['documentation', 'guide', 'permissions', 'hierarchy']
+        }
+      ]
+    },
+    {
+      id: 'backup',
+      title: 'Backup & Data Management',
+      icon: <FiFileText />,
+      description: 'Backing up and managing system data',
+      items: [
+        {
+          id: 'backup-data',
+          question: 'How do I backup system data?',
+          answer: 'Go to Backup Management to create backups of your system data. You can schedule automatic backups or create manual backups. Backups help protect your data in case of system failures.',
+          category: 'backup',
+          tags: ['backup', 'data', 'protection', 'schedule']
+        },
+        {
+          id: 'restore-backup',
+          question: 'Can I restore from a backup?',
+          answer: 'Yes, Backup Management allows you to restore data from previous backups. This is useful for recovering from data loss or reverting to a previous system state.',
+          category: 'backup',
+          tags: ['restore', 'recovery', 'data-loss']
+        }
+      ]
+    },
+    {
+      id: 'audit',
+      title: 'Audit Logs',
+      icon: <FiFileText />,
+      description: 'Tracking system activities and changes',
+      items: [
+        {
+          id: 'audit-logs',
+          question: 'What are audit logs?',
+          answer: 'Audit logs track all important system activities including user logins, data changes, order modifications, and administrative actions. This helps maintain accountability and troubleshoot issues.',
+          category: 'audit',
+          tags: ['audit', 'logs', 'tracking', 'accountability', 'history']
+        },
+        {
+          id: 'view-audit-logs',
+          question: 'How do I view audit logs?',
+          answer: 'Go to Audit Log Management to view all system activity logs. You can filter by user, action type, date range, and search for specific activities. This provides a complete history of system changes.',
+          category: 'audit',
+          tags: ['view', 'filter', 'search', 'history', 'activities']
+        }
+      ]
+    },
+    {
       id: 'employees',
       title: 'Employee Management',
       icon: <FiUser />,
       description: 'Managing staff and employee information',
       items: [
+        {
+          id: 'add-employee',
+          question: 'How do I add a new employee?',
+          answer: 'Go to Employee Management and click "Add Employee". Fill in their name, email, username, password, and assign them to a station. You can also set their role and permissions.',
+          category: 'employees',
+          tags: ['add', 'new-employee', 'registration', 'station', 'role']
+        },
         {
           id: 'employee-station-filter',
           question: 'How do I filter employees by branch/station?',
@@ -250,6 +445,20 @@ const Help: React.FC = () => {
           answer: 'The count at the top of the employee table shows the number of employees currently displayed based on your active filters (status, station, search term). It updates automatically as you change filters.',
           category: 'employees',
           tags: ['count', 'counter', 'filter', 'display']
+        },
+        {
+          id: 'employee-performance',
+          question: 'Can I view employee performance metrics?',
+          answer: 'Yes, when viewing an employee\'s details, you can see their performance metrics including orders processed, attendance, and ratings. This helps track individual employee performance.',
+          category: 'employees',
+          tags: ['performance', 'metrics', 'statistics', 'tracking']
+        },
+        {
+          id: 'activate-deactivate',
+          question: 'How do I activate or deactivate an employee?',
+          answer: 'In Employee Management, click on an employee to view details, then use the activate/deactivate button. Deactivated employees cannot log in but their data is preserved.',
+          category: 'employees',
+          tags: ['activate', 'deactivate', 'access', 'status']
         }
       ]
     },
@@ -357,8 +566,14 @@ const Help: React.FC = () => {
     { id: 'orders', name: 'Orders', icon: <FiList /> },
     { id: 'customers', name: 'Customers', icon: <FiUsers /> },
     { id: 'services', name: 'Services', icon: <FiBox /> },
+    { id: 'discounts', name: 'Discounts', icon: <FiPercent /> },
+    { id: 'stations', name: 'Stations', icon: <FiSettings /> },
     { id: 'employees', name: 'Employees', icon: <FiUser /> },
     { id: 'reports', name: 'Reports', icon: <FiBarChart2 /> },
+    { id: 'expenses', name: 'Expenses', icon: <FiCreditCard /> },
+    { id: 'rbac', name: 'RBAC', icon: <FiUsers /> },
+    { id: 'backup', name: 'Backup', icon: <FiFileText /> },
+    { id: 'audit', name: 'Audit Logs', icon: <FiFileText /> },
     { id: 'settings', name: 'Settings', icon: <FiSettings /> },
     { id: 'notifications', name: 'Notifications', icon: <FiMessageCircle /> },
     { id: 'keyboard-shortcuts', name: 'Shortcuts', icon: <FiCommand /> }
