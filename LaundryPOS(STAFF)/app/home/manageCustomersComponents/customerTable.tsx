@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -11,6 +12,7 @@ import {
   ScrollView,
   FlatList,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { Dropdown } from 'react-native-element-dropdown';
@@ -65,8 +67,44 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [processingCustomerId, setProcessingCustomerId] = useState<string | null>(null);
+  
+  // Animation values for edit modal (matching Admin app style)
+  const editModalOpacity = useRef(new Animated.Value(0)).current;
+  const editModalScale = useRef(new Animated.Value(0.9)).current;
 
   const API_URL = `${API_BASE_URL}/customers`;
+  
+  // Animate edit modal (matching Admin app style)
+  useEffect(() => {
+    if (editModalVisible) {
+      Animated.parallel([
+        Animated.timing(editModalOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(editModalScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(editModalOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(editModalScale, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [editModalVisible]);
 
   // Fetch customers from backend
   useEffect(() => {
@@ -557,8 +595,20 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setEditModalVisible(false)}
+        >
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ scale: editModalScale }],
+                opacity: editModalOpacity,
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
                 <Ionicons name="pencil-outline" size={24} color="#2563EB" />
@@ -651,8 +701,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 <Text style={styles.modalButtonSaveText}>Update Customer</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -818,13 +868,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    width: '90%',
+    width: '100%',
     maxWidth: 600,
     maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 25,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',

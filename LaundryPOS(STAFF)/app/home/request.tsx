@@ -67,6 +67,14 @@ export default function Request() {
   const [refreshing, setRefreshing] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
   
+  // Animation values for modals (matching Admin app style)
+  const addModalOpacity = useRef(new Animated.Value(0)).current;
+  const addModalScale = useRef(new Animated.Value(0.9)).current;
+  const receiptModalOpacity = useRef(new Animated.Value(0)).current;
+  const receiptModalScale = useRef(new Animated.Value(0.9)).current;
+  const appealModalOpacity = useRef(new Animated.Value(0)).current;
+  const appealModalScale = useRef(new Animated.Value(0.9)).current;
+  
   // Form state
   const [category, setCategory] = useState<string>('');
   const [amount, setAmount] = useState('');
@@ -241,8 +249,101 @@ export default function Request() {
       });
       setSelectedImages([]);
       setSubmitting(false);
+      
+      // Animate modal in (matching Admin app style)
+      Animated.parallel([
+        Animated.timing(addModalOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(addModalScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate modal out
+      Animated.parallel([
+        Animated.timing(addModalOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(addModalScale, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [showAddModal]);
+  
+  // Animate receipt modal
+  useEffect(() => {
+    if (showReceiptModal) {
+      Animated.parallel([
+        Animated.timing(receiptModalOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(receiptModalScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(receiptModalOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(receiptModalScale, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showReceiptModal]);
+  
+  // Animate appeal modal
+  useEffect(() => {
+    if (showAppealModal) {
+      Animated.parallel([
+        Animated.timing(appealModalOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(appealModalScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(appealModalOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(appealModalScale, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showAppealModal]);
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -1500,7 +1601,20 @@ export default function Request() {
           animationType="fade"
           onRequestClose={() => !submitting && setShowAddModal(false)}
         >
-          <View style={styles.modalContent}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => !submitting && setShowAddModal(false)}
+          >
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  transform: [{ scale: addModalScale }],
+                  opacity: addModalOpacity,
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
@@ -1649,8 +1763,9 @@ export default function Request() {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </Modal>
+            </Animated.View>
+          </Pressable>
+        </Modal>
 
         {/* Upload Receipt Modal */}
         <Modal
@@ -1659,7 +1774,20 @@ export default function Request() {
           animationType="fade"
           onRequestClose={() => !uploadingReceipt && closeReceiptModal()}
         >
-          <View style={styles.modalContent}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => !uploadingReceipt && closeReceiptModal()}
+          >
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  transform: [{ scale: receiptModalScale }],
+                  opacity: receiptModalOpacity,
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="receipt-outline" size={24} color="#2563EB" />
@@ -1740,8 +1868,9 @@ export default function Request() {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </Modal>
+            </Animated.View>
+          </Pressable>
+        </Modal>
 
         {/* Appeal Modal */}
         <Modal
@@ -1750,7 +1879,20 @@ export default function Request() {
           animationType="fade"
           onRequestClose={() => !submittingAppeal && closeAppealModal()}
         >
-          <View style={styles.modalContent}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => !submittingAppeal && closeAppealModal()}
+          >
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  transform: [{ scale: appealModalScale }],
+                  opacity: appealModalOpacity,
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="alert-circle-outline" size={24} color="#3B82F6" />
@@ -1887,8 +2029,9 @@ export default function Request() {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </Modal>
+            </Animated.View>
+          </Pressable>
+        </Modal>
       </View>
     </View>
   );
@@ -2379,12 +2522,24 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontFamily: 'Poppins_400Regular',
   },
-  modalContent: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    width: '90%',
+    width: '100%',
     maxWidth: 600,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 25,
+    elevation: 8,
     maxHeight: '90%',
     alignSelf: 'center',
     marginTop: 'auto',

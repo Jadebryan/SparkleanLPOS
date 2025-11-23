@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   Modal,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EmailInput from '@/components/EmailInput';
@@ -49,6 +51,10 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     phone: pendingCustomerData?.phone || '',
     lastOrder: '',
   });
+  
+  // Animation values (matching Admin app style)
+  const modalOpacity = useRef(new Animated.Value(0)).current;
+  const modalScale = useRef(new Animated.Value(0.9)).current;
 
   React.useEffect(() => {
     if (visible && pendingCustomerData) {
@@ -60,6 +66,38 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       });
     }
   }, [visible, pendingCustomerData]);
+  
+  // Animate modal (matching Admin app style)
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(modalOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(modalOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalScale, {
+          toValue: 0.9,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
 
   const handleSubmit = async () => {
     if (!newCustomer.name.trim() || !newCustomer.phone.trim()) {
@@ -219,12 +257,24 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={styles.modalOverlay}>
+      <Pressable
+        style={styles.modalOverlay}
+        onPress={handleClose}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          <View style={styles.modalContent}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ scale: modalScale }],
+                opacity: modalOpacity,
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
                 <Ionicons name="person-add-outline" size={24} color="#2563EB" />
@@ -351,9 +401,9 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </Pressable>
     </Modal>
   );
 };
@@ -364,6 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
   keyboardView: {
     width: '100%',
@@ -372,14 +423,15 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    width: '90%',
+    width: '100%',
     maxWidth: 600,
     maxHeight: '90%',
     height: '80%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 25,
+    elevation: 8,
     elevation: 8,
   },
   modalHeader: {
