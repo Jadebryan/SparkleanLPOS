@@ -179,6 +179,85 @@ const getPasswordResetEmailTemplate = (code, email) => {
   };
 };
 
+// Feedback email template
+const getFeedbackEmailTemplate = (feedbackData) => {
+  const feedbackTypeLabels = {
+    feature: 'Feature Request',
+    bug: 'Bug Report',
+    improvement: 'Improvement Suggestion',
+    urgent: 'Urgent Request'
+  };
+
+  const typeLabel = feedbackTypeLabels[feedbackData.feedbackType] || feedbackData.feedbackType;
+  const adminContact = feedbackData.reporterEmail || feedbackData.reporterPhone 
+    ? `Admin Contact: ${feedbackData.reporterEmail || 'N/A'} | ${feedbackData.reporterPhone || 'N/A'}`
+    : 'Admin contact information not provided';
+
+  return {
+    subject: `[Sparklean Admin] ${typeLabel}: ${feedbackData.title}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Admin Feedback</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">Sparklean Laundry POS</h1>
+            <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0 0;">Admin Feedback</p>
+          </div>
+          
+          <div style="background: white; padding: 40px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <div style="background: #f3f4f6; border-left: 4px solid #2563eb; padding: 20px; margin-bottom: 20px; border-radius: 4px;">
+              <p style="margin: 0 0 10px 0;"><strong>Type:</strong> ${typeLabel}</p>
+              <p style="margin: 0;"><strong>Title:</strong> ${feedbackData.title}</p>
+            </div>
+            
+            <h2 style="color: #2563eb; margin-top: 0;">Description</h2>
+            <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; white-space: pre-wrap; font-size: 14px;">
+              ${feedbackData.description}
+            </div>
+            
+            <div style="background: #eff6ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>${adminContact}</strong></p>
+              <p style="margin: 5px 0; color: #6b7280; font-size: 12px;">Submitted: ${new Date(feedbackData.submittedAt).toLocaleString()}</p>
+            </div>
+            
+            <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <p style="margin: 0; color: #92400e; font-size: 14px;">
+                <strong>📧 This feedback was submitted from the Sparklean Laundry POS Admin Panel.</strong>
+              </p>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 30px; padding: 20px; color: #6b7280; font-size: 12px;">
+            <p>Please review this feedback and respond to the admin accordingly.</p>
+            <p>&copy; ${new Date().getFullYear()} Sparklean Laundry POS. All rights reserved.</p>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+      [Sparklean Admin] ${typeLabel}: ${feedbackData.title}
+      
+      Type: ${typeLabel}
+      Title: ${feedbackData.title}
+      
+      Description:
+      ${feedbackData.description}
+      
+      ${adminContact}
+      Submitted: ${new Date(feedbackData.submittedAt).toLocaleString()}
+      
+      ---
+      This feedback was submitted from the Sparklean Laundry POS Admin Panel.
+      Please review this feedback and respond to the admin accordingly.
+    `
+  };
+};
+
 // Send password reset email with code
 const sendPasswordResetEmail = async (to, code) => {
   try {
@@ -299,6 +378,69 @@ const sendVerificationEmail = async (to, code) => {
       errorMessage = 'Invalid email address. Please check the recipient email.';
     } else if (error.response) {
       errorMessage = `Email server error: ${error.response}`;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+// Send feedback email to developer
+const sendFeedbackEmail = async (feedbackData) => {
+  try {
+    const transporter = getTransporter();
+    
+    if (!transporter) {
+      const errorMsg = 'Email service not configured. Please set GMAIL_USER and GMAIL_APP_PASSWORD or SMTP credentials in .env file.';
+      console.error('❌', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const emailTemplate = getFeedbackEmailTemplate(feedbackData);
+    const recipientEmail = feedbackData.recipientEmail || 'bryanjadesalahag@gmail.com';
+    
+    const fromEmail = process.env.EMAIL_FROM || process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@labubbles.com';
+    
+    const mailOptions = {
+      from: `"Sparklean Admin Panel" <${fromEmail}>`,
+      to: recipientEmail,
+      replyTo: feedbackData.reporterEmail || fromEmail,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      text: emailTemplate.text
+    };
+
+    console.log(`\n📧 ===== ATTEMPTING TO SEND FEEDBACK EMAIL =====`);
+    console.log(`   To: ${recipientEmail}`);
+    console.log(`   From: ${fromEmail}`);
+    console.log(`   Type: ${feedbackData.feedbackType}`);
+    console.log(`   Title: ${feedbackData.title}`);
+    console.log(`   ===========================================\n`);
+    
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log(`\n✅ ===== FEEDBACK EMAIL SENT SUCCESSFULLY =====`);
+    console.log(`   To: ${recipientEmail}`);
+    console.log(`   Message ID: ${info.messageId}`);
+    console.log(`   Response: ${info.response}`);
+    console.log(`   =========================================\n`);
+    
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('\n❌ ===== FEEDBACK EMAIL SEND FAILED =====');
+    console.error(`   To: ${feedbackData.recipientEmail || 'bryanjadesalahag@gmail.com'}`);
+    console.error(`   Error message: ${error.message}`);
+    console.error(`   Error code: ${error.code || 'N/A'}`);
+    console.error(`   Full error:`, error);
+    console.error(`   ====================================\n`);
+    
+    // Provide more helpful error messages
+    let errorMessage = error.message;
+    if (error.code === 'EAUTH') {
+      errorMessage = 'Email authentication failed. Please check your email credentials.';
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNECTION') {
+      errorMessage = 'Connection to email server failed. Please check SMTP settings and network connection.';
+    } else if (error.code === 'EENVELOPE') {
+      errorMessage = 'Invalid email address. Please check the recipient email.';
     }
     
     throw new Error(errorMessage);
@@ -691,6 +833,6 @@ module.exports = {
   sendPasswordResetEmail,
   sendOrderStatusEmail,
   sendInvoiceEmail,
+  sendFeedbackEmail,
   verifyEmailConfig
 };
-

@@ -24,6 +24,7 @@ const backupRoutes = require("./routes/BackupRoutes");
 const rbacRoutes = require("./routes/RBACRoutes");
 const systemSettingRoutes = require("./routes/SystemSettingRoutes");
 const uploadRoutes = require("./routes/UploadRoutes");
+const supportRoutes = require("./routes/SupportRoutes");
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use("/api/audit-logs", require("./routes/AuditLogRoutes"));
 app.use("/api/rbac", rbacRoutes);
 app.use("/api/system-settings", systemSettingRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/support", supportRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

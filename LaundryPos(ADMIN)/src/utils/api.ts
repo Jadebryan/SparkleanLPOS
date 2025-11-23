@@ -309,8 +309,11 @@ export const apiRequest = async (
   }
 
   if (!response.ok) {
-    const errorMessage = data.message || data.error || `Request failed with status ${response.status}`
-    throw new Error(errorMessage)
+    const errorMessage = data?.message || data?.error || `Request failed with status ${response.status}`
+    const error = new Error(errorMessage) as any
+    error.status = response.status
+    error.data = data
+    throw error
   }
 
   // Cache successful GET requests for offline viewing
@@ -963,15 +966,24 @@ export const supportAPI = {
     payload: {
       title: string
       description: string
+      feedbackType?: string
+      reporterEmail?: string
+      reporterPhone?: string
       recipientEmail?: string
       recipientPhone?: string
+      submittedAt?: string
     } & Record<string, any>
   ) => {
-    const response = await apiRequest('/support/feedback', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-    return response.data
+    try {
+      const response = await apiRequest('/support/feedback', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      return response
+    } catch (error: any) {
+      console.error('Support API error:', error)
+      throw error
+    }
   },
 }
 
