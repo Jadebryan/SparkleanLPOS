@@ -147,7 +147,7 @@ const OrderSchema = new mongoose.Schema({
 });
 
 // Indexes
-OrderSchema.index({ id: 1 });
+// Note: id field already has unique: true which creates an index
 OrderSchema.index({ customer: 1 });
 OrderSchema.index({ payment: 1, isArchived: 1 });
 OrderSchema.index({ createdBy: 1 });

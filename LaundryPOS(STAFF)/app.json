@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "laundrypos-staff",
     "plugins": [
       "expo-font",
       [
@@ -9,7 +10,28 @@
           "locationAlwaysPermission": "This app uses location to help admin track staff positions.",
           "locationWhenInUsePermission": "This app uses location to help admin track staff positions."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload images for orders and receipts.",
+          "cameraPermission": "The app accesses your camera to let you take photos for orders and receipts."
+        }
       ]
-    ]
+    ],
+    "ios": {
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "We need access to your photos to upload images for orders and receipts.",
+        "NSCameraUsageDescription": "We need access to your camera to take photos for orders and receipts."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    }
   }
 }

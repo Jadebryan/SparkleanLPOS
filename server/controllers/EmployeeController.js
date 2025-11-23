@@ -1,6 +1,7 @@
 const Employee = require('../models/EmployeeModel');
 const User = require('../models/UserModel');
 const Order = require('../models/OrderModel');
+const mongoose = require('mongoose');
 
 class EmployeeController {
   // Get all employees (admin only)
@@ -355,6 +356,15 @@ class EmployeeController {
   static async getEmployeePerformance(req, res) {
     try {
       const { id } = req.params;
+      
+      // Validate that id is provided and is a valid MongoDB ObjectId format
+      if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid employee ID provided'
+        });
+      }
+
       const employee = await Employee.findById(id).populate('userId', 'username email role isActive lastLogin');
 
       if (!employee) {

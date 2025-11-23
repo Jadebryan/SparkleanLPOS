@@ -28,6 +28,10 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          accessibilityLabel="Search orders"
+          accessibilityHint="Type to search by order ID or customer name"
+          autoCorrect={false}
+          autoCapitalize="none"
         />
       </View>
 
@@ -36,6 +40,10 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
         <TouchableOpacity 
           style={[styles.filterButton, showDrafts && styles.filterButtonActive]}
           onPress={onToggleDrafts}
+          accessibilityLabel={showDrafts ? "Show all orders" : "Show draft orders"}
+          accessibilityRole="button"
+          accessibilityState={{ selected: showDrafts }}
+          accessibilityHint="Toggle between showing all orders or only draft orders"
         >
           <Ionicons 
             name={showDrafts ? "document-text" : "document-text-outline"} 
@@ -49,6 +57,9 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
         <TouchableOpacity 
           style={styles.filterButton}
           onPress={onOpenFilters}
+          accessibilityLabel="Open filters"
+          accessibilityRole="button"
+          accessibilityHint="Opens filter options to refine order search"
         >
           <Ionicons name="options-outline" size={16} color="#6B7280" />
           <Text style={styles.filterButtonText}>Filters</Text>

@@ -1,6 +1,7 @@
 const express = require('express');
 const CustomerController = require('../controllers/CustomerController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
@@ -8,25 +9,25 @@ const router = express.Router();
 router.use(authenticate);
 
 // Get all customers
-router.get('/', CustomerController.getAllCustomers);
+router.get('/', requirePermission('customers', 'read'), CustomerController.getAllCustomers);
 
 // Get single customer
-router.get('/:id', CustomerController.getCustomer);
+router.get('/:id', requirePermission('customers', 'read'), CustomerController.getCustomer);
 
-// Create customer (both admin and staff)
-router.post('/', CustomerController.createCustomer);
+// Create customer
+router.post('/', requirePermission('customers', 'create'), CustomerController.createCustomer);
 
-// Update customer (both admin and staff)
-router.put('/:id', CustomerController.updateCustomer);
+// Update customer
+router.put('/:id', requirePermission('customers', 'update'), CustomerController.updateCustomer);
 
-// Archive customer (admin only)
-router.put('/:id/archive', authorize('admin'), CustomerController.archiveCustomer);
+// Archive customer
+router.put('/:id/archive', requirePermission('customers', 'archive'), CustomerController.archiveCustomer);
 
-// Unarchive customer (admin only)
-router.put('/:id/unarchive', authorize('admin'), CustomerController.unarchiveCustomer);
+// Unarchive customer
+router.put('/:id/unarchive', requirePermission('customers', 'unarchive'), CustomerController.unarchiveCustomer);
 
-// Delete customer permanently (admin only)
-router.delete('/:id', authorize('admin'), CustomerController.deleteCustomer);
+// Delete customer permanently
+router.delete('/:id', requirePermission('customers', 'delete'), CustomerController.deleteCustomer);
 
 module.exports = router;
 

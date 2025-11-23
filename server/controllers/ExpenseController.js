@@ -103,21 +103,45 @@ class ExpenseController {
         });
       }
 
-      // Upload images to Cloudinary if provided
+      // Handle images - check if they're already Cloudinary URLs or need to be uploaded
       let imageUrls = [];
       if (images && Array.isArray(images) && images.length > 0) {
-        try {
-          const expenseId = `expense_${Date.now()}`;
-          const baseFileName = `expense_${expenseId}_${category}_${amount}`;
-          imageUrls = await cloudinaryService.uploadImages(images, baseFileName);
-          console.log(`✅ Uploaded ${imageUrls.length} images to Cloudinary for expense`);
-        } catch (uploadError) {
-          console.error('Error uploading images to Cloudinary:', uploadError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to upload images. Please try again.'
-          });
+        console.log(`📸 Received ${images.length} image(s) for expense creation`);
+        
+        // Check if images are already Cloudinary URLs (from mobile upload) or base64 (from web)
+        const cloudinaryUrls = images.filter(img => 
+          typeof img === 'string' && img.startsWith('https://res.cloudinary.com')
+        );
+        const base64Images = images.filter(img => 
+          typeof img === 'string' && (img.startsWith('data:image/') || !img.startsWith('http'))
+        );
+
+        console.log(`📸 Found ${cloudinaryUrls.length} Cloudinary URL(s) and ${base64Images.length} base64 image(s)`);
+
+        // Use Cloudinary URLs directly if provided
+        if (cloudinaryUrls.length > 0) {
+          imageUrls = cloudinaryUrls;
+          console.log(`✅ Using ${imageUrls.length} pre-uploaded Cloudinary URL(s) for expense`);
         }
+
+        // Upload base64 images if any
+        if (base64Images.length > 0) {
+          try {
+            const expenseId = `expense_${Date.now()}`;
+            const baseFileName = `expense_${expenseId}_${category}_${amount}`;
+            const uploadedUrls = await cloudinaryService.uploadImages(base64Images, baseFileName);
+            imageUrls = [...imageUrls, ...uploadedUrls];
+            console.log(`✅ Uploaded ${uploadedUrls.length} base64 image(s) to Cloudinary for expense`);
+          } catch (uploadError) {
+            console.error('Error uploading images to Cloudinary:', uploadError);
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to upload images. Please try again.'
+            });
+          }
+        }
+
+        console.log(`📸 Final imageUrls count: ${imageUrls.length}`);
       }
 
       const expense = new Expense({
@@ -465,26 +489,46 @@ class ExpenseController {
         });
       }
 
-      // Upload receipt images to Cloudinary if provided
+      // Handle receipt images - check if they're already Cloudinary URLs or need to be uploaded
       if (images && Array.isArray(images) && images.length > 0) {
-        try {
-          const expenseId = expense._id.toString();
-          const baseFileName = `receipt_${expenseId}_${Date.now()}`;
-          const receiptUrls = await cloudinaryService.uploadImages(images, baseFileName);
-          
-          const newReceipts = receiptUrls.map(url => ({
-            image: url, // Store Cloudinary URL
-            uploadedAt: new Date()
-          }));
-          expense.receipts = [...(expense.receipts || []), ...newReceipts];
-          console.log(`✅ Uploaded ${receiptUrls.length} receipt images to Cloudinary`);
-        } catch (uploadError) {
-          console.error('Error uploading receipt images to Cloudinary:', uploadError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to upload receipt images. Please try again.'
-          });
+        // Check if images are already Cloudinary URLs (from mobile upload) or base64 (from web)
+        const cloudinaryUrls = images.filter(img => 
+          typeof img === 'string' && img.startsWith('https://res.cloudinary.com')
+        );
+        const base64Images = images.filter(img => 
+          typeof img === 'string' && (img.startsWith('data:image/') || !img.startsWith('http'))
+        );
+
+        let receiptUrls = [];
+
+        // Use Cloudinary URLs directly if provided
+        if (cloudinaryUrls.length > 0) {
+          receiptUrls = cloudinaryUrls;
+          console.log(`✅ Using ${receiptUrls.length} pre-uploaded Cloudinary URL(s) for receipt`);
         }
+
+        // Upload base64 images if any
+        if (base64Images.length > 0) {
+          try {
+            const expenseId = expense._id.toString();
+            const baseFileName = `receipt_${expenseId}_${Date.now()}`;
+            const uploadedUrls = await cloudinaryService.uploadImages(base64Images, baseFileName);
+            receiptUrls = [...receiptUrls, ...uploadedUrls];
+            console.log(`✅ Uploaded ${uploadedUrls.length} base64 receipt image(s) to Cloudinary`);
+          } catch (uploadError) {
+            console.error('Error uploading receipt images to Cloudinary:', uploadError);
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to upload receipt images. Please try again.'
+            });
+          }
+        }
+
+        const newReceipts = receiptUrls.map(url => ({
+          image: url, // Store Cloudinary URL
+          uploadedAt: new Date()
+        }));
+        expense.receipts = [...(expense.receipts || []), ...newReceipts];
       }
 
       // Update receipt if provided (legacy support)
@@ -636,21 +680,42 @@ class ExpenseController {
       expense.approvedBy = null;
       expense.approvedAt = null;
       
-      // Upload appeal images to Cloudinary if provided
+      // Handle appeal images - check if they're already Cloudinary URLs or need to be uploaded
       if (appealImages && Array.isArray(appealImages) && appealImages.length > 0) {
-        try {
-          const expenseId = expense._id.toString();
-          const baseFileName = `appeal_${expenseId}_${Date.now()}`;
-          const appealImageUrls = await cloudinaryService.uploadImages(appealImages, baseFileName);
-          expense.appealImages = appealImageUrls; // Store Cloudinary URLs
-          console.log(`✅ Uploaded ${appealImageUrls.length} appeal images to Cloudinary`);
-        } catch (uploadError) {
-          console.error('Error uploading appeal images to Cloudinary:', uploadError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to upload appeal images. Please try again.'
-          });
+        // Check if images are already Cloudinary URLs (from mobile upload) or base64 (from web)
+        const cloudinaryUrls = appealImages.filter(img => 
+          typeof img === 'string' && img.startsWith('https://res.cloudinary.com')
+        );
+        const base64Images = appealImages.filter(img => 
+          typeof img === 'string' && (img.startsWith('data:image/') || !img.startsWith('http'))
+        );
+
+        let appealImageUrls = [];
+
+        // Use Cloudinary URLs directly if provided
+        if (cloudinaryUrls.length > 0) {
+          appealImageUrls = cloudinaryUrls;
+          console.log(`✅ Using ${appealImageUrls.length} pre-uploaded Cloudinary URL(s) for appeal`);
         }
+
+        // Upload base64 images if any
+        if (base64Images.length > 0) {
+          try {
+            const expenseId = expense._id.toString();
+            const baseFileName = `appeal_${expenseId}_${Date.now()}`;
+            const uploadedUrls = await cloudinaryService.uploadImages(base64Images, baseFileName);
+            appealImageUrls = [...appealImageUrls, ...uploadedUrls];
+            console.log(`✅ Uploaded ${uploadedUrls.length} base64 appeal image(s) to Cloudinary`);
+          } catch (uploadError) {
+            console.error('Error uploading appeal images to Cloudinary:', uploadError);
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to upload appeal images. Please try again.'
+            });
+          }
+        }
+
+        expense.appealImages = appealImageUrls; // Store Cloudinary URLs
       } else {
         expense.appealImages = [];
       }

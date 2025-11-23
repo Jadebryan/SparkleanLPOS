@@ -1,4 +1,5 @@
 // Export utilities for React Native Web
+import { Platform } from 'react-native';
 
 // Helper function to download files (works in React Native Web)
 const downloadFile = (content: string, filename: string, mimeType: string) => {
@@ -196,6 +197,78 @@ export const exportToJSON = (data: any, filename: string = 'export') => {
   downloadFile(jsonContent, `${filename}.json`, 'application/json');
 };
 
+// Helper function to calculate totals for amount columns
+const calculateTotals = (data: any[], headers: string[]): any => {
+  const totals: any = {};
+  const currencyKeywords = ['revenue', 'expenses', 'profit', 'spent', 'cashflow', 'balance', 'amount', 'price', 'cost', 'total revenue', 'total spent', 'paid amount', 'change', 'total'];
+  const countKeywords = ['orders', 'count', 'quantity', 'items'];
+  
+  headers.forEach(header => {
+    const headerLower = header.toLowerCase();
+    
+    // Check if it's a currency column - "Total" by itself should be treated as currency
+    const isCurrencyColumn = currencyKeywords.some(keyword => headerLower.includes(keyword)) || headerLower === 'total';
+    
+    // Check if it's a count column (but not if it's also a currency column)
+    const isCountColumn = !isCurrencyColumn && countKeywords.some(keyword => headerLower.includes(keyword));
+    
+    // Special handling for "total" columns - if header is "Total" or contains "total" with currency keywords
+    const hasTotal = headerLower.includes('total');
+    const isTotalCurrency = hasTotal && (currencyKeywords.some(keyword => headerLower.includes(keyword)) || headerLower === 'total');
+    const isTotalCount = hasTotal && !isTotalCurrency && countKeywords.some(keyword => headerLower.includes(keyword));
+    
+    // Special handling for "paid orders", "unpaid orders", "partial orders" - these are counts
+    const isOrderCount = headerLower.includes('orders') && (headerLower.includes('paid') || headerLower.includes('unpaid') || headerLower.includes('partial'));
+    
+    if (isCurrencyColumn || isTotalCurrency) {
+      // Currency column
+      let total = 0;
+      data.forEach(row => {
+        let value = row[header as keyof typeof row];
+        if (value === undefined || value === null || value === '') {
+          const rowKeys = Object.keys(row);
+          const matchingKey = rowKeys.find(key => key.toLowerCase() === headerLower);
+          if (matchingKey) {
+            value = row[matchingKey as keyof typeof row];
+          }
+        }
+        const valueStr = String(value || '');
+        // Extract numeric value from strings like "PHP 100.00" or "₱100.00" or just numbers
+        const numStr = valueStr.replace(/[^0-9.-]/g, '');
+        const numValue = parseFloat(numStr) || 0;
+        total += numValue;
+      });
+      // Always add totals if there's data, even if total is 0
+      if (data.length > 0) {
+        totals[header] = { value: total, type: 'currency' };
+      }
+    } else if (isCountColumn || isTotalCount || isOrderCount) {
+      // Count column
+      let total = 0;
+      data.forEach(row => {
+        let value = row[header as keyof typeof row];
+        if (value === undefined || value === null || value === '') {
+          const rowKeys = Object.keys(row);
+          const matchingKey = rowKeys.find(key => key.toLowerCase() === headerLower);
+          if (matchingKey) {
+            value = row[matchingKey as keyof typeof row];
+          }
+        }
+        const valueStr = String(value || '');
+        const numStr = valueStr.replace(/[^0-9.-]/g, '');
+        const numValue = parseFloat(numStr) || 0;
+        total += Math.round(numValue); // Round to ensure integer counts
+      });
+      // Always add totals if there's data, even if total is 0
+      if (data.length > 0) {
+        totals[header] = { value: total, type: 'count' };
+      }
+    }
+  });
+  
+  return totals;
+};
+
 // PDF Export Functions - Creates actual PDF using jsPDF
 export const exportToPDF = async (orders: OrderForExport[], filename: string = 'orders') => {
   // Calculate summary for orders
@@ -239,10 +312,14 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
     'Notes': order.notes || ''
   }));
 
-  // Try to use jsPDF if available (for web)
+  // Generate tracking ID (once for the document)
+  const trackingId = `SPKLN-${Date.now().toString(36).toUpperCase()}`;
+
+  // Try to use jsPDF if available (for web only)
   try {
-    if (typeof window !== 'undefined') {
-      // Dynamic import of jsPDF
+    // Only import jsPDF on web platform to avoid native bundling issues
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Dynamic import of jsPDF - only on web
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       
@@ -288,7 +365,18 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
       doc.text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, yPos);
-      yPos += 12;
+      yPos += 7;
+      
+      // Add tracking ID in report details
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Tracking: ${trackingId}`, margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(0, 0, 0);
       
       // Summary section
       if (summary && Object.keys(summary).length > 0) {
@@ -327,7 +415,30 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
         const headers = Object.keys(orderData[0]);
         const maxColumns = Math.min(headers.length, 5);
         const displayHeaders = headers.slice(0, maxColumns);
-        const colWidth = maxWidth / displayHeaders.length;
+        
+        // Distribute columns evenly with minimal padding
+        const columnPadding = 1.5; // Minimal padding between columns
+        const totalPadding = columnPadding * (displayHeaders.length - 1);
+        const availableWidth = maxWidth - totalPadding;
+        const colWidth = availableWidth / displayHeaders.length;
+        const normalizedWidths = displayHeaders.map(() => colWidth);
+        
+        // Determine column alignment based on header/content type (before drawing headers)
+        const columnAlignments: ('left' | 'right')[] = displayHeaders.map(header => {
+          const headerLower = header.toLowerCase();
+          // Right-align currency and numeric columns
+          const isCurrency = headerLower.includes('revenue') || headerLower.includes('expenses') || 
+                            headerLower.includes('profit') || headerLower.includes('amount') || 
+                            headerLower.includes('price') || headerLower.includes('cost') ||
+                            headerLower.includes('total revenue') || headerLower.includes('total spent') ||
+                            headerLower.includes('balance') || headerLower.includes('paid') ||
+                            headerLower.includes('cashflow') || headerLower.includes('change') ||
+                            headerLower.includes('net cashflow') ||
+                            (headerLower.includes('total') && (headerLower.includes('revenue') || headerLower.includes('spent') || headerLower.includes('amount')))
+          const isNumeric = headerLower.includes('orders') || headerLower.includes('count') || 
+                           headerLower.includes('quantity') || headerLower.includes('items')
+          return (isCurrency || isNumeric) ? 'right' : 'left';
+        });
         
         // Table header background
         doc.setFillColor(240, 242, 245);
@@ -335,11 +446,29 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
         
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
-        let xPos = margin + 3;
-        displayHeaders.forEach((header) => {
-          const headerText = header.length > 18 ? header.substring(0, 15) + '...' : header;
+        let xPos = margin + 2;
+        displayHeaders.forEach((header, index) => {
+          const colWidth = normalizedWidths[index];
+          const alignment = columnAlignments[index];
+          let headerText = header;
+          const maxHeaderWidth = colWidth - 4; // Leave 2mm padding on each side
+          
+          // Truncate header if too long
+          if (doc.getTextWidth(headerText) > maxHeaderWidth) {
+            while (doc.getTextWidth(headerText + '...') > maxHeaderWidth && headerText.length > 0) {
+              headerText = headerText.substring(0, headerText.length - 1);
+            }
+            headerText = headerText + '...';
+          }
+          
+          // Apply same alignment as data columns
+          if (alignment === 'right') {
+            const textWidth = doc.getTextWidth(headerText);
+            doc.text(headerText, xPos + colWidth - textWidth - 2, yPos);
+          } else {
           doc.text(headerText, xPos, yPos);
-          xPos += colWidth;
+          }
+          xPos += colWidth + columnPadding;
         });
         yPos += 8;
         
@@ -350,6 +479,7 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
         
         // Draw data rows
         doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
         orderData.forEach((row, rowIndex) => {
           checkPageBreak(10);
           
@@ -358,17 +488,100 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
             doc.rect(margin, yPos - 5, maxWidth, 7, 'F');
           }
           
-          xPos = margin + 3;
-          displayHeaders.forEach(header => {
+          xPos = margin + 2;
+          displayHeaders.forEach((header, index) => {
+            const colWidth = normalizedWidths[index];
+            const alignment = columnAlignments[index];
             let value = String(row[header as keyof typeof row] || '');
-            if (value.length > 25) {
-              value = value.substring(0, 22) + '...';
+            const maxValueWidth = colWidth - 4; // Leave 2mm padding on each side
+            
+            // Truncate value if it exceeds column width
+            if (doc.getTextWidth(value) > maxValueWidth) {
+              let truncated = value;
+              while (doc.getTextWidth(truncated + '...') > maxValueWidth && truncated.length > 0) {
+                truncated = truncated.substring(0, truncated.length - 1);
+              }
+              value = truncated + '...';
             }
+            
+            // Apply alignment
+            if (alignment === 'right') {
+              const textWidth = doc.getTextWidth(value);
+              doc.text(value, xPos + colWidth - textWidth - 2, yPos);
+            } else {
             doc.text(value, xPos, yPos);
-            xPos += colWidth;
+            }
+            xPos += colWidth + columnPadding;
           });
           yPos += 7;
         });
+        
+        // Calculate totals for amount columns (use all headers, not just displayed ones)
+        const totals = calculateTotals(orderData, headers);
+        const hasTotals = Object.keys(totals).length > 0;
+        
+        // Add total row directly below the table
+        if (hasTotals) {
+          checkPageBreak(10);
+          yPos += 2;
+          
+          // Draw separator line above total row
+          doc.setDrawColor(150, 150, 150);
+          doc.setLineWidth(0.8);
+          doc.line(margin, yPos, pageWidth - margin, yPos);
+          yPos += 5;
+          
+          // Total row background (highlighted)
+          doc.setFillColor(240, 248, 255);
+          doc.rect(margin, yPos - 5, maxWidth, 8, 'F');
+          
+          // Draw total row - use same alignment as data rows
+          xPos = margin + 2;
+          displayHeaders.forEach((header, index) => {
+            const colWidth = normalizedWidths[index];
+            const alignment = columnAlignments[index];
+            
+            if (totals[header] !== undefined) {
+              const totalInfo = totals[header];
+              let totalText: string;
+              
+              // Format based on type
+              if (totalInfo.type === 'currency') {
+                totalText = `PHP ${totalInfo.value.toFixed(2)}`;
+              } else if (totalInfo.type === 'count') {
+                totalText = totalInfo.value.toString();
+              } else {
+                // Backward compatibility
+                totalText = `PHP ${totalInfo.value.toFixed(2)}`;
+              }
+              
+              doc.setFontSize(9);
+              doc.setFont(undefined, 'bold');
+              doc.setTextColor(0, 0, 0);
+              
+              // Apply same alignment as data rows
+              if (alignment === 'right') {
+              const textWidth = doc.getTextWidth(totalText);
+              doc.text(totalText, xPos + colWidth - textWidth - 2, yPos);
+              } else {
+                doc.text(totalText, xPos, yPos);
+              }
+            } else if (header === displayHeaders[0]) {
+              // First column shows "TOTAL" label (always left-aligned)
+              doc.setFontSize(9);
+              doc.setFont(undefined, 'bold');
+              doc.setTextColor(0, 0, 0);
+              doc.text('TOTAL', xPos, yPos);
+            }
+            xPos += colWidth + columnPadding;
+          });
+          yPos += 8;
+          
+          // Draw bottom border for total row
+          doc.setDrawColor(150, 150, 150);
+          doc.setLineWidth(0.8);
+          doc.line(margin, yPos - 2, pageWidth - margin, yPos - 2);
+        }
         
         // Note about columns if truncated
         if (headers.length > maxColumns) {
@@ -390,6 +603,7 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
       
       // Draw footer on all pages
       const totalPages = doc.internal.pages.length - 1;
+      
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         
@@ -398,29 +612,44 @@ export const exportToPDF = async (orders: OrderForExport[], filename: string = '
         doc.setLineWidth(0.5);
         doc.line(margin, pageHeight - footerHeight + 5, pageWidth - margin, pageHeight - footerHeight + 5);
         
-        // Footer text
+        // Footer text - prevent overlapping by spacing properly
         doc.setFontSize(9);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(100, 100, 100);
+        
+        // Page number (centered)
         const pageText = `Page ${i} of ${totalPages}`;
         const pageTextWidth = doc.getTextWidth(pageText);
-        doc.text(pageText, (pageWidth - pageTextWidth) / 2, pageHeight - 10);
+        const pageTextCenter = (pageWidth - pageTextWidth) / 2;
+        doc.text(pageText, pageTextCenter, pageHeight - 10);
         
+        // Tracking ID (left side) - ensure it doesn't overlap with page number
         doc.setFontSize(8);
         doc.setFont(undefined, 'italic');
-        doc.text('Confidential', margin, pageHeight - 10);
+        const trackingText = `Tracking: ${trackingId}`;
+        const trackingWidth = doc.getTextWidth(trackingText);
+        // Only show tracking if there's enough space (at least 10mm gap from page number)
+        if (trackingWidth + margin + 10 < pageTextCenter) {
+          doc.text(trackingText, margin, pageHeight - 10);
+        }
         
+        // Timestamp (right side) - ensure it doesn't overlap with page number
         const timestamp = new Date().toLocaleString();
         const timestampWidth = doc.getTextWidth(timestamp);
-        doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10);
+        const pageTextRight = pageTextCenter + pageTextWidth;
+        // Only show timestamp if there's enough space (at least 10mm gap from page number)
+        if (pageWidth - margin - timestampWidth > pageTextRight + 10) {
+          doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10);
+        }
         
         doc.setTextColor(0, 0, 0);
       }
       
       // Save the PDF
       doc.save(`${filename}.pdf`);
-    } else {
-      // Fallback to text file for non-web environments
+    } else if (Platform.OS !== 'web') {
+      // Fallback to text file for non-web environments (iOS/Android)
+      console.warn('PDF export is only available on web. Falling back to text format.');
       let content = `ORDERS REPORT\n`;
       content += `${'='.repeat(50)}\n`;
       content += `Generated on: ${new Date().toLocaleDateString()}\n`;
@@ -647,10 +876,11 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
       : 'PHP 0.00'
   }));
 
-  // Try to use jsPDF if available (for web)
+  // Try to use jsPDF if available (for web only)
   try {
-    if (typeof window !== 'undefined') {
-      // Dynamic import of jsPDF
+    // Only import jsPDF on web platform to avoid native bundling issues
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Dynamic import of jsPDF - only on web
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF();
       
@@ -696,7 +926,21 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
       doc.text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, yPos);
-      yPos += 12;
+      yPos += 7;
+      
+      // Generate tracking ID (once for the document)
+      const customerTrackingId = `SPKLN-${Date.now().toString(36).toUpperCase()}`;
+      
+      // Add tracking ID in report details
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Tracking: ${customerTrackingId}`, margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(0, 0, 0);
       
       // Summary section
       if (summary && Object.keys(summary).length > 0) {
@@ -735,7 +979,30 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
         const headers = Object.keys(customerData[0]);
         const maxColumns = Math.min(headers.length, 5);
         const displayHeaders = headers.slice(0, maxColumns);
-        const colWidth = maxWidth / displayHeaders.length;
+        
+        // Distribute columns evenly with minimal padding
+        const columnPadding = 1.5; // Minimal padding between columns
+        const totalPadding = columnPadding * (displayHeaders.length - 1);
+        const availableWidth = maxWidth - totalPadding;
+        const colWidth = availableWidth / displayHeaders.length;
+        const normalizedWidths = displayHeaders.map(() => colWidth);
+        
+        // Determine column alignment based on header/content type (before drawing headers)
+        const columnAlignments: ('left' | 'right')[] = displayHeaders.map(header => {
+          const headerLower = header.toLowerCase();
+          // Right-align currency and numeric columns
+          const isCurrency = headerLower.includes('revenue') || headerLower.includes('expenses') || 
+                            headerLower.includes('profit') || headerLower.includes('amount') || 
+                            headerLower.includes('price') || headerLower.includes('cost') ||
+                            headerLower.includes('total revenue') || headerLower.includes('total spent') ||
+                            headerLower.includes('balance') || headerLower.includes('paid') ||
+                            headerLower.includes('cashflow') || headerLower.includes('spent') ||
+                            headerLower.includes('net cashflow') ||
+                            (headerLower.includes('total') && (headerLower.includes('revenue') || headerLower.includes('spent') || headerLower.includes('amount')))
+          const isNumeric = headerLower.includes('orders') || headerLower.includes('count') || 
+                           headerLower.includes('quantity') || headerLower.includes('items')
+          return (isCurrency || isNumeric) ? 'right' : 'left';
+        });
         
         // Table header background
         doc.setFillColor(240, 242, 245);
@@ -743,11 +1010,29 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
         
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
-        let xPos = margin + 3;
-        displayHeaders.forEach((header) => {
-          const headerText = header.length > 18 ? header.substring(0, 15) + '...' : header;
+        let xPos = margin + 2;
+        displayHeaders.forEach((header, index) => {
+          const colWidth = normalizedWidths[index];
+          const alignment = columnAlignments[index];
+          let headerText = header;
+          const maxHeaderWidth = colWidth - 4; // Leave 2mm padding on each side
+          
+          // Truncate header if too long
+          if (doc.getTextWidth(headerText) > maxHeaderWidth) {
+            while (doc.getTextWidth(headerText + '...') > maxHeaderWidth && headerText.length > 0) {
+              headerText = headerText.substring(0, headerText.length - 1);
+            }
+            headerText = headerText + '...';
+          }
+          
+          // Apply same alignment as data columns
+          if (alignment === 'right') {
+            const textWidth = doc.getTextWidth(headerText);
+            doc.text(headerText, xPos + colWidth - textWidth - 2, yPos);
+          } else {
           doc.text(headerText, xPos, yPos);
-          xPos += colWidth;
+          }
+          xPos += colWidth + columnPadding;
         });
         yPos += 8;
         
@@ -758,6 +1043,7 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
         
         // Draw data rows
         doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
         customerData.forEach((row, rowIndex) => {
           checkPageBreak(10);
           
@@ -766,17 +1052,100 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
             doc.rect(margin, yPos - 5, maxWidth, 7, 'F');
           }
           
-          xPos = margin + 3;
-          displayHeaders.forEach(header => {
+          xPos = margin + 2;
+          displayHeaders.forEach((header, index) => {
+            const colWidth = normalizedWidths[index];
+            const alignment = columnAlignments[index];
             let value = String(row[header as keyof typeof row] || '');
-            if (value.length > 25) {
-              value = value.substring(0, 22) + '...';
+            const maxValueWidth = colWidth - 4; // Leave 2mm padding on each side
+            
+            // Truncate value if it exceeds column width
+            if (doc.getTextWidth(value) > maxValueWidth) {
+              let truncated = value;
+              while (doc.getTextWidth(truncated + '...') > maxValueWidth && truncated.length > 0) {
+                truncated = truncated.substring(0, truncated.length - 1);
+              }
+              value = truncated + '...';
             }
+            
+            // Apply alignment
+            if (alignment === 'right') {
+              const textWidth = doc.getTextWidth(value);
+              doc.text(value, xPos + colWidth - textWidth - 2, yPos);
+            } else {
             doc.text(value, xPos, yPos);
-            xPos += colWidth;
+            }
+            xPos += colWidth + columnPadding;
           });
           yPos += 7;
         });
+        
+        // Calculate totals for amount columns
+        const customerTotals = calculateTotals(customerData, headers);
+        const hasCustomerTotals = Object.keys(customerTotals).length > 0;
+        
+        // Add total row directly below the table
+        if (hasCustomerTotals) {
+          checkPageBreak(10);
+          yPos += 2;
+          
+          // Draw separator line above total row
+          doc.setDrawColor(150, 150, 150);
+          doc.setLineWidth(0.8);
+          doc.line(margin, yPos, pageWidth - margin, yPos);
+          yPos += 5;
+          
+          // Total row background (highlighted)
+          doc.setFillColor(240, 248, 255);
+          doc.rect(margin, yPos - 5, maxWidth, 8, 'F');
+          
+          // Draw total row - use same alignment as data rows
+          xPos = margin + 2;
+          displayHeaders.forEach((header, index) => {
+            const colWidth = normalizedWidths[index];
+            const alignment = columnAlignments[index];
+            
+            if (customerTotals[header] !== undefined) {
+              const totalInfo = customerTotals[header];
+              let totalText: string;
+              
+              // Format based on type
+              if (totalInfo.type === 'currency') {
+                totalText = `PHP ${totalInfo.value.toFixed(2)}`;
+              } else if (totalInfo.type === 'count') {
+                totalText = totalInfo.value.toString();
+              } else {
+                // Backward compatibility
+                totalText = `PHP ${totalInfo.value.toFixed(2)}`;
+              }
+              
+              doc.setFontSize(9);
+              doc.setFont(undefined, 'bold');
+              doc.setTextColor(0, 0, 0);
+              
+              // Apply same alignment as data rows
+              if (alignment === 'right') {
+              const textWidth = doc.getTextWidth(totalText);
+              doc.text(totalText, xPos + colWidth - textWidth - 2, yPos);
+              } else {
+                doc.text(totalText, xPos, yPos);
+              }
+            } else if (header === displayHeaders[0]) {
+              // First column shows "TOTAL" label (always left-aligned)
+              doc.setFontSize(9);
+              doc.setFont(undefined, 'bold');
+              doc.setTextColor(0, 0, 0);
+              doc.text('TOTAL', xPos, yPos);
+            }
+            xPos += colWidth + columnPadding;
+          });
+          yPos += 8;
+          
+          // Draw bottom border for total row
+          doc.setDrawColor(150, 150, 150);
+          doc.setLineWidth(0.8);
+          doc.line(margin, yPos - 2, pageWidth - margin, yPos - 2);
+        }
         
         // Note about columns if truncated
         if (headers.length > maxColumns) {
@@ -798,6 +1167,7 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
       
       // Draw footer on all pages
       const totalPages = doc.internal.pages.length - 1;
+      
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         
@@ -806,29 +1176,44 @@ export const exportCustomersToPDF = async (customers: CustomerForExport[], filen
         doc.setLineWidth(0.5);
         doc.line(margin, pageHeight - footerHeight + 5, pageWidth - margin, pageHeight - footerHeight + 5);
         
-        // Footer text
+        // Footer text - prevent overlapping by spacing properly
         doc.setFontSize(9);
         doc.setFont(undefined, 'normal');
         doc.setTextColor(100, 100, 100);
+        
+        // Page number (centered)
         const pageText = `Page ${i} of ${totalPages}`;
         const pageTextWidth = doc.getTextWidth(pageText);
-        doc.text(pageText, (pageWidth - pageTextWidth) / 2, pageHeight - 10);
+        const pageTextCenter = (pageWidth - pageTextWidth) / 2;
+        doc.text(pageText, pageTextCenter, pageHeight - 10);
         
+        // Tracking ID (left side) - ensure it doesn't overlap with page number
         doc.setFontSize(8);
         doc.setFont(undefined, 'italic');
-        doc.text('Confidential', margin, pageHeight - 10);
+        const trackingText = `Tracking: ${customerTrackingId}`;
+        const trackingWidth = doc.getTextWidth(trackingText);
+        // Only show tracking if there's enough space (at least 10mm gap from page number)
+        if (trackingWidth + margin + 10 < pageTextCenter) {
+          doc.text(trackingText, margin, pageHeight - 10);
+        }
         
+        // Timestamp (right side) - ensure it doesn't overlap with page number
         const timestamp = new Date().toLocaleString();
         const timestampWidth = doc.getTextWidth(timestamp);
-        doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10);
+        const pageTextRight = pageTextCenter + pageTextWidth;
+        // Only show timestamp if there's enough space (at least 10mm gap from page number)
+        if (pageWidth - margin - timestampWidth > pageTextRight + 10) {
+          doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10);
+        }
         
         doc.setTextColor(0, 0, 0);
       }
       
       // Save the PDF
       doc.save(`${filename}.pdf`);
-    } else {
-      // Fallback to text file for non-web environments
+    } else if (Platform.OS !== 'web') {
+      // Fallback to text file for non-web environments (iOS/Android)
+      console.warn('PDF export is only available on web. Falling back to text format.');
       let content = `CUSTOMERS REPORT\n`;
       content += `${'='.repeat(50)}\n`;
       content += `Generated on: ${new Date().toLocaleDateString()}\n`;

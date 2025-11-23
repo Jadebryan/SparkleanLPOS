@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // Components
 import ModernSidebar from './components/ModernSidebar';
@@ -16,10 +17,13 @@ import { Alert } from 'react-native';
 import { 
   exportCustomersToCSV, 
   exportCustomersToExcel, 
-  exportCustomersToJSON, 
   exportCustomersToPDF,
   getExportFilename 
 } from '@/utils/exportUtils';
+import { useToast } from '@/app/context/ToastContext';
+import { EnhancedEmptyCustomers } from '@/components/ui/EnhancedEmptyState';
+import { ShimmerStatsCard } from '@/components/ui/ShimmerLoader';
+import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
 
 type Customer = {
   _id: string;
@@ -33,6 +37,7 @@ type Customer = {
 };
 
 export default function Customer() {
+  const { showSuccess, showError } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState('name-asc');
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +52,10 @@ export default function Customer() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
+  const [loading, setLoading] = useState(false);
+  const { hasPermission: hasPermissionFor } = usePermissions();
+  const canArchiveCustomers = hasPermissionFor('customers', 'archive');
+  const canUnarchiveCustomers = hasPermissionFor('customers', 'unarchive');
 
   // Load stats visibility preference from AsyncStorage
   useEffect(() => {
@@ -141,7 +150,7 @@ export default function Customer() {
     }
   };
 
-  const handleExport = (format: 'CSV' | 'Excel' | 'JSON' | 'PDF') => {
+  const handleExport = (format: 'CSV' | 'Excel' | 'PDF') => {
     // Get filtered customers based on search and sort
     const customersToExport = customers.filter(customer => {
       // Apply search filter
@@ -154,7 +163,7 @@ export default function Customer() {
     });
 
     if (customersToExport.length === 0) {
-      Alert.alert("Export", "No customers to export");
+      showError("No customers to export");
       return;
     }
 
@@ -172,23 +181,16 @@ export default function Customer() {
           case 'PDF':
             await exportCustomersToPDF(customersToExport, filename);
             break;
-          case 'JSON':
-            exportCustomersToJSON(customersToExport, filename);
-            break;
         }
         
-        Alert.alert("Success", `${customersToExport.length} customers exported as ${format}`);
+        showSuccess(`${customersToExport.length} customers exported as ${format}`);
       } catch (error: any) {
-        Alert.alert("Error", error.message || "Export failed. Please try again.");
+        showError(error.message || "Export failed. Please try again.");
         console.error('Export error:', error);
       }
     };
 
     performExport();
-  };
-
-  const handleStats = () => {
-    setShowStats(!showStats);
   };
 
   const handleCustomerAdded = (newCustomer: Customer) => {
@@ -198,12 +200,8 @@ export default function Customer() {
     // Trigger CustomerTable refresh
     setRefreshTrigger(prev => prev + 1);
     
-    // Show success banner
-    setSuccessMessage(`Customer "${newCustomer.customerName}" added successfully!`);
-    setShowSuccessMessage(true);
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-    }, 5000); // Hide after 5 seconds
+    // Show success toast
+    showSuccess(`Customer "${newCustomer.customerName}" added successfully!`);
   };
 
   return (
@@ -216,19 +214,26 @@ export default function Customer() {
         {/* Modern Header */}
         <Header title="Customer Management" />
 
-        {/* Success Banner */}
-        {showSuccessMessage && (
-          <View style={styles.successBanner}>
-            <Ionicons name="checkmark-circle" size={20} color="#059669" />
-            <Text style={styles.successBannerText}>{successMessage}</Text>
-            <TouchableOpacity onPress={() => setShowSuccessMessage(false)} style={styles.successBannerClose}>
-              <Ionicons name="close" size={20} color="#059669" />
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Content - ScrollView for page scrolling */}
+        <ScrollView 
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+        >
+          {/* Success Banner */}
+          {showSuccessMessage && (
+            <View style={styles.successBanner}>
+              <Ionicons name="checkmark-circle" size={20} color="#059669" />
+              <Text style={styles.successBannerText}>{successMessage}</Text>
+              <TouchableOpacity onPress={() => setShowSuccessMessage(false)} style={styles.successBannerClose}>
+                <Ionicons name="close" size={20} color="#059669" />
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {/* Page Header */}
-        <View style={styles.pageHeader}>
+          {/* Page Header */}
+          <View style={styles.pageHeader}>
           <View style={styles.titleSection}>
             <Ionicons name="people-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
             <View>
@@ -261,15 +266,19 @@ export default function Customer() {
               </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.actionButton, !showStats && styles.actionButtonActive]} 
-              onPress={handleStats}
+              style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
+              onPress={() => setShowStats(!showStats)}
+              accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
+              accessibilityRole="button"
             >
               <Ionicons 
-                name={showStats ? "stats-chart-outline" : "eye-off-outline"} 
+                name={showStats ? "eye-outline" : "eye-off-outline"} 
                 size={18} 
-                color="#2563EB" 
+                color={showStats ? "#374151" : "#2563EB"} 
               />
-              <Text style={styles.actionButtonText}>Stats</Text>
+              <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
+                Stats
+              </Text>
             </TouchableOpacity>
             <View style={styles.exportDropdownContainer}>
               <TouchableOpacity 
@@ -277,8 +286,8 @@ export default function Customer() {
                 style={styles.exportButton} 
                 onPress={() => {
                   if (exportButtonRef.current) {
-                    exportButtonRef.current.measure((fx: number, fy: number, fwidth: number, fheight: number, px: number, py: number) => {
-                      setExportButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
+                    exportButtonRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
+                      setExportButtonLayout({ x, y, width, height });
                       setShowExportDropdown(!showExportDropdown);
                     });
                   } else {
@@ -300,60 +309,58 @@ export default function Customer() {
 
         {/* Stats Grid */}
         {showStats && (
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, styles.statCardBlue]}>
-              <View style={[styles.statIcon, styles.statIconBlue]}>
-                <Ionicons name="folder-outline" size={24} color="#2563EB" />
-              </View>
-              <View>
-                <Text style={styles.statNumber}>{totalCustomers}</Text>
-                <Text style={styles.statLabel}>Total Customers</Text>
-              </View>
+          loading ? (
+            <View style={styles.statsGrid}>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <ShimmerStatsCard key={index} />
+              ))}
             </View>
+          ) : (
+            <View style={styles.statsGrid}>
+              <View style={[styles.statCard, styles.statCardBlue]}>
+                <View style={[styles.statIcon, styles.statIconBlue]}>
+                  <Ionicons name="folder-outline" size={24} color="#2563EB" />
+                </View>
+                <View>
+                  <Text style={styles.statNumber}>{totalCustomers}</Text>
+                  <Text style={styles.statLabel}>Total Customers</Text>
+                </View>
+              </View>
 
-            <View style={[styles.statCard, styles.statCardOrange]}>
-              <View style={[styles.statIcon, styles.statIconOrange]}>
-                <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
+              <View style={[styles.statCard, styles.statCardOrange]}>
+                <View style={[styles.statIcon, styles.statIconOrange]}>
+                  <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={styles.statNumber}>{newThisMonth}</Text>
+                  <Text style={styles.statLabel}>New This Month</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.statNumber}>{newThisMonth}</Text>
-                <Text style={styles.statLabel}>New This Month</Text>
-              </View>
-            </View>
 
-            <View style={[styles.statCard, styles.statCardGreen]}>
-              <View style={[styles.statIcon, styles.statIconGreen]}>
-                <Ionicons name="cash-outline" size={24} color="#059669" />
+              <View style={[styles.statCard, styles.statCardGreen]}>
+                <View style={[styles.statIcon, styles.statIconGreen]}>
+                  <Ionicons name="cash-outline" size={24} color="#059669" />
+                </View>
+                <View>
+                  <Text style={styles.statNumber}>₱{totalRevenue.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Total Revenue</Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.statNumber}>₱{totalRevenue.toLocaleString()}</Text>
-                <Text style={styles.statLabel}>Total Revenue</Text>
-              </View>
-            </View>
 
-            <View style={[styles.statCard, styles.statCardPurple]}>
-              <View style={[styles.statIcon, styles.statIconPurple]}>
-                <Ionicons name="bar-chart-outline" size={24} color="#7C3AED" />
-              </View>
-              <View>
-                <Text style={styles.statNumber}>₱{Math.round(avgOrderValue)}</Text>
-                <Text style={styles.statLabel}>Avg. Order Value</Text>
+              <View style={[styles.statCard, styles.statCardPurple]}>
+                <View style={[styles.statIcon, styles.statIconPurple]}>
+                  <Ionicons name="bar-chart-outline" size={24} color="#7C3AED" />
+                </View>
+                <View>
+                  <Text style={styles.statNumber}>₱{Math.round(avgOrderValue)}</Text>
+                  <Text style={styles.statLabel}>Avg. Order Value</Text>
+                </View>
               </View>
             </View>
-          </View>
+          )
         )}
 
-        <ScrollView 
-          style={styles.scrollView}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#2563EB"
-            />
-          }
-        >
-          {/* Search and Filter Bar */}
+          {/* Search and Filter Bar - scroll disabled to allow parent ScrollView to handle scrolling */}
           <CustomerTable 
             key={`${searchTerm}-${sortBy}-${refreshTrigger}`} 
             searchTerm={searchTerm} 
@@ -361,6 +368,11 @@ export default function Customer() {
             sortBy={sortBy}
             onSortChange={setSortBy}
             onCustomersChange={setCustomers}
+            canArchive={canArchiveCustomers}
+            canUnarchive={canUnarchiveCustomers}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            scrollEnabled={false}
           />
         </ScrollView>
 
@@ -391,8 +403,8 @@ export default function Customer() {
                   {
                     position: 'absolute',
                     top: exportButtonLayout.y > 0 ? exportButtonLayout.y + exportButtonLayout.height + 8 : 80,
-                    right: exportButtonLayout.x > 0 && typeof window !== 'undefined' 
-                      ? window.innerWidth - exportButtonLayout.x - exportButtonLayout.width 
+                    right: exportButtonLayout.x > 0 
+                      ? Dimensions.get('window').width - exportButtonLayout.x - exportButtonLayout.width
                       : 16,
                   }
                 ]}
@@ -431,16 +443,6 @@ export default function Customer() {
                     <Text style={styles.exportOptionText}>Excel Format</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.exportOption} 
-                    onPress={() => {
-                      handleExport('JSON');
-                      setShowExportDropdown(false);
-                    }}
-                  >
-                    <Ionicons name="document-text-outline" size={18} color="#374151" />
-                    <Text style={styles.exportOptionText}>JSON Format</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
                     style={[styles.exportOption, { borderBottomWidth: 0 }]} 
                     onPress={() => {
                       handleExport('PDF');
@@ -455,6 +457,26 @@ export default function Customer() {
             </TouchableOpacity>
           </Modal>
         )}
+
+        {/* Floating Action Button */}
+        <FloatingActionButton
+          mainIcon="person-add"
+          mainAction={() => setIsAddModalOpen(true)}
+          actions={[
+            {
+              icon: 'person-add-outline',
+              label: 'Add Customer',
+              onPress: () => setIsAddModalOpen(true),
+              color: colors.primary[500],
+            },
+            {
+              icon: 'download-outline',
+              label: 'Export',
+              onPress: () => setShowExportDropdown(true),
+              color: colors.warning[500],
+            },
+          ]}
+        />
       </View>
     </View>
   );
@@ -583,6 +605,32 @@ const styles = StyleSheet.create({
   },
   actionButtonActive: {
     backgroundColor: '#E0F2FE',
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    fontFamily: 'Poppins_500Medium',
+  },
+  toggleButtonTextActive: {
+    color: '#2563EB',
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
   exportDropdownContainer: {
     position: 'relative',

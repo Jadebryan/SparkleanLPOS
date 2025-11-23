@@ -101,8 +101,34 @@ userSchema.pre('save', async function(next) {
 // Instance method to check password
 userSchema.methods.comparePassword = async function(candidatePassword) {
   try {
-    return await bcrypt.compare(candidatePassword, this.password);
+    // Ensure we have a password to compare
+    if (!candidatePassword || !this.password) {
+      console.log('[Auth] Missing password for comparison');
+      return false;
+    }
+
+    // Trim the candidate password to handle whitespace issues
+    const trimmedPassword = candidatePassword.trim();
+    
+    // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+    if (!this.password.startsWith('$2')) {
+      console.log('[Auth] WARNING: Password is not hashed! This is a security issue.');
+      // For backwards compatibility, do plain text comparison (NOT RECOMMENDED)
+      return trimmedPassword === this.password;
+    }
+
+    // Use bcrypt to compare
+    const isMatch = await bcrypt.compare(trimmedPassword, this.password);
+    
+    if (!isMatch) {
+      // Also try without trimming in case password was stored with spaces
+      const isMatchUntrimmed = await bcrypt.compare(candidatePassword, this.password);
+      return isMatchUntrimmed;
+    }
+    
+    return isMatch;
   } catch (error) {
+    console.error('[Auth] Password comparison error:', error);
     throw error;
   }
 };
@@ -136,26 +162,38 @@ userSchema.methods.resetLoginAttempts = function() {
 };
 
 // Static method to find user by email or username
-userSchema.statics.findByCredentials = async function(email, password) {
+userSchema.statics.findByCredentials = async function(loginIdentifier, password) {
+  // Trim and normalize the login identifier
+  const identifier = loginIdentifier ? loginIdentifier.trim() : '';
+  
+  if (!identifier || !password) {
+    throw new Error('Invalid credentials');
+  }
+
+  // Try to find user by email (case-insensitive) or username (case-sensitive but trimmed)
   const user = await this.findOne({
     $or: [
-      { email: email.toLowerCase() },
-      { username: email }
+      { email: identifier.toLowerCase() },
+      { username: identifier.trim() }
     ],
     isActive: true
   });
 
   if (!user) {
+    console.log(`[Auth] User not found for identifier: ${identifier}`);
     throw new Error('Invalid credentials');
   }
 
   if (user.isLocked) {
+    console.log(`[Auth] Account locked for user: ${user.email || user.username}`);
     throw new Error('Account is temporarily locked due to too many failed login attempts');
   }
 
+  // Compare password
   const isMatch = await user.comparePassword(password);
   
   if (!isMatch) {
+    console.log(`[Auth] Password mismatch for user: ${user.email || user.username}`);
     await user.incLoginAttempts();
     throw new Error('Invalid credentials');
   }
@@ -165,6 +203,7 @@ userSchema.statics.findByCredentials = async function(email, password) {
     await user.resetLoginAttempts();
   }
 
+  console.log(`[Auth] Successful login for user: ${user.email || user.username}`);
   return user;
 };
 

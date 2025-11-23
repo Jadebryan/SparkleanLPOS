@@ -1,32 +1,33 @@
 const express = require('express');
 const DiscountController = require('../controllers/DiscountController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
 // All discount routes require authentication
 router.use(authenticate);
 
-// Get all discounts (both admin and staff can view)
-router.get('/', DiscountController.getAllDiscounts);
+// Get all discounts
+router.get('/', requirePermission('discounts', 'read'), DiscountController.getAllDiscounts);
 
 // Get single discount
-router.get('/:id', DiscountController.getDiscount);
+router.get('/:id', requirePermission('discounts', 'read'), DiscountController.getDiscount);
 
-// Create discount (admin only)
-router.post('/', authorize('admin'), DiscountController.createDiscount);
+// Create discount
+router.post('/', requirePermission('discounts', 'create'), DiscountController.createDiscount);
 
-// Update discount (admin only)
-router.put('/:id', authorize('admin'), DiscountController.updateDiscount);
+// Update discount
+router.put('/:id', requirePermission('discounts', 'update'), DiscountController.updateDiscount);
 
-// Archive discount (admin only)
-router.put('/:id/archive', authorize('admin'), DiscountController.archiveDiscount);
+// Archive discount
+router.put('/:id/archive', requirePermission('discounts', 'archive'), DiscountController.archiveDiscount);
 
-// Unarchive discount (admin only)
-router.put('/:id/unarchive', authorize('admin'), DiscountController.unarchiveDiscount);
+// Unarchive discount
+router.put('/:id/unarchive', requirePermission('discounts', 'unarchive'), DiscountController.unarchiveDiscount);
 
-// Reset discount usage counter (admin only)
-router.put('/:id/reset-usage', authorize('admin'), DiscountController.resetUsage);
+// Reset discount usage counter
+router.put('/:id/reset-usage', requirePermission('discounts', 'update'), DiscountController.resetUsage);
 
 module.exports = router;
 

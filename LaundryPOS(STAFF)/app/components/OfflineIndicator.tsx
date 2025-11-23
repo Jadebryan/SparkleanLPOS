@@ -170,9 +170,9 @@ const OfflineIndicator: React.FC = () => {
           </Text>
         </Animated.View>
       )}
-      <View style={styles.container}>
+      <View style={[styles.container, isCollapsed && styles.collapsedContainer]}>
       {!isOnline ? (
-        <View style={[styles.banner, styles.offlineBanner]}>
+        <View style={[styles.banner, styles.offlineBanner, isCollapsed && styles.collapsedBanner]}>
           <Ionicons name="cloud-offline" size={18} color="#FFFFFF" />
           {!isCollapsed && (
             <>
@@ -205,7 +205,7 @@ const OfflineIndicator: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : queueCount > 0 ? (
-        <View style={[styles.banner, styles.syncBanner]}>
+        <View style={[styles.banner, styles.syncBanner, isCollapsed && styles.collapsedBanner]}>
           {isSyncing ? (
             <Animated.View style={{ transform: [{ rotate: spin }] }}>
               <Ionicons name="sync" size={18} color="#FFFFFF" />
@@ -279,6 +279,10 @@ const styles = StyleSheet.create({
     maxWidth: 350,
     minWidth: 200,
   },
+  collapsedContainer: {
+    minWidth: 'auto',
+    maxWidth: 'auto',
+  },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -291,6 +295,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  collapsedBanner: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 4,
   },
   offlineBanner: {
     backgroundColor: '#EF4444',

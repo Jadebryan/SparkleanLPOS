@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import EmailInput from '@/components/EmailInput';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/constants/api';
@@ -102,7 +103,6 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       
       onCustomerAdded(customer);
       handleClose();
-      Alert.alert('Success', 'Customer added successfully!');
     } catch (error: any) {
       // Handle 409 Conflict - customer already exists
       if (error?.response?.status === 409) {
@@ -262,13 +262,11 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Email Address</Text>
-                  <TextInput
+                  <EmailInput
                     style={styles.textInput}
                     placeholder="customer@example.com (optional)"
                     value={newCustomer.email}
                     onChangeText={(text) => setNewCustomer({ ...newCustomer, email: text })}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
                   />
                 </View>
 

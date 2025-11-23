@@ -64,7 +64,7 @@ const employeeSchema = new mongoose.Schema({
 });
 
 // Indexes
-employeeSchema.index({ employeeId: 1 });
+// Note: employeeId field already has unique: true which creates an index
 employeeSchema.index({ status: 1, isArchived: 1 });
 employeeSchema.index({ department: 1 });
 employeeSchema.index({ stationId: 1 });

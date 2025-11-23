@@ -1,6 +1,7 @@
 const express = require('express');
 const OrderController = require('../controllers/OrderController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
@@ -8,42 +9,42 @@ const router = express.Router();
 router.use(authenticate);
 
 // Get all orders
-router.get('/', OrderController.getAllOrders);
+router.get('/', requirePermission('orders', 'read'), OrderController.getAllOrders);
 
 // Get single order
-router.get('/:id', OrderController.getOrder);
+router.get('/:id', requirePermission('orders', 'read'), OrderController.getOrder);
 
-// Create order (both admin and staff)
-router.post('/', OrderController.createOrder);
+// Create order
+router.post('/', requirePermission('orders', 'create'), OrderController.createOrder);
 
 // Save draft order
-router.post('/draft', OrderController.saveDraft);
+router.post('/draft', requirePermission('orders', 'create'), OrderController.saveDraft);
 
-// Update order (both admin and staff, but staff only their own)
-router.put('/:id', OrderController.updateOrder);
+// Update order
+router.put('/:id', requirePermission('orders', 'update'), OrderController.updateOrder);
 
-// Archive order (admin only)
-router.put('/:id/archive', authorize('admin'), OrderController.archiveOrder);
+// Archive order
+router.put('/:id/archive', requirePermission('orders', 'archive'), OrderController.archiveOrder);
 
-// Unarchive order (admin only)
-router.put('/:id/unarchive', authorize('admin'), OrderController.unarchiveOrder);
+// Unarchive order
+router.put('/:id/unarchive', requirePermission('orders', 'unarchive'), OrderController.unarchiveOrder);
 
 // Mark draft as completed
-router.put('/:id/mark-completed', authenticate, OrderController.markDraftAsCompleted);
+router.put('/:id/mark-completed', requirePermission('orders', 'update'), OrderController.markDraftAsCompleted);
 
 // Schedule draft deletion (30 days)
-router.put('/:id/schedule-deletion', authenticate, OrderController.scheduleDraftDeletion);
+router.put('/:id/schedule-deletion', requirePermission('orders', 'update'), OrderController.scheduleDraftDeletion);
 
-// Delete order permanently (admin only)
-router.delete('/:id', authorize('admin'), OrderController.deleteOrder);
+// Delete order permanently
+router.delete('/:id', requirePermission('orders', 'delete'), OrderController.deleteOrder);
 
 // Send invoice via email
-router.post('/:id/send-email', OrderController.sendInvoiceEmail);
+router.post('/:id/send-email', requirePermission('orders', 'read'), OrderController.sendInvoiceEmail);
 
 // Edit lock management (acquire/release/check)
-router.post('/:id/lock', OrderController.acquireEditLock);
-router.delete('/:id/lock', OrderController.releaseEditLock);
-router.get('/:id/lock', OrderController.checkEditLock);
+router.post('/:id/lock', requirePermission('orders', 'update'), OrderController.acquireEditLock);
+router.delete('/:id/lock', requirePermission('orders', 'update'), OrderController.releaseEditLock);
+router.get('/:id/lock', requirePermission('orders', 'read'), OrderController.checkEditLock);
 
 module.exports = router;
 

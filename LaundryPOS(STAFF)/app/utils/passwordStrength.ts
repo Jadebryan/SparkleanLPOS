@@ -1,6 +1,7 @@
 /**
  * Password Strength Checker and Generator
  */
+import React from 'react';
 
 export type PasswordStrength = 'weak' | 'fair' | 'good' | 'strong'
 
@@ -141,4 +142,8 @@ export const generateStrongPassword = (length: number = 16): string => {
   // Shuffle the password
   return password.split('').sort(() => Math.random() - 0.5).join('')
 }
+
+// Default export to prevent Expo Router from treating this as a route
+const PasswordStrengthRoute = () => null;
+export default PasswordStrengthRoute;
 

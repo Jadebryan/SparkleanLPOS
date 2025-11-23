@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView, Animated, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView, Animated, RefreshControl, AppState, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import axios from 'axios';
 import BrandIcon from '../../components/BrandIcon';
 import { api } from '@/utils/api';
@@ -199,13 +199,106 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
     setShowLogoutModal(true);
   };
 
-  // Auto logout on inactivity with 60s warning
+  // Auto logout on inactivity with warning
   const [showIdleWarning, setShowIdleWarning] = useState(false);
   const [idleCountdown, setIdleCountdown] = useState(60);
+  const [idleSettings, setIdleSettings] = useState({
+    enabled: true,
+    timeoutMinutes: 15,
+    warningSeconds: 60,
+  });
+  const [idleSettingsLoaded, setIdleSettingsLoaded] = useState(false);
+  const resetActivityRef = useRef<(() => void) | null>(null);
+
+  const fetchIdleSettings = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const response = await axios.get(`${API_BASE_URL}/system-settings/inactivity`, { headers });
+      const data = response.data?.data || response.data;
+      if (data?.staff) {
+        setIdleSettings({
+          enabled: data.staff.enabled ?? true,
+          timeoutMinutes: data.staff.timeoutMinutes ?? 15,
+          warningSeconds: data.staff.warningSeconds ?? 60,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading inactivity settings:', error?.response?.data || error);
+    } finally {
+      setIdleSettingsLoaded(true);
+    }
+  };
 
   useEffect(() => {
-    const IDLE_MS = 15 * 60 * 1000;
-    const WARNING_MS = 60 * 1000;
+    fetchIdleSettings();
+  }, []);
+
+  // Reload settings when app comes into focus (e.g., after returning from Settings page)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        fetchIdleSettings();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Also reload settings when this component comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchIdleSettings();
+    }, [])
+  );
+
+  // Check for settings updates periodically and when app becomes active
+  useEffect(() => {
+    const checkForSettingsUpdate = async () => {
+      try {
+        const lastUpdate = await AsyncStorage.getItem('sessionSettingsUpdated');
+        if (lastUpdate) {
+          // Settings were updated, reload them
+          await fetchIdleSettings();
+          // Clear the flag
+          await AsyncStorage.removeItem('sessionSettingsUpdated');
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    };
+
+    // Check immediately
+    checkForSettingsUpdate();
+
+    // Check every 5 seconds for settings updates
+    const updateCheckInterval = setInterval(checkForSettingsUpdate, 5000);
+
+    return () => {
+      clearInterval(updateCheckInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIdleCountdown(Math.max(Math.floor(idleSettings.warningSeconds ?? 60), 5));
+  }, [idleSettings.warningSeconds]);
+
+  useEffect(() => {
+    if (!idleSettingsLoaded || !idleSettings.enabled) {
+      setShowIdleWarning(false);
+      return;
+    }
+
+    const timeoutMinutes = Math.max(idleSettings.timeoutMinutes || 15, 1);
+    const IDLE_MS = timeoutMinutes * 60 * 1000;
+    const maxWarningSeconds = Math.max(timeoutMinutes * 60 - 5, 5);
+    const warningSeconds = Math.min(Math.max(idleSettings.warningSeconds || 60, 5), maxWarningSeconds);
+    const WARNING_MS = warningSeconds * 1000;
+    setIdleCountdown(Math.floor(warningSeconds));
+
     let lastActivity = Date.now();
     let pollInterval: any;
     let countdownInterval: any;
@@ -216,18 +309,31 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
       if (warned) {
         warned = false;
         setShowIdleWarning(false);
-        setIdleCountdown(60);
+        setIdleCountdown(Math.floor(warningSeconds));
         if (countdownInterval) clearInterval(countdownInterval);
       }
     };
 
-    // Web-specific events when running on web
+    // Store reset function in ref so it can be called from handleStayLoggedIn
+    resetActivityRef.current = reset;
+
+    const visibilityHandler = () => { 
+      if (typeof document !== 'undefined' && !document.hidden) {
+        reset();
+      }
+    };
+
+    // Add event listeners for activity detection
     if (typeof window !== 'undefined') {
-      window.addEventListener('mousemove', reset);
-      window.addEventListener('keydown', reset);
-      window.addEventListener('click', reset);
-      window.addEventListener('scroll', reset);
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) reset(); });
+      window.addEventListener('mousemove', reset, { passive: true });
+      window.addEventListener('keydown', reset, { passive: true });
+      window.addEventListener('click', reset, { passive: true });
+      window.addEventListener('scroll', reset, { passive: true });
+      window.addEventListener('touchstart', reset, { passive: true });
+      window.addEventListener('touchmove', reset, { passive: true });
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', visibilityHandler);
+      }
     }
 
     pollInterval = setInterval(async () => {
@@ -266,13 +372,25 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
         window.removeEventListener('keydown', reset);
         window.removeEventListener('click', reset);
         window.removeEventListener('scroll', reset);
+        window.removeEventListener('touchstart', reset);
+        window.removeEventListener('touchmove', reset);
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', visibilityHandler);
+        }
       }
     };
-  }, [router]);
+  }, [idleSettings, idleSettingsLoaded, router]);
 
   const handleStayLoggedIn = () => {
-    setShowIdleWarning(false);
-    setIdleCountdown(60);
+    // Reset activity timer by calling the reset function
+    if (resetActivityRef.current) {
+      resetActivityRef.current();
+    } else {
+      // Fallback: trigger a fake activity event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('mousemove'));
+      }
+    }
   };
 
   const initial = user?.name?.charAt(0).toUpperCase() || 'U';
@@ -303,8 +421,8 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
             style={styles.notificationButton}
             onPress={() => {
               if (notificationButtonRef.current) {
-                notificationButtonRef.current.measure((fx: number, fy: number, fwidth: number, fheight: number, px: number, py: number) => {
-                  setNotificationButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
+                notificationButtonRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
+                  setNotificationButtonLayout({ x, y, width, height });
                   setNotificationMenuOpen(!notificationMenuOpen);
                 });
               } else {
@@ -342,8 +460,8 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
             style={styles.userInfo}
             onPress={() => {
               if (userButtonRef.current) {
-                userButtonRef.current.measure((fx: number, fy: number, fwidth: number, fheight: number, px: number, py: number) => {
-                  setUserButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
+                userButtonRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
+                  setUserButtonLayout({ x, y, width, height });
                   setUserMenuOpen(!userMenuOpen);
                 });
               } else {
@@ -379,8 +497,8 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
               {
                 position: 'absolute',
                 top: notificationButtonLayout.y > 0 ? notificationButtonLayout.y + notificationButtonLayout.height + 8 : 60,
-                right: notificationButtonLayout.x > 0 && typeof window !== 'undefined' 
-                  ? window.innerWidth - notificationButtonLayout.x - notificationButtonLayout.width 
+                right: notificationButtonLayout.x > 0 
+                  ? Dimensions.get('window').width - notificationButtonLayout.x - notificationButtonLayout.width
                   : 16,
               }
             ]}
@@ -529,8 +647,8 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
               {
                 position: 'absolute',
                 top: userButtonLayout.y > 0 ? userButtonLayout.y + userButtonLayout.height + 8 : 60,
-                right: userButtonLayout.x > 0 && typeof window !== 'undefined' 
-                  ? window.innerWidth - userButtonLayout.x - userButtonLayout.width 
+                right: userButtonLayout.x > 0 
+                  ? Dimensions.get('window').width - userButtonLayout.x - userButtonLayout.width
                   : 16,
               }
             ]}

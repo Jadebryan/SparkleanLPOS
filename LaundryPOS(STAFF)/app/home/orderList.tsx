@@ -12,6 +12,7 @@ import {
   TextInput,
   ActivityIndicator,
   Animated,
+  Dimensions,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,12 +26,20 @@ import Header from "./components/Header";
 import SearchFilter from "./orderListComponents/searchFilter";
 import OrderTable from "./orderListComponents/orderTable";
 import ViewTransaction from "./orderListComponents/viewTransaction";
-import OrderStats from "./orderListComponents/OrderStats";
+import AddOrderModal from "./addOrderComponents/AddOrderModal";
 import { API_BASE_URL } from "@/constants/api";
 import { api } from "@/utils/api";
-import { exportToCSV, exportToExcel, exportToJSON, exportToPDF, getExportFilename } from "@/utils/exportUtils";
+import { exportToCSV, exportToExcel, exportToPDF, getExportFilename } from "@/utils/exportUtils";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePermissions } from "@/hooks/usePermissions";
 import { logger } from "@/utils/logger";
+import { useToast } from "@/app/context/ToastContext";
+import { ShimmerStatsCard } from "@/components/ui/ShimmerLoader";
+import InlineFilters, { FilterOption } from "@/components/ui/InlineFilters";
+import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
+import { TodaySummary } from "@/components/ui/TodaySummary";
+import { CommandPalette } from "@/components/ui/CommandPalette";
+import { useRouter } from "expo-router";
 
 // Type for orders
 type Order = {
@@ -731,6 +740,7 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
   preview.focus();
 }
 export default function Dashboard() {
+  const { showSuccess, showError } = useToast();
   const [showTransaction, setShowTransaction] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -752,6 +762,13 @@ export default function Dashboard() {
   const [exportButtonLayout, setExportButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const exportButtonRef = useRef<any>(null);
   const [staffName, setStaffName] = useState<string>("");
+  const [orderLocks, setOrderLocks] = useState<Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>>({});
+  const lockCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+  const [draftOrderIdForModal, setDraftOrderIdForModal] = useState<string | null>(null);
+  const { hasPermission: hasPermissionFor } = usePermissions();
+  const router = useRouter();
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   
   // Stats state
   const [stats, setStats] = useState({
@@ -762,6 +779,86 @@ export default function Dashboard() {
     pendingOrders: 0,
     completedOrders: 0,
   });
+
+  // Command palette commands
+  const commands = [
+    {
+      id: 'new-order',
+      label: 'Create New Order',
+      description: 'Add a new laundry order',
+      icon: 'add-circle-outline' as const,
+      category: 'Orders',
+      keywords: ['order', 'new', 'create', 'add'],
+      onPress: () => {
+        setDraftOrderIdForModal(null);
+        setIsCreateOrderModalOpen(true);
+      },
+      shortcut: 'N',
+    },
+    {
+      id: 'view-customers',
+      label: 'View Customers',
+      description: 'Go to customer management',
+      icon: 'people-outline' as const,
+      category: 'Navigation',
+      keywords: ['customer', 'people', 'clients'],
+      onPress: () => router.push('/home/customer'),
+      shortcut: 'C',
+    },
+    {
+      id: 'view-requests',
+      label: 'View Requests',
+      description: 'Go to expense requests',
+      icon: 'folder-outline' as const,
+      category: 'Navigation',
+      keywords: ['request', 'expense', 'folder'],
+      onPress: () => router.push('/home/request'),
+      shortcut: 'R',
+    },
+    {
+      id: 'export-csv',
+      label: 'Export to CSV',
+      description: 'Export orders as CSV file',
+      icon: 'document-text-outline' as const,
+      category: 'Export',
+      keywords: ['export', 'csv', 'download'],
+      onPress: () => handleExport('CSV'),
+    },
+    {
+      id: 'export-pdf',
+      label: 'Export to PDF',
+      description: 'Export orders as PDF file',
+      icon: 'document-text-outline' as const,
+      category: 'Export',
+      keywords: ['export', 'pdf', 'download'],
+      onPress: () => handleExport('PDF'),
+    },
+    {
+      id: 'refresh',
+      label: 'Refresh Orders',
+      description: 'Reload orders from server',
+      icon: 'refresh-outline' as const,
+      category: 'Actions',
+      keywords: ['refresh', 'reload', 'update'],
+      onPress: () => handleRefresh(),
+      shortcut: 'R',
+    },
+  ];
+
+  // Keyboard shortcut handler for command palette
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handleKeyPress = (e: any) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -779,6 +876,58 @@ export default function Dashboard() {
   useEffect(() => {
     fetchOrders();
   }, [showDrafts, filterPayment]);
+
+  // Check lock status for all orders periodically
+  useEffect(() => {
+    if (orders.length === 0) return;
+
+    const checkAllLocks = async () => {
+      try {
+        const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("userToken");
+        if (!token) return;
+
+        const lockPromises = orders.map(async (order) => {
+          try {
+            const orderId = order.orderId || order.__raw?.id || order.__raw?._id;
+            if (!orderId) return { orderId: null, lockInfo: null };
+
+            const response = await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+              method: "GET",
+              headers: {
+                "Authorization": `Bearer ${token}`,
+              },
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              return { orderId, lockInfo: data };
+            }
+            return { orderId, lockInfo: { isLocked: false } };
+          } catch (error) {
+            return { orderId: order.orderId || order.__raw?.id || order.__raw?._id, lockInfo: { isLocked: false } };
+          }
+        });
+
+        const results = await Promise.all(lockPromises);
+        const locksMap: Record<string, any> = {};
+        results.forEach(({ orderId, lockInfo }) => {
+          if (orderId && lockInfo) {
+            locksMap[orderId] = lockInfo;
+          }
+        });
+        setOrderLocks(locksMap);
+      } catch (error) {
+        console.error("Failed to check lock statuses:", error);
+      }
+    };
+
+    checkAllLocks();
+    const interval = setInterval(checkAllLocks, 3000); // Check every 3 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [orders]);
 
   // Load stats visibility preference from AsyncStorage
   useEffect(() => {
@@ -928,11 +1077,7 @@ export default function Dashboard() {
       calculateStats([]);
       
       // Show error message to user
-      Alert.alert(
-        "Error Loading Orders",
-        error.message || "Failed to load orders. Please check your connection and try again.",
-        [{ text: "OK" }]
-      );
+      showError(error.message || "Failed to load orders. Please check your connection and try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1015,7 +1160,7 @@ export default function Dashboard() {
     });
   };
 
-  const handleExport = (format: 'CSV' | 'Excel' | 'JSON' | 'PDF') => {
+  const handleExport = async (format: 'CSV' | 'Excel' | 'PDF') => {
     // Get filtered orders based on current filters
     const ordersToExport = orders.filter(order => {
       // Apply search filter
@@ -1033,11 +1178,55 @@ export default function Dashboard() {
     });
 
     if (ordersToExport.length === 0) {
-      Alert.alert("Export", "No orders to export");
+      showError("No orders to export");
       return;
     }
 
-    const filename = getExportFilename('orders');
+    // Build filename with station name if available
+    let filenamePrefix = 'orders';
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        // Try to get station name from the first order's station info or user's station
+        const firstOrder = ordersToExport[0];
+        const stationId = firstOrder?.__raw?.stationId || parsedUser.stationId;
+        if (stationId) {
+          // Try to fetch station name
+          try {
+            const response = await fetch(`${API_BASE_URL}/stations`, {
+              headers: {
+                'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`
+              }
+            });
+            if (response.ok) {
+              const stations = await response.json();
+              const stationsArray = Array.isArray(stations) ? stations : (stations.data || stations || []);
+              const station = stationsArray.find((s: any) => {
+                const stationStationId = String(s.stationId || '').toUpperCase().trim();
+                const sId = String(s._id || s.id || '');
+                const targetId = String(stationId).toUpperCase().trim();
+                return stationStationId === targetId || sId === targetId;
+              });
+              if (station?.name || station?.stationName) {
+                const stationName = station.name || station.stationName;
+                // Sanitize station name for filename (remove special characters)
+                const sanitizedStationName = stationName.replace(/[^a-zA-Z0-9]/g, '_');
+                filenamePrefix = `${sanitizedStationName}_orders`;
+              }
+            }
+          } catch (stationError) {
+            // If station fetch fails, just use default filename
+            console.warn('Could not fetch station info for filename:', stationError);
+          }
+        }
+      }
+    } catch (error) {
+      // If user data fetch fails, just use default filename
+      console.warn('Could not get user data for filename:', error);
+    }
+    
+    const filename = getExportFilename(filenamePrefix);
     
     try {
       // Map orders to export format
@@ -1065,26 +1254,75 @@ export default function Dashboard() {
         case 'Excel':
           exportToExcel(ordersForExport, filename);
           break;
-        case 'JSON':
-          exportToJSON(ordersForExport, filename);
-          break;
         case 'PDF':
           exportToPDF(ordersForExport, filename);
           break;
       }
       
-      Alert.alert("Success", `${ordersToExport.length} orders exported as ${format}`);
+      showSuccess(`${ordersToExport.length} orders exported as ${format}`);
       setShowExportDropdown(false);
     } catch (error: any) {
-      Alert.alert("Export Failed", error.message || "Failed to export orders. Please try again.");
+      showError(error.message || "Failed to export orders. Please try again.");
       logger.error('Export error:', error);
     }
   };
 
-  const handleEditOrder = (order: any) => {
-    setSelectedOrder(order);
-    setEditMode(true);
-    setShowTransaction(true);
+  const handleEditOrder = async (order: any) => {
+    try {
+      const orderId = order.orderId || order.id || order._id;
+      if (!orderId) {
+        Alert.alert("Error", "Order ID not found.");
+        return;
+      }
+
+      // Check if order is both paid AND completed - only lock when both conditions are met
+      const isCompleted = order.isCompleted || order.__raw?.isCompleted || false;
+      const paymentStatus = order.feeStatus || order.payment || order.paymentStatus;
+      const isPaid = paymentStatus === 'Paid';
+      
+      if (isPaid && isCompleted) {
+        Alert.alert("Order Locked", "This order has been paid and completed and cannot be edited.");
+        return;
+      }
+
+      // Acquire edit lock before opening modal
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Error", "Authentication required.");
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(orderId)}/lock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        if (response.status === 409) {
+          Alert.alert(
+            "Order Being Edited", 
+            data.message || `This order is currently being edited by ${data.lockedBy?.name || 'another user'}. Please wait for them to finish.`
+          );
+          return;
+        } else {
+          Alert.alert("Error", "Failed to acquire edit lock. Please try again.");
+          return;
+        }
+      }
+
+      // Lock acquired successfully, open modal in edit mode
+      setSelectedOrder(order);
+      setEditMode(true);
+      setShowTransaction(true);
+    } catch (error: any) {
+      console.error("Failed to acquire edit lock:", error);
+      Alert.alert("Error", "Failed to acquire edit lock. Please try again.");
+    }
   };
 
   const handlePrintReceipt = async (order: any) => {
@@ -1419,6 +1657,12 @@ export default function Dashboard() {
     }
   };
 
+  const getOrderBackendId = (order: Order | any) => {
+    if (!order) return null;
+    return order.__raw?._id || order.__raw?.id || order._id || order.orderId;
+  };
+
+
 
   return (
     <View style={GlobalStyles.mainLayout}>
@@ -1430,19 +1674,12 @@ export default function Dashboard() {
         {/* Modern Header */}
         <Header title="Order Management" />
 
-        {/* Content scroll */}
-        <ScrollView
+        {/* Content - ScrollView for page scrolling */}
+        <ScrollView 
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#2563EB"
-              colors={["#2563EB"]}
-            />
-          }
+          nestedScrollEnabled={true}
         >
           {/* Page Title Section */}
           <View style={styles.pageHeader}>
@@ -1478,7 +1715,7 @@ export default function Dashboard() {
                   />
                 </Animated.View>
               </TouchableOpacity>
-                <TouchableOpacity
+              <TouchableOpacity
                 style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
                 onPress={() => setShowStats(!showStats)}
               >
@@ -1490,15 +1727,15 @@ export default function Dashboard() {
                 <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
                   Stats
                 </Text>
-                </TouchableOpacity>
+              </TouchableOpacity>
               <View style={styles.exportDropdownContainer}>
                 <TouchableOpacity
                   ref={exportButtonRef}
                   style={styles.exportButton} 
                   onPress={() => {
                     if (exportButtonRef.current) {
-                      exportButtonRef.current.measure((fx, fy, fwidth, fheight, px, py) => {
-                        setExportButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
+                      exportButtonRef.current.measureInWindow((x, y, width, height) => {
+                        setExportButtonLayout({ x, y, width, height });
                         setShowExportDropdown(!showExportDropdown);
                       });
                     } else {
@@ -1511,19 +1748,75 @@ export default function Dashboard() {
                   <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
+              <TouchableOpacity
+                style={styles.createOrderButton}
+                onPress={() => {
+                  setDraftOrderIdForModal(null);
+                  setIsCreateOrderModalOpen(true);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.createOrderButtonText}>Create Order</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Stats Cards */}
-          {!loading && showStats && (
-            <OrderStats
-              totalOrders={stats.totalOrders}
-              paidOrders={stats.paidOrders}
-              unpaidOrders={stats.unpaidOrders}
-              totalRevenue={stats.totalRevenue}
-              pendingOrders={stats.pendingOrders}
-              completedOrders={stats.completedOrders}
-            />
+          {/* Today's Summary */}
+          {showStats && (
+            loading ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <ShimmerStatsCard key={index} />
+                ))}
+              </View>
+            ) : (
+              <TodaySummary
+                stats={[
+                  {
+                    label: 'Total Orders',
+                    value: stats.totalOrders,
+                    icon: 'receipt-outline',
+                    color: colors.primary[500],
+                    onPress: () => setFilterPayment('All'),
+                  },
+                  {
+                    label: 'Paid Orders',
+                    value: stats.paidOrders,
+                    icon: 'checkmark-circle-outline',
+                    color: colors.success[500],
+                    trend: stats.totalOrders > 0 
+                      ? { value: Math.round((stats.paidOrders / stats.totalOrders) * 100), isPositive: true }
+                      : undefined,
+                    onPress: () => setFilterPayment('Paid'),
+                  },
+                  {
+                    label: 'Unpaid Orders',
+                    value: stats.unpaidOrders,
+                    icon: 'close-circle-outline',
+                    color: colors.error[500],
+                    onPress: () => setFilterPayment('Unpaid'),
+                  },
+                  {
+                    label: 'Total Revenue',
+                    value: `₱${stats.totalRevenue.toFixed(2)}`,
+                    icon: 'cash-outline',
+                    color: colors.success[600],
+                  },
+                  {
+                    label: 'Pending',
+                    value: stats.pendingOrders,
+                    icon: 'time-outline',
+                    color: colors.warning[500],
+                  },
+                  {
+                    label: 'Completed',
+                    value: stats.completedOrders,
+                    icon: 'checkmark-done-outline',
+                    color: colors.success[600],
+                  },
+                ]}
+              />
+            )
           )}
 
           {/* Search and Filter Section */}
@@ -1535,17 +1828,38 @@ export default function Dashboard() {
               onToggleDrafts={() => setShowDrafts(!showDrafts)}
               onOpenFilters={() => setShowFiltersModal(true)}
             />
+            
+            {/* Inline Payment Status Filters */}
+            <InlineFilters
+              filters={[
+                { label: 'All', value: 'All', icon: 'list-outline', count: orders.length },
+                { label: 'Paid', value: 'Paid', icon: 'checkmark-circle-outline', count: orders.filter(o => o.feeStatus === 'Paid').length },
+                { label: 'Unpaid', value: 'Unpaid', icon: 'close-circle-outline', count: orders.filter(o => o.feeStatus === 'Unpaid').length },
+                { label: 'Partial', value: 'Partial', icon: 'time-outline', count: orders.filter(o => o.feeStatus === 'Partial').length },
+              ]}
+              activeFilters={filterPayment === 'All' ? [] : [filterPayment]}
+              onFilterToggle={(value) => {
+                setFilterPayment(value === filterPayment ? 'All' : value);
+              }}
+              onClearAll={() => setFilterPayment('All')}
+              title="Payment Status"
+              showClearAll={filterPayment !== 'All'}
+            />
+            
             <View style={styles.orderCountContainer}>
               <Text style={styles.orderCountText}>
-                {orders.filter(o => 
-                  (o.orderId ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-                  (o.customerName ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-                ).length} Orders Found
+                {orders.filter(o => {
+                  const matchesSearch = (o.orderId ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+                    (o.customerName ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+                  const matchesPayment = filterPayment === "All" || o.feeStatus === filterPayment;
+                  const matchesDrafts = showDrafts ? (o.__raw?.isDraft === true) : (o.__raw?.isDraft !== true);
+                  return matchesSearch && matchesPayment && matchesDrafts;
+                }).length} Orders Found
               </Text>
             </View>
           </View>
 
-          {/* Order table */}
+          {/* Order table - scroll disabled to allow parent ScrollView to handle scrolling */}
           <OrderTable
             setVisible={(visible) => {
               setShowTransaction(visible);
@@ -1557,10 +1871,13 @@ export default function Dashboard() {
             searchQuery={debouncedSearchQuery}
             orders={orders}
             loading={loading}
-            onRefresh={fetchOrders}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
             onEditOrder={handleEditOrder}
             onViewInvoice={handleViewInvoice}
             onPrintReceipt={handlePrintReceipt}
+            orderLocks={orderLocks}
+            scrollEnabled={false}
           />
         </ScrollView>
 
@@ -1789,8 +2106,8 @@ export default function Dashboard() {
                   {
                     position: 'absolute',
                     top: exportButtonLayout.y > 0 ? exportButtonLayout.y + exportButtonLayout.height + 8 : 80,
-                    right: exportButtonLayout.x > 0 && typeof window !== 'undefined' 
-                      ? window.innerWidth - exportButtonLayout.x - exportButtonLayout.width 
+                    right: exportButtonLayout.x > 0 
+                      ? Dimensions.get('window').width - exportButtonLayout.x - exportButtonLayout.width
                       : 16,
                   }
                 ]}
@@ -1830,16 +2147,6 @@ export default function Dashboard() {
                     <Text style={styles.exportOptionText}>Excel Format</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.exportOption} 
-                    onPress={() => {
-                      handleExport('JSON');
-                      setShowExportDropdown(false);
-                    }}
-                  >
-                    <Ionicons name="document-text-outline" size={18} color="#374151" />
-                    <Text style={styles.exportOptionText}>JSON Format</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
                     style={[styles.exportOption, { borderBottomWidth: 0 }]} 
                     onPress={() => {
                       handleExport('PDF');
@@ -1854,6 +2161,19 @@ export default function Dashboard() {
             </TouchableOpacity>
           </Modal>
         )}
+
+        {/* Create Order Modal */}
+        <AddOrderModal
+          isOpen={isCreateOrderModalOpen}
+          onClose={() => {
+            setIsCreateOrderModalOpen(false);
+            setDraftOrderIdForModal(null);
+          }}
+          onOrderCreated={() => {
+            fetchOrders();
+          }}
+          draftOrderId={draftOrderIdForModal}
+        />
 
         {/* Filters Modal */}
         <Modal
@@ -1910,6 +2230,45 @@ export default function Dashboard() {
             </View>
           </View>
         </Modal>
+
+        {/* Floating Action Button */}
+        <FloatingActionButton
+          mainIcon="add"
+          mainAction={() => {
+            setDraftOrderIdForModal(null);
+            setIsCreateOrderModalOpen(true);
+          }}
+          actions={[
+            {
+              icon: 'add-circle-outline',
+              label: 'New Order',
+              onPress: () => {
+                setDraftOrderIdForModal(null);
+                setIsCreateOrderModalOpen(true);
+              },
+              color: colors.primary[500],
+            },
+            {
+              icon: 'person-add-outline',
+              label: 'Add Customer',
+              onPress: () => router.push('/home/customer'),
+              color: colors.success[500],
+            },
+            {
+              icon: 'download-outline',
+              label: 'Export',
+              onPress: () => setShowExportDropdown(true),
+              color: colors.warning[500],
+            },
+          ]}
+        />
+
+        {/* Command Palette */}
+        <CommandPalette
+          isVisible={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          commands={commands}
+        />
       </View>
     </View>
   );
@@ -1994,6 +2353,14 @@ const styles = StyleSheet.create({
     ...buttonStyles.primaryText,
     marginLeft: spacing.sm,
   },
+  createOrderButton: {
+    ...buttonStyles.primary,
+    marginLeft: spacing.sm,
+  },
+  createOrderButtonText: {
+    ...buttonStyles.primaryText,
+    marginLeft: spacing.sm,
+  },
   exportDropdownContainer: {
     position: 'relative',
   },
@@ -2053,8 +2420,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   orderCountContainer: {
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: -20,
+    marginBottom: -20,
   },
   orderCountText: {
     fontSize: 14,

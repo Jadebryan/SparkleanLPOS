@@ -63,7 +63,7 @@ const discountSchema = new mongoose.Schema({
 });
 
 // Indexes
-discountSchema.index({ code: 1 });
+// Note: code field already has unique: true which creates an index
 discountSchema.index({ isActive: 1, isArchived: 1 });
 discountSchema.index({ validFrom: 1, validUntil: 1 });
 

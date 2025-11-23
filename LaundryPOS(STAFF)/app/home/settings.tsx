@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import * as Location from 'expo-location';
+import EmailInput from '@/components/EmailInput';
 import { API_BASE_URL } from '@/constants/api';
 import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
@@ -24,7 +24,7 @@ type UserProfile = {
 };
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'email' | 'location'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'email'>('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -57,20 +57,20 @@ export default function Settings() {
   const [verificationCode, setVerificationCode] = useState('');
   const [isCodeVerified, setIsCodeVerified] = useState(false);
 
-  // Location form state
-  const [locationState, setLocationState] = useState({
-    latitude: null as number | null,
-    longitude: null as number | null,
-    isGettingLocation: false,
-    hasLocation: false,
-  });
 
-  // Confirmation modal state
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [sessionSettings, setSessionSettings] = useState({
+    enabled: true,
+    timeoutMinutes: 15,
+    warningSeconds: 60,
+  });
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionSaving, setSessionSaving] = useState(false);
+  const [sessionSaveSuccess, setSessionSaveSuccess] = useState(false);
 
   // Load user profile
   useEffect(() => {
     fetchUserProfile();
+    fetchSessionSettings();
   }, []);
 
   const fetchUserProfile = async () => {
@@ -92,21 +92,34 @@ export default function Settings() {
         setProfileForm({
           username: userData.username || '',
         });
-        // Set location state if available
-        if (userData.location?.latitude && userData.location?.longitude) {
-          setLocationState({
-            latitude: userData.location.latitude,
-            longitude: userData.location.longitude,
-            isGettingLocation: false,
-            hasLocation: true,
-          });
-        }
       }
     } catch (error: any) {
       console.error('Error fetching profile:', error);
       Alert.alert('Error', error?.response?.data?.message || 'Failed to load profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSessionSettings = async () => {
+    try {
+      setSessionLoading(true);
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (!token) return;
+      const headers: any = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_BASE_URL}/system-settings/inactivity`, { headers });
+      const data = response.data?.data || response.data;
+      if (data?.staff) {
+        setSessionSettings({
+          enabled: data.staff.enabled ?? true,
+          timeoutMinutes: data.staff.timeoutMinutes ?? 15,
+          warningSeconds: data.staff.warningSeconds ?? 60,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error loading session settings:', error);
+    } finally {
+      setSessionLoading(false);
     }
   };
 
@@ -134,6 +147,52 @@ export default function Settings() {
       Alert.alert('Error', error?.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSessionSettingSave = async () => {
+    const minutes = Number(sessionSettings.timeoutMinutes);
+    if (minutes < 5 || minutes > 240) {
+      Alert.alert('Error', 'Timeout must be between 5 and 240 minutes');
+      return;
+    }
+    const warningLimit = Math.max(minutes * 60 - 5, 5);
+    const warning = Number(sessionSettings.warningSeconds);
+    if (warning < 5 || warning > warningLimit) {
+      Alert.alert('Error', `Warning countdown must be between 5 and ${warningLimit} seconds`);
+      return;
+    }
+
+    try {
+      setSessionSaving(true);
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (!token) {
+        Alert.alert('Error', 'Please log in again');
+        return;
+      }
+      const headers: any = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      await axios.put(`${API_BASE_URL}/system-settings/inactivity`, {
+        enabled: sessionSettings.enabled,
+        timeoutMinutes: minutes,
+        warningSeconds: warning,
+        role: 'staff',
+      }, { headers });
+      
+      // Store a flag in AsyncStorage to notify Header to reload settings
+      await AsyncStorage.setItem('sessionSettingsUpdated', Date.now().toString());
+      
+      // Show visual feedback on button
+      setSessionSaveSuccess(true);
+      setTimeout(() => setSessionSaveSuccess(false), 2000);
+      
+      // Show success message using the same modal as other operations
+      setSuccessMessage('Session timeout settings updated successfully! The new settings will take effect immediately.');
+      setShowSuccessMessage(true);
+    } catch (error: any) {
+      console.error('Error updating session settings:', error);
+      Alert.alert('Error', error?.response?.data?.message || 'Failed to update session timeout');
+    } finally {
+      setSessionSaving(false);
     }
   };
 
@@ -257,110 +316,6 @@ export default function Settings() {
     }
   };
 
-  const handleGetCurrentLocation = async () => {
-    try {
-      setLocationState(prev => ({ ...prev, isGettingLocation: true }));
-      
-      // Request location permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Denied',
-          'Location permission is required to pin your location. Please enable it in your device settings.',
-          [{ text: 'OK' }]
-        );
-        setLocationState(prev => ({ ...prev, isGettingLocation: false }));
-        return;
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const newLocationState = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        isGettingLocation: false,
-        hasLocation: true,
-      };
-
-      console.log('Location retrieved:', newLocationState);
-      setLocationState(newLocationState);
-    } catch (error: any) {
-      console.error('Error getting location:', error);
-      Alert.alert('Error', 'Failed to get your location. Please try again.');
-      setLocationState(prev => ({ ...prev, isGettingLocation: false }));
-    }
-  };
-
-  const handlePinLocation = () => {
-    console.log('handlePinLocation called', {
-      latitude: locationState.latitude,
-      longitude: locationState.longitude,
-      stationId: user?.stationId
-    });
-
-    if (!locationState.latitude || !locationState.longitude) {
-      Alert.alert('Error', 'Please get your current location first');
-      return;
-    }
-
-    if (!user?.stationId) {
-      Alert.alert('Error', 'No station assigned. Please contact admin to assign you to a station.');
-      return;
-    }
-
-    console.log('Showing confirmation modal');
-    setShowConfirmModal(true);
-  };
-
-  const confirmPinLocation = async () => {
-    console.log('User confirmed, starting API call');
-    setShowConfirmModal(false);
-    
-    try {
-      setSaving(true);
-      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
-      
-      if (!token) {
-        Alert.alert('Error', 'Please log in again');
-        setSaving(false);
-        return;
-      }
-
-      console.log('Making API request to:', `${API_BASE_URL}/auth/me`);
-      const response = await axios.put(
-        `${API_BASE_URL}/auth/me`,
-        {
-          location: {
-            latitude: locationState.latitude,
-            longitude: locationState.longitude,
-          },
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      console.log('API response:', response.data);
-      if (response.data.success) {
-        setUser(response.data.data);
-        setSuccessMessage(`Location pinned successfully! Station "${user?.stationId}" address has been updated in the admin panel.`);
-        setShowSuccessMessage(true);
-      }
-    } catch (error: any) {
-      console.error('Error pinning location:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status
-      });
-      Alert.alert('Error', error?.response?.data?.message || error?.message || 'Failed to pin location');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handlePasswordChange = async () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
@@ -451,47 +406,6 @@ export default function Settings() {
           </Modal>
         )}
 
-        {/* Confirmation Modal for Location Pin */}
-        <Modal 
-          visible={showConfirmModal} 
-          transparent 
-          animationType="fade" 
-          onRequestClose={() => setShowConfirmModal(false)}
-        >
-          <View style={styles.feedbackOverlay}>
-            <View style={styles.feedbackCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Ionicons name="location" size={24} color="#2563EB" />
-                <Text style={styles.feedbackTitle}>Confirm Location Pin</Text>
-              </View>
-              <Text style={styles.feedbackText}>
-                This will update the address for station "{user?.stationId}" in the admin panel. Are you sure you're at the correct station location?
-              </Text>
-              <View style={{ marginTop: 24, flexDirection: 'row', gap: 12, justifyContent: 'flex-end' }}>
-                <TouchableOpacity 
-                  style={[styles.cancelButton]} 
-                  onPress={() => {
-                    console.log('User cancelled');
-                    setShowConfirmModal(false);
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.saveButton]} 
-                  onPress={confirmPinLocation}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>Pin Location</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
         
         <ScrollView
           style={{ flex: 1 }}
@@ -533,13 +447,6 @@ export default function Settings() {
                 >
                   <Ionicons name="mail-outline" size={18} color={activeTab === 'email' ? '#2563EB' : '#6B7280'} />
                   <Text style={[styles.settingsTabText, activeTab === 'email' && styles.settingsTabTextActive]}>Email</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.settingsTab, activeTab === 'location' && styles.settingsTabActive]}
-                  onPress={() => setActiveTab('location')}
-                >
-                  <Ionicons name="location-outline" size={18} color={activeTab === 'location' ? '#2563EB' : '#6B7280'} />
-                  <Text style={[styles.settingsTabText, activeTab === 'location' && styles.settingsTabTextActive]}>Location</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -606,6 +513,7 @@ export default function Settings() {
               )}
 
               {activeTab === 'security' && (
+              <>
               <View style={styles.card}>
               <Text style={styles.sectionTitle}>Change Password</Text>
               <Text style={styles.sectionDescription}>
@@ -697,6 +605,86 @@ export default function Settings() {
                 )}
               </TouchableOpacity>
               </View>
+
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Session Timeout</Text>
+                <Text style={styles.sectionDescription}>
+                  Control automatic logout after inactivity.
+                </Text>
+                <View style={styles.sessionToggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Automatic Logout</Text>
+                    <Text style={styles.hint}>Disable to keep your session active indefinitely.</Text>
+                  </View>
+                  <Switch
+                    value={sessionSettings.enabled}
+                    onValueChange={(value) => setSessionSettings(prev => ({ ...prev, enabled: value }))}
+                    trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
+                    thumbColor={sessionSettings.enabled ? '#2563EB' : '#f4f4f5'}
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Timeout (minutes)</Text>
+                  <TextInput
+                    style={[styles.input, !sessionSettings.enabled && styles.inputDisabled]}
+                    keyboardType="numeric"
+                    editable={sessionSettings.enabled}
+                    value={String(sessionSettings.timeoutMinutes)}
+                    onChangeText={(text) => {
+                      const minutes = Math.min(Math.max(parseInt(text || '0', 10) || 0, 1), 240)
+                      setSessionSettings(prev => ({
+                        ...prev,
+                        timeoutMinutes: minutes,
+                        warningSeconds: Math.min(prev.warningSeconds, Math.max(minutes * 60 - 5, 5)),
+                      }))
+                    }}
+                    placeholder="15"
+                  />
+                  <Text style={styles.hint}>Between 5 and 240 minutes.</Text>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Warning countdown (seconds)</Text>
+                  <TextInput
+                    style={[styles.input, !sessionSettings.enabled && styles.inputDisabled]}
+                    keyboardType="numeric"
+                    editable={sessionSettings.enabled}
+                    value={String(sessionSettings.warningSeconds)}
+                    onChangeText={(text) => {
+                      const seconds = Math.max(parseInt(text || '0', 10) || 0, 5)
+                      setSessionSettings(prev => ({ ...prev, warningSeconds: seconds }))
+                    }}
+                    placeholder="60"
+                  />
+                  <Text style={styles.hint}>Users will see this warning before being logged out.</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    (sessionSaving || sessionLoading) && styles.saveButtonDisabled,
+                    sessionSaveSuccess && { backgroundColor: '#059669' },
+                  ]}
+                  onPress={handleSessionSettingSave}
+                  disabled={sessionSaving || sessionLoading}
+                >
+                  {sessionSaving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : sessionSaveSuccess ? (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                      <Text style={styles.saveButtonText}>Saved!</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.saveButtonText}>Save Session Settings</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+              </>
               )}
 
               {activeTab === 'email' && (
@@ -715,26 +703,22 @@ export default function Settings() {
 
               <View style={styles.formGroup}>
                 <Text style={styles.label}>New Email Address</Text>
-                <TextInput
+                <EmailInput
                   style={styles.input}
                   value={emailForm.newEmail}
                   onChangeText={(text) => setEmailForm({ ...emailForm, newEmail: text })}
                   placeholder="Enter your new email address"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
                   editable={!isEmailVerificationSent}
                 />
               </View>
 
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Confirm New Email</Text>
-                <TextInput
+                <EmailInput
                   style={styles.input}
                   value={emailForm.confirmEmail}
                   onChangeText={(text) => setEmailForm({ ...emailForm, confirmEmail: text })}
                   placeholder="Confirm your new email address"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
                   editable={!isEmailVerificationSent}
                 />
                 {emailForm.confirmEmail && emailForm.newEmail !== emailForm.confirmEmail && (
@@ -823,142 +807,6 @@ export default function Settings() {
               </View>
               )}
 
-              {activeTab === 'location' && (
-              <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Pin Station Location</Text>
-              <Text style={styles.sectionDescription}>
-                Pin your current location to update your station's address in the admin panel.
-              </Text>
-
-              {user?.stationId ? (
-                <View style={styles.stationInfo}>
-                  <View style={styles.stationRow}>
-                    <Ionicons name="business-outline" size={20} color="#2563EB" />
-                    <View style={styles.stationDetails}>
-                      <Text style={styles.stationLabel}>Your Station</Text>
-                      <Text style={styles.stationValue}>{user.stationId}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.stationHint}>
-                    When you pin your location, the address for station "{user.stationId}" will be updated in the admin panel.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.warningBox}>
-                  <Ionicons name="warning-outline" size={20} color="#F59E0B" />
-                  <Text style={styles.warningText}>
-                    No station assigned. Please contact admin to assign you to a station before pinning location.
-                  </Text>
-                </View>
-              )}
-
-              {locationState.hasLocation && locationState.latitude && locationState.longitude && (
-                <View style={styles.locationInfo}>
-                  <View style={styles.locationRow}>
-                    <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                    <Text style={styles.locationLabel}>Location Retrieved</Text>
-                  </View>
-                  <View style={styles.coordinatesContainer}>
-                    <View style={styles.coordinateItem}>
-                      <Text style={styles.coordinateLabel}>Latitude:</Text>
-                      <Text style={styles.coordinateValue}>{locationState.latitude.toFixed(6)}</Text>
-                    </View>
-                    <View style={styles.coordinateItem}>
-                      <Text style={styles.coordinateLabel}>Longitude:</Text>
-                      <Text style={styles.coordinateValue}>{locationState.longitude.toFixed(6)}</Text>
-                    </View>
-                  </View>
-                  {user?.location?.locationUpdatedAt && (
-                    <Text style={styles.lastUpdatedText}>
-                      Last updated: {new Date(user.location.locationUpdatedAt).toLocaleString()}
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.formGroup}>
-                <TouchableOpacity
-                  style={[styles.locationButton, locationState.isGettingLocation && styles.locationButtonDisabled]}
-                  onPress={handleGetCurrentLocation}
-                  disabled={locationState.isGettingLocation}
-                >
-                  {locationState.isGettingLocation ? (
-                    <ActivityIndicator size="small" color="#2563EB" />
-                  ) : (
-                    <>
-                      <Ionicons name="locate-outline" size={20} color="#2563EB" />
-                      <Text style={styles.locationButtonText}>
-                        {locationState.hasLocation ? 'Update Current Location' : 'Get Current Location'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {locationState.hasLocation && locationState.latitude && locationState.longitude && user?.stationId ? (
-                <View style={{ marginTop: 16, zIndex: 10 }}>
-                  <TouchableOpacity
-                    style={[
-                      styles.saveButton, 
-                      saving && styles.saveButtonDisabled,
-                      { width: '100%', minHeight: 56 }
-                    ]}
-                    onPress={() => {
-                      console.log('Pin Location button pressed', {
-                        hasLocation: locationState.hasLocation,
-                        latitude: locationState.latitude,
-                        longitude: locationState.longitude,
-                        stationId: user?.stationId,
-                        saving: saving
-                      });
-                      if (!saving) {
-                        handlePinLocation();
-                      }
-                    }}
-                    disabled={saving}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    {saving ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Ionicons name="pin-outline" size={20} color="#FFFFFF" />
-                        <Text style={styles.saveButtonText}>Pin Station Location</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              ) : locationState.hasLocation && !user?.stationId ? (
-                <View style={styles.warningBox}>
-                  <Ionicons name="warning-outline" size={20} color="#F59E0B" />
-                  <Text style={styles.warningText}>
-                    Location retrieved, but no station assigned. Please contact admin to assign you to a station.
-                  </Text>
-                </View>
-              ) : null}
-              
-              {/* Debug info - remove after testing */}
-              {__DEV__ && (
-                <View style={styles.debugInfo}>
-                  <Text style={styles.debugText}>
-                    Debug: hasLocation={locationState.hasLocation ? 'true' : 'false'}, 
-                    stationId={user?.stationId || 'none'}, 
-                    saving={saving ? 'true' : 'false'}
-                  </Text>
-                </View>
-              )}
-
-              {user?.stationId && (
-                <View style={styles.locationHint}>
-                  <Ionicons name="information-circle-outline" size={16} color="#6B7280" />
-                  <Text style={styles.hint}>
-                    Pinning your location will update the address for station "{user.stationId}" in the admin panel. Make sure you're at the correct station location before pinning.
-                  </Text>
-                </View>
-              )}
-              </View>
-              )}
 
             </View>
           </View>
@@ -1099,6 +947,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+  sessionToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
   saveButton: {
     ...buttonStyles.primary,
     marginTop: spacing.sm,
@@ -1217,114 +1071,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#059669',
     flex: 1,
-  },
-  locationInfo: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#059669',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  locationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#059669',
-  },
-  coordinatesContainer: {
-    gap: 8,
-  },
-  coordinateItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  coordinateLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  coordinateValue: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontFamily: 'monospace',
-  },
-  lastUpdatedText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#2563EB',
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  locationButtonDisabled: {
-    opacity: 0.6,
-  },
-  locationButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
-  },
-  locationHint: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  stationInfo: {
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#2563EB',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  stationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  stationDetails: {
-    flex: 1,
-  },
-  stationLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  stationValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  stationHint: {
-    fontSize: 13,
-    color: '#374151',
-    marginTop: 8,
-    lineHeight: 18,
   },
   warningBox: {
     flexDirection: 'row',

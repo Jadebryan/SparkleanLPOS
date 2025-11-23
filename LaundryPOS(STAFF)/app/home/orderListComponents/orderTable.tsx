@@ -7,11 +7,17 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  RefreshControl,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from "@/constants/api";
 import { badgeStyles } from '@/app/theme/designSystem';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { EnhancedEmptyOrders } from '@/components/ui/EnhancedEmptyState';
+import { ShimmerTableRow } from '@/components/ui/ShimmerLoader';
+import { SwipeableRow } from '@/components/ui/SwipeableRow';
+import { usePressAnimation } from '@/components/ui/animations';
 
 type Order = {
   orderId: string;
@@ -33,9 +39,12 @@ type OrderTableProps = {
   orders?: Order[];
   loading?: boolean;
   onRefresh?: () => void;
+  refreshing?: boolean;
+  scrollEnabled?: boolean;
   onEditOrder?: (order: any) => void;
   onViewInvoice?: (order: any) => void;
   onPrintReceipt?: (order: any) => void;
+  orderLocks?: Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>;
 };
 
 const OrderTableComponent: React.FC<OrderTableProps> = ({
@@ -45,9 +54,12 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   orders: ordersProp,
   loading: loadingProp,
   onRefresh,
+  refreshing = false,
+  scrollEnabled = true,
   onEditOrder,
   onViewInvoice,
   onPrintReceipt,
+  orderLocks = {},
 }) => {
   // Use provided orders/loading or fetch internally (for backward compatibility)
   const [internalOrders, setInternalOrders] = useState<Order[]>([]);
@@ -195,8 +207,62 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   }, []);
 
   // Memoize renderItem to prevent unnecessary re-renders
-  const renderItem = useCallback(({ item }: { item: Order }) => (
-    <View style={orderStyle.TableData}>
+  const renderItem = useCallback(({ item }: { item: Order }) => {
+    const rawOrder = item.__raw || item;
+    const orderId = item.orderId || item.__raw?.id || item.__raw?._id;
+    const lockInfo = orderLocks[orderId || ''];
+
+    // Swipe actions
+    const leftActions = item.feeStatus === 'Unpaid' ? [
+      {
+        icon: 'checkmark-circle' as const,
+        label: 'Mark Paid',
+        color: '#10B981',
+        onPress: () => {
+          // Handle mark as paid
+          Alert.alert('Mark as Paid', 'This will mark the order as paid. Continue?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Mark Paid', onPress: () => {
+              // Implement mark as paid logic
+              console.log('Mark as paid:', item.orderId);
+            }},
+          ]);
+        },
+      },
+    ] : [];
+
+    const rightActions = [
+      {
+        icon: 'create' as const,
+        label: 'Edit',
+        color: '#2563EB',
+        onPress: () => {
+          if (onEditOrder) {
+            onEditOrder(rawOrder);
+          } else {
+            setSelectedOrder(rawOrder);
+            setVisible(true);
+          }
+        },
+      },
+    ];
+
+    return (
+      <SwipeableRow
+        leftActions={leftActions}
+        rightActions={rightActions}
+      >
+      <TouchableOpacity
+      style={orderStyle.TableData}
+      activeOpacity={0.7}
+      onPress={() => {
+        setSelectedOrder(rawOrder);
+        setVisible(true);
+      }}
+      accessibilityLabel={`Order ${item.orderId} - ${item.customerName} - ${item.feeStatus}`}
+      accessibilityRole="button"
+      accessibilityHint="Press to view order details"
+    >
               <Text style={[orderStyle.cell, { flex: 1, fontWeight: '600', color: '#2563EB' }]}>
                 {item.orderId}
               </Text>
@@ -215,107 +281,121 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
               </View>
               <View style={[orderStyle.cell, { flex: 1, paddingLeft: 12 }]}>
                 <View style={{ flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                  <View style={[
-                    badgeStyles.base,
-                    item.feeStatus === "Paid" 
-                      ? badgeStyles.paid 
-                      : item.feeStatus === "Partial"
-                      ? badgeStyles.partial
-                      : badgeStyles.unpaid
-                  ]}>
-                    <Ionicons 
-                      name={
-                        item.feeStatus === "Paid" 
-                          ? "checkmark-circle" 
-                          : item.feeStatus === "Partial"
-                          ? "time"
-                          : "alert-circle"
-                      } 
-                      size={14} 
-                      color={
-                        item.feeStatus === "Paid"
-                          ? badgeStyles.paidText.color
-                          : item.feeStatus === "Partial"
-                          ? badgeStyles.partialText.color
-                          : badgeStyles.unpaidText.color
-                      } 
-                    />
-                    <Text style={[
-                  item.feeStatus === "Paid"
-                        ? badgeStyles.paidText 
-                        : item.feeStatus === "Partial"
-                        ? badgeStyles.partialText
-                        : badgeStyles.unpaidText
-                    ]}>
-                      {item.feeStatus?.toUpperCase() || 'UNPAID'}
-                    </Text>
-                  </View>
-          {item.feeStatus === "Paid" && (
+                  <StatusBadge
+                    status={item.feeStatus?.toLowerCase() || 'unpaid'}
+                    showIcon={true}
+                    animated={item.feeStatus === 'Unpaid'}
+                    size="small"
+                  />
+                  {item.feeStatus === "Paid" && (
                     <Text style={{
                       fontSize: 10,
-              color: item.change && item.change > 0 ? '#059669' : '#6B7280',
+                      color: item.change && item.change > 0 ? '#059669' : '#6B7280',
                       fontWeight: '500',
                     }}>
-              Change: ₱{(item.change || 0).toFixed(2)}
-              </Text>
+                      Change: ₱{(item.change || 0).toFixed(2)}
+                    </Text>
                   )}
                 </View>
               </View>
               <Text style={[orderStyle.cell, { flex: 1, fontWeight: '600', color: '#111827' }]}>
                 ₱{item.totalFee.toFixed(2)}
               </Text>
-              <View style={[orderStyle.cell, { flex: 1.2, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}>
+              <View style={[orderStyle.cell, { flex: 1.2, flexDirection: 'row', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }]}>
               <TouchableOpacity
-                onPress={() => {
-                  setSelectedOrder(item.__raw || item);
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSelectedOrder(rawOrder);
                   setVisible(true);
                 }}
-                  style={orderStyle.actionButton}
-                >
-                  <Ionicons name="eye-outline" size={18} color="#2563EB" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (onEditOrder) {
-                      onEditOrder(item.__raw || item);
-                    } else {
-                      setSelectedOrder(item.__raw || item);
-                      setVisible(true);
-                    }
-                  }}
-                  style={orderStyle.actionButton}
-                >
-                  <Ionicons name="create-outline" size={18} color="#16A34A" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    const orderData = item.__raw || item;
-                    if (onViewInvoice) {
-                      onViewInvoice(orderData);
-                    } else {
-                      Alert.alert("Error", "View Invoice handler not available");
-                    }
-                  }}
-                  style={orderStyle.actionButton}
-                >
-                  <Ionicons name="document-text-outline" size={18} color="#6B7280" />
+                style={orderStyle.actionButton}
+                accessibilityLabel="View order details"
+                accessibilityRole="button"
+              >
+                <Ionicons name="eye-outline" size={18} color="#2563EB" />
               </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            const orderData = item.__raw || item;
-            if (onPrintReceipt) {
-              onPrintReceipt(orderData);
-            } else {
-              Alert.alert("Error", "Print Receipt handler not available");
-            }
-          }}
-          style={orderStyle.actionButton}
-        >
-          <Ionicons name="print-outline" size={18} color="#2563EB" />
-        </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (onEditOrder) {
+                    onEditOrder(rawOrder);
+                  } else {
+                    setSelectedOrder(rawOrder);
+                    setVisible(true);
+                  }
+                }}
+                style={[
+                  orderStyle.actionButton,
+                  (() => {
+                    const orderId = item.orderId || item.__raw?.id || item.__raw?._id;
+                    const lockInfo = orderLocks[orderId || ''];
+                    if (lockInfo?.isLocked && !lockInfo?.isLockedByMe) {
+                      return { opacity: 0.4 };
+                    }
+                    return {};
+                  })(),
+                ]}
+                disabled={(() => {
+                  const orderId = item.orderId || item.__raw?.id || item.__raw?._id;
+                  const lockInfo = orderLocks[orderId || ''];
+                  return lockInfo?.isLocked && !lockInfo?.isLockedByMe;
+                })()}
+                accessibilityLabel="Edit order"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: (() => {
+                  const orderId = item.orderId || item.__raw?.id || item.__raw?._id;
+                  const lockInfo = orderLocks[orderId || ''];
+                  return lockInfo?.isLocked && !lockInfo?.isLockedByMe;
+                })() }}
+              >
+                <Ionicons 
+                  name="create-outline" 
+                  size={18} 
+                  color={(() => {
+                    const orderId = item.orderId || item.__raw?.id || item.__raw?._id;
+                    const lockInfo = orderLocks[orderId || ''];
+                    if (lockInfo?.isLocked && !lockInfo?.isLockedByMe) {
+                      return "#9CA3AF";
+                    }
+                    return "#16A34A";
+                  })()} 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (onViewInvoice) {
+                    onViewInvoice(rawOrder);
+                  } else {
+                    Alert.alert("Error", "View Invoice handler not available");
+                  }
+                }}
+                style={orderStyle.actionButton}
+                accessibilityLabel="View invoice"
+                accessibilityRole="button"
+              >
+                <Ionicons name="document-text-outline" size={18} color="#6B7280" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (onPrintReceipt) {
+                    onPrintReceipt(rawOrder);
+                  } else {
+                    Alert.alert("Error", "Print Receipt handler not available");
+                  }
+                }}
+                style={orderStyle.actionButton}
+                accessibilityLabel="Print receipt"
+                accessibilityRole="button"
+              >
+                <Ionicons name="print-outline" size={18} color="#2563EB" />
+              </TouchableOpacity>
               </View>
-            </View>
-  ), [formatDate, setSelectedOrder, setVisible, onEditOrder, onViewInvoice, onPrintReceipt]);
+            </TouchableOpacity>
+        </SwipeableRow>
+    );
+  }, [formatDate, setSelectedOrder, setVisible, onEditOrder, onViewInvoice, onPrintReceipt, orderLocks]);
 
   // Table header component
   const renderHeader = useCallback(() => (
@@ -343,9 +423,12 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
 
   // Empty component
   const renderEmpty = useCallback(() => (
-          <Text style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
-            No orders found.
-          </Text>
+    <View style={{ padding: 40 }}>
+      <EnhancedEmptyOrders onCreateOrder={() => {
+        // Navigate to add order page if needed
+        // This could be passed as a prop or handled via navigation
+      }} />
+    </View>
   ), []);
 
   // Key extractor for FlatList
@@ -355,7 +438,9 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
     return (
       <View style={orderStyle.Table}>
         {renderHeader()}
-        <ActivityIndicator size="large" color="#2e63c5" style={{ margin: 20 }} />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <ShimmerTableRow key={index} columns={6} />
+        ))}
       </View>
     );
   }
@@ -368,6 +453,17 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
         keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
+        scrollEnabled={scrollEnabled}
+        nestedScrollEnabled={scrollEnabled}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#2563EB"
+            />
+          ) : undefined
+        }
         ListFooterComponent={() => (
           <View style={orderStyle.paginationBar}>
             <TouchableOpacity
@@ -485,6 +581,7 @@ const orderStyle = StyleSheet.create({
     borderBottomColor: "#f3f4f6",
     backgroundColor: "#ffffff",
     alignItems: "center",
+    paddingHorizontal: 8,
   },
   cell: {
     textAlign: "center",
@@ -516,12 +613,13 @@ const orderStyle = StyleSheet.create({
   paymentBadgeTextPartial: {},
   paymentBadgeTextUnpaid: {},
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: 2,
   },
   greenStatus: {
     color: "#16a34a",

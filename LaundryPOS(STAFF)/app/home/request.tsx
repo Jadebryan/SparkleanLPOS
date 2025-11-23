@@ -10,17 +10,24 @@ import {
   ActivityIndicator,
   Modal,
   Image,
-  Platform
+  Platform,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Dropdown } from 'react-native-element-dropdown';
+import * as ImagePicker from 'expo-image-picker';
 import GlobalStyles from '../styles/GlobalStyle';
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
 import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { uploadImageToCloudinary, uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { useToast } from '@/app/context/ToastContext';
+import { EmptyExpenses } from '@/components/ui/EmptyState';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { SkeletonCard } from '@/components/ui/SkeletonLoader';
 
 type ExpenseCategory = 'Supplies' | 'Utilities' | 'Maintenance' | 'Salaries' | 'Other';
 
@@ -36,7 +43,6 @@ interface Expense {
   appealedAt?: string;
   appealImages?: string[];
   date: string;
-  archived?: boolean;
 }
 
 const categoryOptions = [
@@ -48,11 +54,17 @@ const categoryOptions = [
 ];
 
 export default function Request() {
+  const { showSuccess, showError, showWarning } = useToast();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showArchived, setShowArchived] = useState(false); // false = Active, true = Archived view
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Approved' | 'Rejected' | 'Appealed'>('All');
+  const [showStats, setShowStats] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const spinValue = useRef(new Animated.Value(0)).current;
   
   // Form state
   const [category, setCategory] = useState<string>('');
@@ -64,48 +76,48 @@ export default function Request() {
   // Receipt upload state
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedExpenseForReceipt, setSelectedExpenseForReceipt] = useState<Expense | null>(null);
-  const [receiptImage, setReceiptImage] = useState<string | null>(null);
-  const [receiptImageUri, setReceiptImageUri] = useState<string | null>(null);
+  const [receiptImage, setReceiptImage] = useState<string | null>(null); // Store Cloudinary URL
+  const [receiptImageUri, setReceiptImageUri] = useState<string | null>(null); // Store local URI for preview
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
-  // Success feedback state
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Appeal modal state
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [selectedExpenseForAppeal, setSelectedExpenseForAppeal] = useState<Expense | null>(null);
   const [appealReason, setAppealReason] = useState('');
-  const [appealImage, setAppealImage] = useState<string | null>(null);
-  const [appealImageUri, setAppealImageUri] = useState<string | null>(null);
+  const [appealImage, setAppealImage] = useState<string | null>(null); // Store Cloudinary URL
+  const [appealImageUri, setAppealImageUri] = useState<string | null>(null); // Store local URI for preview
   const [submittingAppeal, setSubmittingAppeal] = useState(false);
 
   // Ref for file input (for web)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const ARCHIVED_KEY = 'archived_expense_ids';
-
-  // Confirm modal state (for archive/unarchive)
-  const [confirmVisible, setConfirmVisible] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<'archive' | 'unarchive'>('archive');
-  const [confirmExpense, setConfirmExpense] = useState<Expense | null>(null);
-
-  const getArchivedIdSet = async (): Promise<Set<string>> => {
+  // Load stats visibility preference from AsyncStorage
+  useEffect(() => {
+    const loadStatsPreference = async () => {
     try {
-      const raw = await AsyncStorage.getItem(ARCHIVED_KEY);
-      const arr: string[] = raw ? JSON.parse(raw) : [];
-      return new Set(arr);
-    } catch {
-      return new Set();
-    }
-  };
+        const saved = await AsyncStorage.getItem('request-management-show-stats');
+        if (saved !== null) {
+          setShowStats(JSON.parse(saved));
+        }
+      } catch (error) {
+        console.error('Error loading stats preference:', error);
+      }
+    };
+    loadStatsPreference();
+  }, []);
 
-  const saveArchivedIdSet = async (ids: Set<string>) => {
+  // Save stats visibility preference to AsyncStorage
+  useEffect(() => {
+    const saveStatsPreference = async () => {
     try {
-      await AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify(Array.from(ids)));
-    } catch {}
+        await AsyncStorage.setItem('request-management-show-stats', JSON.stringify(showStats));
+      } catch (error) {
+        console.error('Error saving stats preference:', error);
+      }
   };
+    saveStatsPreference();
+  }, [showStats]);
 
   useEffect(() => {
     fetchExpenses();
@@ -247,91 +259,64 @@ export default function Request() {
           ? data.data 
           : [];
 
-      const archivedIds = await getArchivedIdSet();
-
-      setExpenses(expensesArray.map((e: any) => ({
+      const mappedExpenses = expensesArray.map((e: any) => ({
         _id: e._id || e.id,
         category: e.category,
         description: e.description,
         amount: e.amount,
         status: e.status,
-        images: e.images || [],
+        images: Array.isArray(e.images) ? e.images : (e.images ? [e.images] : []), // Ensure it's always an array
         adminFeedback: e.adminFeedback || '',
         appealReason: e.appealReason || '',
         appealedAt: e.appealedAt || '',
-        appealImages: e.appealImages || [],
+        appealImages: Array.isArray(e.appealImages) ? e.appealImages : (e.appealImages ? [e.appealImages] : []), // Ensure it's always an array
         date: e.date || e.createdAt,
-        archived: e.archived || e.status === 'Archived' || archivedIds.has(e._id || e.id),
-      })));
+      }));
+      
+      setExpenses(mappedExpenses);
+      
+      // Debug log to check if images are being fetched
+      console.log('📥 Fetched expenses:', mappedExpenses.length);
+      mappedExpenses.forEach((e: Expense, idx: number) => {
+        if (e.images && e.images.length > 0) {
+          console.log(`📸 Expense ${idx + 1} (${e._id}): ${e.images.length} image(s)`, e.images);
+        }
+      });
     } catch (error: any) {
       console.error('Error fetching expenses:', error);
-      Alert.alert('Error', 'Failed to load expense requests');
+      showError('Failed to load expense requests');
     } finally {
       setLoading(false);
     }
   };
 
-  const archiveExpenseConfirmed = async (expense: Expense) => {
-      try {
-        // Optimistic update + local persistence
-        setExpenses(prev => prev.map(e => e._id === expense._id ? { ...e, archived: true } : e));
-        const ids = await getArchivedIdSet();
-        ids.add(expense._id);
-        saveArchivedIdSet(ids);
-        setSuccessMessage('Expense archived');
-        setShowSuccessMessage(true);
-        setTimeout(() => setShowSuccessMessage(false), 3000);
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    
+    setRefreshing(true);
+    spinValue.setValue(0);
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start();
 
-        // Attempt server update in background
-        const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-        try {
-          await axios.put(`${API_BASE_URL}/expenses/${expense._id}/archive`, {}, { headers });
-        } catch {
-          try { await axios.patch(`${API_BASE_URL}/expenses/${expense._id}`, { status: 'Archived', archived: true }, { headers }); } catch {}
-        }
+    try {
+      await fetchExpenses();
+      showSuccess('Expenses refreshed');
       } catch (error) {
-        Alert.alert('Error', 'Failed to archive expense');
-      }
+      console.error('Error refreshing expenses:', error);
+    } finally {
+      setTimeout(() => {
+        setRefreshing(false);
+        spinValue.stopAnimation();
+        spinValue.setValue(0);
+      }, 1000);
+    }
   };
 
-  const handleArchive = async (expense: Expense) => {
-    setConfirmExpense(expense);
-    setConfirmAction('archive');
-    setConfirmVisible(true);
-  };
-
-  const unarchiveExpenseConfirmed = async (expense: Expense) => {
-      try {
-        // Optimistic update + local persistence
-        setExpenses(prev => prev.map(e => e._id === expense._id ? { ...e, archived: false } : e));
-        const ids = await getArchivedIdSet();
-        ids.delete(expense._id);
-        saveArchivedIdSet(ids);
-        setSuccessMessage('Expense unarchived');
-        setShowSuccessMessage(true);
-        setTimeout(() => setShowSuccessMessage(false), 3000);
-
-        // Attempt server update in background
-        const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-        try {
-          await axios.put(`${API_BASE_URL}/expenses/${expense._id}/unarchive`, {}, { headers });
-        } catch {
-          try { await axios.patch(`${API_BASE_URL}/expenses/${expense._id}`, { archived: false }, { headers }); } catch {}
-        }
-      } catch (error) {
-        Alert.alert('Error', 'Failed to unarchive expense');
-      }
-  };
-
-  const handleUnarchive = async (expense: Expense) => {
-    setConfirmExpense(expense);
-    setConfirmAction('unarchive');
-    setConfirmVisible(true);
-  };
 
   const handleImagePicker = (forReceipt: boolean = false) => {
     // For web platform, use file input
@@ -428,8 +413,124 @@ export default function Request() {
         Alert.alert('Error', 'Failed to open image picker. Please try again.');
       }
     } else {
-      // For mobile, would use expo-image-picker
-      Alert.alert('Info', 'Image picker will be available after installing expo-image-picker');
+      // For mobile, use expo-image-picker and upload to Cloudinary
+      (async () => {
+        try {
+          // Request permission
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          
+          if (status !== 'granted') {
+            Alert.alert('Permission needed', 'We need access to your photos to upload images.');
+            return;
+          }
+
+          // Launch image picker
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: false,
+            allowsMultipleSelection: !forReceipt, // Multiple for initial proof, single for receipt
+            quality: 0.8,
+            base64: true,
+          });
+
+          if (!result.canceled && result.assets) {
+            if (forReceipt) {
+              // Single image for receipt
+              const asset = result.assets[0];
+              if (!asset.base64) {
+                Alert.alert('Error', 'Failed to load image data. Please try selecting the image again.');
+                return;
+              }
+
+              // Show local preview immediately
+              setReceiptImageUri(asset.uri);
+              setUploadingReceipt(true);
+              
+              try {
+                // Get file extension from URI or default to jpg
+                const uriParts = asset.uri.split('.');
+                const ext = uriParts.length > 1 ? uriParts[uriParts.length - 1] : 'jpg';
+                const mimeType = ext === 'png' ? 'png' : ext === 'gif' ? 'gif' : 'jpeg';
+                const base64 = `data:image/${mimeType};base64,${asset.base64}`;
+                
+                // Upload to Cloudinary
+                const fileName = `receipt_${Date.now()}`;
+                const cloudinaryUrl = await uploadImageToCloudinary(base64, fileName);
+                setReceiptImage(cloudinaryUrl); // Store Cloudinary URL
+                showSuccess('Receipt image uploaded successfully');
+              } catch (uploadError: any) {
+                console.error('Error uploading receipt to Cloudinary:', uploadError);
+                const errorMsg = uploadError.response?.data?.message || uploadError.message || 'Failed to upload image. Please check your connection and try again.';
+                Alert.alert('Upload Error', errorMsg);
+                setReceiptImageUri(null);
+              } finally {
+                setUploadingReceipt(false);
+              }
+            } else {
+              // Multiple images for initial proof (up to 10 total)
+              const currentCount = selectedImages.length;
+              const newAssets = result.assets.slice(0, 10 - currentCount);
+              
+              if (newAssets.length === 0) {
+                Alert.alert('Error', 'You can only upload up to 10 images. You currently have 10 image(s).');
+                return;
+              }
+
+              // Check if all assets have base64
+              const assetsWithoutBase64 = newAssets.filter(asset => !asset.base64);
+              if (assetsWithoutBase64.length > 0) {
+                Alert.alert('Error', `${assetsWithoutBase64.length} image(s) failed to load. Please try selecting them again.`);
+                return;
+              }
+
+              // Show local previews immediately
+              const newUris = newAssets.map(asset => asset.uri);
+              setImageUris(prev => [...prev, ...newUris]);
+
+              try {
+                // Prepare base64 images for upload
+                const base64Images: string[] = [];
+                for (const asset of newAssets) {
+                  if (asset.base64) {
+                    // Get file extension from URI or default to jpg
+                    const uriParts = asset.uri.split('.');
+                    const ext = uriParts.length > 1 ? uriParts[uriParts.length - 1] : 'jpg';
+                    const mimeType = ext === 'png' ? 'png' : ext === 'gif' ? 'gif' : 'jpeg';
+                    const base64 = `data:image/${mimeType};base64,${asset.base64}`;
+                    base64Images.push(base64);
+                  }
+                }
+
+                if (base64Images.length > 0) {
+                  // Upload to Cloudinary
+                  const baseFileName = `expense_${Date.now()}`;
+                  console.log('📤 Starting Cloudinary upload for', base64Images.length, 'image(s)...');
+                  const cloudinaryUrls = await uploadImagesToCloudinary(base64Images, baseFileName);
+                  console.log('✅ Cloudinary upload complete. Received URLs:', cloudinaryUrls);
+                  console.log('📝 Current selectedImages before update:', selectedImages);
+                  setSelectedImages(prev => {
+                    const updated = [...prev, ...cloudinaryUrls];
+                    console.log('📝 Updated selectedImages:', updated);
+                    return updated;
+                  }); // Store Cloudinary URLs
+                  showSuccess(`${cloudinaryUrls.length} image(s) uploaded successfully`);
+                } else {
+                  throw new Error('No images to upload');
+                }
+              } catch (uploadError: any) {
+                console.error('Error uploading images to Cloudinary:', uploadError);
+                const errorMsg = uploadError.response?.data?.message || uploadError.message || 'Failed to upload images. Please check your connection and try again.';
+                Alert.alert('Upload Error', errorMsg);
+                // Remove the previews if upload failed
+                setImageUris(prev => prev.slice(0, prev.length - newUris.length));
+              }
+            }
+          }
+        } catch (error: any) {
+          console.error('Error picking image:', error);
+          Alert.alert('Error', error.message || 'Failed to pick image. Please try again.');
+        }
+      })();
     }
   };
 
@@ -478,12 +579,8 @@ export default function Request() {
         { headers }
       );
 
-      // Show success banner
-      setSuccessMessage('Receipt uploaded successfully!');
-      setShowSuccessMessage(true);
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 5000);
+      // Show success toast
+      showSuccess('Receipt uploaded successfully!');
 
       // Close modal and refresh expenses
       closeReceiptModal();
@@ -552,43 +649,24 @@ export default function Request() {
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      // Compress images if available
-      let compressedImages: string[] = [];
-      if (selectedImages.length > 0) {
-        try {
-          const { compressImage, shouldCompress, getImageSize } = await import('@/utils/imageCompression');
-          const compressionPromises = selectedImages.map(async (image, index) => {
-            if (shouldCompress(image, 500)) { // Compress if > 500KB
-              console.log(`📦 Compressing image ${index + 1} (original size:`, getImageSize(image).toFixed(2), 'KB)');
-              const compressed = await compressImage(image, {
-                maxWidth: 1920,
-                maxHeight: 1920,
-                quality: 0.8,
-              });
-              console.log(`✅ Image ${index + 1} compressed (new size:`, getImageSize(compressed).toFixed(2), 'KB)');
-              return compressed;
-            }
-            return image;
-          });
-          compressedImages = await Promise.all(compressionPromises);
-        } catch (error) {
-          console.warn('⚠️ Image compression failed, using original:', error);
-          // Continue with original images if compression fails
-          compressedImages = selectedImages;
-        }
-      }
-
+      // Images are already uploaded to Cloudinary, so we send URLs
+      // selectedImages now contains Cloudinary URLs, not base64
+      console.log('📋 Preparing expense data. selectedImages:', selectedImages);
+      console.log('📋 selectedImages length:', selectedImages.length);
+      console.log('📋 selectedImages content:', selectedImages);
+      
       const expenseData: any = {
         category: category,
         amount: amountNum,
         description: description.trim(),
-        images: compressedImages,
+        images: selectedImages, // These are Cloudinary URLs now
       };
 
       console.log('📤 Sending request to:', `${API_BASE_URL}/expenses`);
       console.log('📦 Request payload:', { 
         ...expenseData, 
-        images: `${expenseData.images.length} image(s)` 
+        images: expenseData.images, // Log actual URLs for debugging
+        imagesCount: expenseData.images.length
       });
 
       const response = await axios.post(`${API_BASE_URL}/expenses`, expenseData, { headers });
@@ -596,9 +674,8 @@ export default function Request() {
       console.log('✅ Expense submitted successfully!');
       console.log('📥 Response:', response.data);
       
-      // Success modal
-      setSuccessMessage('Expense request submitted successfully!');
-      setShowSuccessModal(true);
+      // Success toast
+      showSuccess('Expense request submitted successfully!');
 
       // Reset form
       setCategory('');
@@ -779,9 +856,65 @@ export default function Request() {
         console.error('Error opening appeal file picker:', error);
         Alert.alert('Error', 'Failed to open image picker. Please try again.');
       }
-    } else {
-      Alert.alert('Info', 'Image picker will be available after installing expo-image-picker');
-    }
+      } else {
+        // For mobile, use expo-image-picker and upload to Cloudinary
+        (async () => {
+          try {
+            // Request permission
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            
+            if (status !== 'granted') {
+              Alert.alert('Permission needed', 'We need access to your photos to upload images.');
+              return;
+            }
+
+            // Launch image picker
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: false,
+              allowsMultipleSelection: false,
+              quality: 0.8,
+              base64: true,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+              const asset = result.assets[0];
+              if (!asset.base64) {
+                Alert.alert('Error', 'Failed to load image data. Please try selecting the image again.');
+                return;
+              }
+
+              // Show local preview immediately
+              setAppealImageUri(asset.uri);
+              setSubmittingAppeal(true);
+              
+              try {
+                // Get file extension from URI or default to jpg
+                const uriParts = asset.uri.split('.');
+                const ext = uriParts.length > 1 ? uriParts[uriParts.length - 1] : 'jpg';
+                const mimeType = ext === 'png' ? 'png' : ext === 'gif' ? 'gif' : 'jpeg';
+                const base64 = `data:image/${mimeType};base64,${asset.base64}`;
+                
+                // Upload to Cloudinary
+                const fileName = `appeal_${Date.now()}`;
+                const cloudinaryUrl = await uploadImageToCloudinary(base64, fileName);
+                setAppealImage(cloudinaryUrl); // Store Cloudinary URL
+                showSuccess('Appeal image uploaded successfully');
+              } catch (uploadError: any) {
+                console.error('Error uploading appeal image to Cloudinary:', uploadError);
+                const errorMsg = uploadError.response?.data?.message || uploadError.message || 'Failed to upload image. Please check your connection and try again.';
+                Alert.alert('Upload Error', errorMsg);
+                setAppealImageUri(null);
+              } finally {
+                setSubmittingAppeal(false);
+              }
+            }
+          } catch (error: any) {
+            console.error('Error picking appeal image:', error);
+            Alert.alert('Error', error.message || 'Failed to pick image. Please try again.');
+          }
+        })();
+      }
   };
 
   const handleAppeal = async () => {
@@ -809,15 +942,15 @@ export default function Request() {
         appealReason: appealReason.trim()
       };
 
-      // Add images if provided
-      if (appealImage && typeof appealImage === 'string' && appealImage.length > 100) {
-        // Base64 strings start with "data:image/..." and are typically > 100 chars
-        console.log('✅ Adding appeal image to request, length:', appealImage.length);
-        appealData.appealImages = [appealImage];
-      } else {
-        console.log('⚠️ No appeal image to add (appealImage:', appealImage ? `exists but length is ${appealImage.length}` : 'null/undefined', ')');
-        appealData.appealImages = [];
-      }
+        // Add images if provided
+        // appealImage is now a Cloudinary URL, not base64
+        if (appealImage && typeof appealImage === 'string') {
+          console.log('✅ Adding appeal image (Cloudinary URL) to request');
+          appealData.appealImages = [appealImage];
+        } else {
+          console.log('⚠️ No appeal image to add');
+          appealData.appealImages = [];
+        }
 
       console.log('📤 Sending appeal request:', {
         url: `${API_BASE_URL}/expenses/${selectedExpenseForAppeal._id}/appeal`,
@@ -825,8 +958,7 @@ export default function Request() {
         appealReason: appealReason.trim(),
         appealReasonLength: appealReason.trim().length,
         appealImagesCount: appealData.appealImages.length,
-        appealImageDataSize: appealData.appealImages[0]?.length || 0,
-        appealImagePreview: appealData.appealImages[0]?.substring(0, 50) || 'none',
+        appealImageUrl: appealData.appealImages[0] || 'none',
         hasAuthToken: !!token,
         payloadSize: JSON.stringify(appealData).length
       });
@@ -869,9 +1001,8 @@ export default function Request() {
           : e
       ));
 
-      // Success modal
-      setSuccessMessage('Appeal submitted successfully!');
-      setShowSuccessModal(true);
+      // Success toast
+      showSuccess('Appeal submitted successfully!');
 
       closeAppealModal();
       console.log('=== handleAppeal SUCCESS ===');
@@ -907,16 +1038,6 @@ export default function Request() {
       <View style={GlobalStyles.mainContent}>
         <Header title="Money Request" />
 
-        {/* Success Banner */}
-        {showSuccessMessage && (
-          <View style={styles.successBanner}>
-            <Ionicons name="checkmark-circle" size={20} color="#059669" />
-            <Text style={styles.successBannerText}>{successMessage}</Text>
-            <TouchableOpacity onPress={() => setShowSuccessMessage(false)} style={styles.successBannerClose}>
-              <Ionicons name="close" size={20} color="#059669" />
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Page Header */}
         <View style={styles.pageHeader}>
@@ -928,72 +1049,315 @@ export default function Request() {
             </View>
           </View>
 
+          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={handleRefresh}
+              disabled={refreshing}
+            >
+              <Animated.View
+                style={{
+                  transform: [{
+                    rotate: spinValue.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  }],
+                }}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={18} 
+                  color={refreshing ? "#9CA3AF" : "#6B7280"}
+                />
+              </Animated.View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
+              onPress={() => setShowStats(!showStats)}
+              accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
+              accessibilityRole="button"
+            >
+              <Ionicons 
+                name={showStats ? "eye-outline" : "eye-off-outline"} 
+                size={18} 
+                color={showStats ? "#374151" : "#2563EB"} 
+              />
+              <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
+                Stats
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewToggleButton, viewMode === 'grid' && styles.viewToggleButtonActive]}
+              onPress={() => setViewMode('grid')}
+              accessibilityLabel="Switch to grid view"
+              accessibilityRole="button"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? '#2563EB' : '#6B7280'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewToggleButton, viewMode === 'list' && styles.viewToggleButtonActive]}
+              onPress={() => setViewMode('list')}
+              accessibilityLabel="Switch to list view"
+              accessibilityRole="button"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="list-outline" size={20} color={viewMode === 'list' ? '#2563EB' : '#6B7280'} />
+            </TouchableOpacity>
           <TouchableOpacity 
             style={styles.addButton}
             onPress={() => setShowAddModal(true)}
+            accessibilityLabel="Create new expense request"
+            accessibilityRole="button"
+            accessibilityHint="Opens a form to submit a new money request"
           >
             <Ionicons name="add" size={20} color="#FFFFFF" />
             <Text style={styles.addButtonText}>New Request</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* View Controls */}
-        <View style={styles.controlsBar}>
-          <View style={styles.segmentedGroup}>
-            <TouchableOpacity
-              style={[styles.segmentButton, !showArchived && styles.segmentButtonActive]}
-              onPress={() => setShowArchived(false)}
-            >
-              <Ionicons name="checkmark-done-outline" size={16} color={!showArchived ? '#2563EB' : '#6B7280'} />
-              <Text style={[styles.segmentText, !showArchived && styles.segmentTextActive]}>Active</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentButton, showArchived && styles.segmentButtonActive]}
-              onPress={() => setShowArchived(true)}
-            >
-              <Ionicons name="archive-outline" size={16} color={showArchived ? '#2563EB' : '#6B7280'} />
-              <Text style={[styles.segmentText, showArchived && styles.segmentTextActive]}>Archived</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Success Modal */}
-        {showSuccessModal && (
-          <Modal visible transparent animationType="fade" onRequestClose={() => setShowSuccessModal(false)}>
-            <View style={styles.feedbackOverlay}>
-              <View style={styles.feedbackCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="checkmark-circle" size={24} color="#059669" />
-                  <Text style={styles.feedbackTitle}>Success</Text>
-                </View>
-                <Text style={styles.feedbackText}>{successMessage}</Text>
-                <View style={{ marginTop: 16, alignItems: 'flex-end' }}>
-                  <TouchableOpacity style={[styles.addButton]} onPress={() => setShowSuccessModal(false)}>
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.addButtonText}>OK</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* Summary Cards */}
+        {!loading && expenses.length > 0 && showStats && (
+          <View style={styles.summaryContainer}>
+            <View style={[styles.summaryCard, { borderLeftColor: '#F59E0B' }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="time-outline" size={20} color="#F59E0B" />
+              </View>
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryValue}>
+                  {expenses.filter(e => e.status === 'Pending').length}
+                </Text>
+                <Text style={styles.summaryLabel}>Pending</Text>
               </View>
             </View>
-          </Modal>
+            <View style={[styles.summaryCard, { borderLeftColor: '#10B981' }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: '#D1FAE5' }]}>
+                <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+              </View>
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryValue}>
+                  {expenses.filter(e => e.status === 'Approved').length}
+                </Text>
+                <Text style={styles.summaryLabel}>Approved</Text>
+              </View>
+            </View>
+            <View style={[styles.summaryCard, { borderLeftColor: '#EF4444' }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+              </View>
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryValue}>
+                  {expenses.filter(e => e.status === 'Rejected').length}
+                </Text>
+                <Text style={styles.summaryLabel}>Rejected</Text>
+              </View>
+            </View>
+            <View style={[styles.summaryCard, { borderLeftColor: '#3B82F6' }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="cash-outline" size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryValue}>
+                  ₱{expenses.reduce((sum, e) => sum + (e.status === 'Approved' ? e.amount : 0), 0).toFixed(2)}
+                </Text>
+                <Text style={styles.summaryLabel}>Total Approved</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Search and Filters */}
+        {!loading && expenses.length > 0 && (
+          <View style={styles.filtersContainer}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color="#6B7280" style={{ marginRight: 12 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by description, category, or amount..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                accessibilityLabel="Search expenses"
+                accessibilityHint="Type to search expenses by description, category, or amount"
+              />
+              {searchQuery.length > 0 && (
+            <TouchableOpacity
+                  onPress={() => setSearchQuery('')}
+                  accessibilityLabel="Clear search"
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+                  <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+              )}
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.statusFilterContainer}
+              contentContainerStyle={styles.statusFilterContent}
+            >
+              {(['All', 'Pending', 'Approved', 'Rejected', 'Appealed'] as const).map((status) => (
+            <TouchableOpacity
+                  key={status}
+                  style={[
+                    styles.statusFilterButton,
+                    statusFilter === status && styles.statusFilterButtonActive,
+                    status === 'Pending' && statusFilter === status && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+                    status === 'Approved' && statusFilter === status && { backgroundColor: '#D1FAE5', borderColor: '#10B981' },
+                    status === 'Rejected' && statusFilter === status && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
+                    status === 'Appealed' && statusFilter === status && { backgroundColor: '#DBEAFE', borderColor: '#3B82F6' },
+                  ]}
+                  onPress={() => setStatusFilter(status)}
+                  accessibilityLabel={`Filter by ${status}`}
+              accessibilityRole="button"
+                  accessibilityState={{ selected: statusFilter === status }}
+            >
+                  <Text
+                    style={[
+                      styles.statusFilterText,
+                      statusFilter === status && styles.statusFilterTextActive,
+                    ]}
+                  >
+                    {status}
+                  </Text>
+                  {statusFilter === status && (
+                    <View style={styles.statusFilterBadge}>
+                      <Text style={styles.statusFilterBadgeText}>
+                        {expenses.filter(e => status === 'All' ? true : e.status === status).length}
+                      </Text>
+                    </View>
+                  )}
+            </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         {/* Expenses List */}
         <ScrollView style={styles.contentScroll}>
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={styles.loadingText}>Loading expenses...</Text>
+            <View style={{ padding: 20, gap: 16 }}>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <SkeletonCard key={index} />
+              ))}
             </View>
-          ) : expenses.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="receipt-outline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No expense requests yet</Text>
-              <Text style={styles.emptySubtext}>Click "New Request" to submit your first expense</Text>
-            </View>
+          ) : (() => {
+            // Filter expenses based on search and status
+            const filteredExpenses = expenses.filter((expense) => {
+              const matchesSearch = 
+                !searchQuery ||
+                expense.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                expense.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                expense.amount.toString().includes(searchQuery);
+              
+              const matchesStatus = 
+                statusFilter === 'All' ||
+                expense.status === statusFilter ||
+                (statusFilter === 'Appealed' && expense.appealReason);
+              
+              return matchesSearch && matchesStatus;
+            });
+
+            return filteredExpenses.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>
+                  {expenses.length === 0 ? 'No expenses yet' : 'No expenses match your filters'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {expenses.length === 0 
+                    ? 'Create your first money request to get started'
+                    : 'Try adjusting your search or filter criteria'
+                  }
+                </Text>
+                {expenses.length === 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { marginTop: 16 }]}
+                    onPress={() => setShowAddModal(true)}
+                  >
+                    <Ionicons name="add" size={20} color="#FFFFFF" />
+                    <Text style={styles.addButtonText}>Create Request</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : viewMode === 'list' ? (
+              <View style={styles.expensesListContainer}>
+                {filteredExpenses.map((expense) => (
+                  <View key={expense._id} style={styles.expenseListItem}>
+                    <View style={styles.listItemHeader}>
+                      <View style={styles.listItemLeft}>
+                        <StatusBadge
+                          status={expense.status.toLowerCase() as any}
+                          showIcon={true}
+                          animated={expense.status === 'Pending'}
+                          size="small"
+                        />
+                        <View style={styles.listItemInfo}>
+                          <Text style={styles.listItemCategory}>{expense.category}</Text>
+                          <Text style={styles.listItemDescription} numberOfLines={1}>
+                            {expense.description}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.listItemAmount}>₱{expense.amount.toFixed(2)}</Text>
+                    </View>
+                    
+                    {expense.images && expense.images.length > 0 && (
+                      <View style={styles.listItemImages}>
+                        <Ionicons name="image-outline" size={14} color="#6B7280" />
+                        <Text style={styles.listItemImagesText}>{expense.images.length} image(s)</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.listItemFooter}>
+                      <Text style={styles.listItemDate}>{formatDate(expense.date)}</Text>
+                      {expense.status === 'Approved' && (
+                        <TouchableOpacity 
+                          style={styles.listItemActionButton}
+                          onPress={() => openReceiptUpload(expense)}
+                        >
+                          <Ionicons name="camera-outline" size={14} color="#2563EB" />
+                          <Text style={styles.listItemActionText}>Upload Receipt</Text>
+                        </TouchableOpacity>
+                      )}
+                      {expense.status === 'Rejected' && !expense.appealReason && (
+                        <TouchableOpacity 
+                          style={[styles.listItemActionButton, { backgroundColor: '#3B82F6' }]}
+                          onPress={() => openAppealModal(expense)}
+                        >
+                          <Ionicons name="alert-circle-outline" size={14} color="#FFFFFF" />
+                          <Text style={[styles.listItemActionText, { color: '#FFFFFF' }]}>Appeal</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {expense.adminFeedback && (
+                      <View style={styles.listItemFeedback}>
+                        <Text style={styles.listItemFeedbackLabel}>Admin Feedback:</Text>
+                        <Text style={styles.listItemFeedbackText} numberOfLines={2}>
+                          {expense.adminFeedback}
+                        </Text>
+                      </View>
+                    )}
+
+                    {expense.appealReason && (
+                      <View style={[styles.listItemFeedback, { backgroundColor: '#DBEAFE', borderLeftColor: '#3B82F6' }]}>
+                        <Text style={[styles.listItemFeedbackLabel, { color: '#1E40AF' }]}>
+                          Your Appeal: {expense.appealedAt && `(${formatDate(expense.appealedAt)})`}
+                        </Text>
+                        <Text style={[styles.listItemFeedbackText, { color: '#1E3A8A' }]} numberOfLines={2}>
+                          {expense.appealReason}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
           ) : (
             <View style={styles.expensesList}>
-              {Object.entries(expenses.filter(e => (e.archived || false) === showArchived).reduce((acc: Record<string, Expense[]>, e) => {
+                {Object.entries(filteredExpenses.reduce((acc: Record<string, Expense[]>, e) => {
                 acc[e.category] = acc[e.category] || [];
                 acc[e.category].push(e);
                 return acc;
@@ -1009,41 +1373,12 @@ export default function Request() {
                     <View key={expense._id} style={[styles.expenseCard, styles.expenseCardGrid]}>
                   <View style={styles.expenseHeader}>
                     <View style={styles.expenseHeaderLeft}>
-                      <View style={[
-                        badgeStyles.base,
-                        expense.status === 'Approved' 
-                          ? badgeStyles.paid 
-                          : expense.status === 'Rejected'
-                          ? badgeStyles.unpaid
-                          : expense.status === 'Appealed'
-                          ? badgeStyles.partial
-                          : { backgroundColor: colors.warning[50], borderWidth: 1, borderColor: colors.warning[500] }
-                      ]}>
-                        <Ionicons 
-                          name={getStatusIcon(expense.status)} 
-                          size={14} 
-                          color={
-                            expense.status === 'Approved'
-                              ? badgeStyles.paidText.color
-                              : expense.status === 'Rejected'
-                              ? badgeStyles.unpaidText.color
-                              : expense.status === 'Appealed'
-                              ? badgeStyles.partialText.color
-                              : colors.warning[700]
-                          } 
-                        />
-                        <Text style={[
-                          expense.status === 'Approved'
-                            ? badgeStyles.paidText 
-                            : expense.status === 'Rejected'
-                            ? badgeStyles.unpaidText
-                            : expense.status === 'Appealed'
-                            ? badgeStyles.partialText
-                            : { fontSize: badgeStyles.paidText.fontSize, fontWeight: badgeStyles.paidText.fontWeight, fontFamily: badgeStyles.paidText.fontFamily, color: colors.warning[700] }
-                        ]}>
-                          {expense.status}
-                        </Text>
-                      </View>
+                      <StatusBadge
+                        status={expense.status.toLowerCase() as any}
+                        showIcon={true}
+                        animated={expense.status === 'Pending'}
+                        size="small"
+                      />
                       <Text style={styles.categoryText}>{expense.category}</Text>
                     </View>
                     <Text style={styles.amountText}>₱{expense.amount.toFixed(2)}</Text>
@@ -1052,9 +1387,40 @@ export default function Request() {
                   <Text style={styles.descriptionText}>{expense.description}</Text>
 
                   {expense.images && expense.images.length > 0 && (
-                    <View style={styles.imagesContainer}>
-                      <Ionicons name="image-outline" size={16} color="#6B7280" />
-                      <Text style={styles.imagesText}>{expense.images.length} image(s) attached</Text>
+                    <View style={{ marginTop: 8 }}>
+                      <View style={styles.imagesContainer}>
+                        <Ionicons name="image-outline" size={16} color="#6B7280" />
+                        <Text style={styles.imagesText}>{expense.images.length} image(s) attached</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                        {expense.images.map((img, idx) => {
+                          // Ensure img is a valid URL string
+                          const imageUrl = typeof img === 'string' ? img : '';
+                          if (!imageUrl) {
+                            console.warn(`⚠️ Invalid image URL at index ${idx}:`, img);
+                            return null;
+                          }
+                          return (
+                            <Image
+                              key={idx}
+                              source={{ uri: imageUrl }}
+                              style={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: 8,
+                                backgroundColor: '#F3F4F6'
+                              }}
+                              resizeMode="cover"
+                              onError={(error) => {
+                                console.error(`❌ Failed to load image ${idx}:`, imageUrl, error);
+                              }}
+                              onLoad={() => {
+                                console.log(`✅ Loaded image ${idx}:`, imageUrl);
+                              }}
+                            />
+                          );
+                        })}
+                      </View>
                     </View>
                   )}
 
@@ -1115,17 +1481,6 @@ export default function Request() {
 
                   <View style={styles.expenseFooter}>
                     <Text style={styles.dateText}>{formatDate(expense.date)}</Text>
-                          {!showArchived ? (
-                            <TouchableOpacity onPress={() => handleArchive(expense)} style={styles.archiveButton}>
-                              <Ionicons name="archive-outline" size={16} color="#6B7280" />
-                              <Text style={styles.archiveText}>Archive</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <TouchableOpacity onPress={() => handleUnarchive(expense)} style={styles.archiveButton}>
-                              <Ionicons name="arrow-undo-outline" size={16} color="#6B7280" />
-                              <Text style={styles.archiveText}>Unarchive</Text>
-                            </TouchableOpacity>
-                          )}
                         </View>
                     </View>
                   ))}
@@ -1133,7 +1488,8 @@ export default function Request() {
                 </View>
               ))}
             </View>
-          )}
+            );
+          })()}
         </ScrollView>
 
         {/* Add Expense Modal */}
@@ -1390,50 +1746,6 @@ export default function Request() {
           </View>
         </Modal>
 
-        {/* Confirm Archive/Unarchive Modal */}
-        <Modal
-          visible={confirmVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setConfirmVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.confirmCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Ionicons name={confirmAction === 'archive' ? 'archive-outline' : 'arrow-undo-outline'} size={22} color="#111827" />
-                <Text style={styles.confirmTitle}>{confirmAction === 'archive' ? 'Archive Expense' : 'Unarchive Expense'}</Text>
-              </View>
-              <Text style={styles.confirmText}>
-                {confirmAction === 'archive' 
-                  ? 'Are you sure you want to archive this expense request?' 
-                  : 'Restore this expense request to Active?'}
-              </Text>
-              <View style={styles.confirmActions}>
-                <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setConfirmVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton]}
-                  onPress={() => {
-                    const exp = confirmExpense;
-                    setConfirmVisible(false);
-                    if (exp) {
-                      if (confirmAction === 'archive') {
-                        archiveExpenseConfirmed(exp);
-                      } else {
-                        unarchiveExpenseConfirmed(exp);
-                      }
-                    }
-                  }}
-                >
-                  <Ionicons name={confirmAction === 'archive' ? 'archive-outline' : 'arrow-undo-outline'} size={18} color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>{confirmAction === 'archive' ? 'Archive' : 'Unarchive'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
         {/* Appeal Modal */}
         <Modal
           visible={showAppealModal}
@@ -1462,7 +1774,7 @@ export default function Request() {
                     <View style={styles.formGroup}>
                       <Text style={styles.label}>Expense Details</Text>
                       <View style={{ padding: 12, backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}>
-                        <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 4 }}>
                           {selectedExpenseForAppeal.description}
                         </Text>
                         <Text style={{ fontSize: 16, fontWeight: '700', color: '#2563EB', marginBottom: 4 }}>
@@ -1616,6 +1928,177 @@ const styles = StyleSheet.create({
   addButtonText: {
     ...buttonStyles.primaryText,
   },
+  viewToggleButton: {
+    minWidth: 44,
+    minHeight: 44,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewToggleButtonActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 44,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    fontFamily: 'Poppins_500Medium',
+  },
+  toggleButtonTextActive: {
+    color: '#2563EB',
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  summaryCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderLeftWidth: 4,
+    gap: 12,
+  },
+  summaryIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryContent: {
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Poppins_700Bold',
+    marginBottom: 2,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+  },
+  filtersContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 12,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#111827',
+    fontFamily: 'Poppins_400Regular',
+    padding: 0,
+  },
+  statusFilterContainer: {
+    maxHeight: 50,
+  },
+  statusFilterContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  statusFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    gap: 8,
+    minHeight: 44,
+  },
+  statusFilterButtonActive: {
+    borderWidth: 2,
+  },
+  statusFilterText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    fontFamily: 'Poppins_500Medium',
+  },
+  statusFilterTextActive: {
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  statusFilterBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  statusFilterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Poppins_700Bold',
+  },
   contentScroll: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -1657,6 +2140,121 @@ const styles = StyleSheet.create({
     gap: 16,
     flexDirection: 'column',
   },
+  expensesListContainer: {
+    padding: 16,
+    gap: 12,
+  },
+  expenseListItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 4,
+  },
+  listItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  listItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  listItemInfo: {
+    flex: 1,
+  },
+  listItemCategory: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  listItemDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    fontFamily: 'Poppins_400Regular',
+  },
+  listItemAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Poppins_700Bold',
+  },
+  listItemImages: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  listItemImagesText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+  },
+  listItemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  listItemDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontFamily: 'Poppins_400Regular',
+  },
+  listItemActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    minHeight: 36,
+    minWidth: 44,
+  },
+  listItemActionText: {
+    fontSize: 12,
+    color: '#2563EB',
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  listItemFeedback: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  listItemFeedbackLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  listItemFeedbackText: {
+    fontSize: 12,
+    color: '#78350F',
+    lineHeight: 16,
+    fontFamily: 'Poppins_400Regular',
+  },
   expenseCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -1692,44 +2290,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-  },
-  controlsBar: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  segmentedGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  segmentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  segmentButtonActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
-  },
-  segmentText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  segmentTextActive: {
-    color: '#2563EB',
-    fontWeight: '600',
   },
   expenseHeader: {
     flexDirection: 'row',
@@ -1823,22 +2383,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     fontFamily: 'Poppins_400Regular',
-  },
-  archiveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  archiveText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -1964,28 +2508,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
-  confirmCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    width: '90%',
-    maxWidth: 420,
-    padding: 20,
-  },
-  confirmTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  confirmText: {
-    fontSize: 14,
-    color: '#374151',
-    marginBottom: 16,
-  },
-  confirmActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
   modalButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2064,10 +2586,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
-  },
-  feedbackText: {
-    fontSize: 16,
-    color: '#374151',
   },
   uploadReceiptButton: {
     flexDirection: 'row',

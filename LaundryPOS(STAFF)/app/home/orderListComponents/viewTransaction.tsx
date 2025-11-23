@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import orderListStyle from "./oderListStyle";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
+import { useToast } from '@/app/context/ToastContext';
 
 type Order = {
   orderId: string;
@@ -67,8 +68,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
   const [orderStatus, setOrderStatus] = useState("Pending");
   const [userId, setUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string>("");
+  const { showSuccess } = useToast();
   const [finalPaidInput, setFinalPaidInput] = useState<string>("");
   const [originalPayment, setOriginalPayment] = useState<string>("Unpaid");
   const [originalPaid, setOriginalPaid] = useState<number>(0);
@@ -346,8 +346,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
         }
         stopLockStatusPolling();
         
-        setSuccessMessage("Order updated successfully!");
-        setShowSuccessModal(true);
+        showSuccess("Order updated successfully!");
         setIsEditing(false);
         
         // Force exit edit mode if order is completed
@@ -358,6 +357,11 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
         if (onOrderUpdated) {
           onOrderUpdated();
         }
+        
+        // Close the modal after successful save
+        setTimeout(() => {
+          setVisible(false);
+        }, 500); // Small delay to allow toast to show
       } else {
         const errorMsg = data.message || data.error || `Failed to update order. Status: ${response.status}`;
         console.error("Update failed:", errorMsg);
@@ -373,6 +377,17 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
 
   const handleEdit = async () => {
     if (!orderData) return;
+    
+    // If already editing (e.g., opened with initialEditMode=true), just ensure lock status is checked
+    if (isEditing && initialEditMode) {
+      // Lock should already be acquired, just verify it and start polling
+      const orderId = orderData.orderId || orderData.id || orderData._id;
+      if (orderId) {
+        await checkLockStatus();
+        startLockStatusPolling(orderId);
+      }
+      return;
+    }
     
     // Check if order is completed and locked
     if (isOrderCompleted()) {
@@ -634,7 +649,25 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 ) : null}
                 <DetailCard 
                   label="BALANCE" 
-                  value={typeof orderData.balance === 'string' ? orderData.balance : `₱${(orderData.balance || 0).toFixed(2)}`}
+                  value={(() => {
+                    // Calculate balance: totalFee - paidAmount
+                    const totalFeeNum = (() => {
+                      if (typeof orderData.total === 'number') return orderData.total;
+                      if (typeof orderData.total === 'string') return parseFloat(orderData.total.replace(/[^\d.]/g, '')) || 0;
+                      if (orderData.totalFee) return orderData.totalFee;
+                      return 0;
+                    })();
+                    const paidAmount = orderData.paid || orderData.amountPaid || 0;
+                    const calculatedBalance = Math.max(0, totalFeeNum - paidAmount);
+                    
+                    // If order is paid, balance should be 0
+                    if (paymentStatus === 'Paid') {
+                      return '₱0.00';
+                    }
+                    
+                    // Otherwise show calculated balance
+                    return `₱${calculatedBalance.toFixed(2)}`;
+                  })()}
                 />
                 {paymentStatus === 'Paid' && (
                   <View style={styles.detailCard}>
@@ -807,23 +840,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
               </TouchableOpacity>
             )}
         </View>
-      </View>
-      </View>
-
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowSuccessModal(false)}>
-          <View style={styles.feedbackOverlay}>
-            <View style={styles.feedbackCard}>
-              <Text style={styles.feedbackTitle}>Success</Text>
-              <Text style={styles.feedbackText}>{successMessage || 'Action completed successfully.'}</Text>
-              <TouchableOpacity style={[styles.footerButton, styles.primaryButton, { alignSelf: 'flex-end', marginTop: 16 }]} onPress={() => setShowSuccessModal(false)}>
-                <Text style={styles.primaryButtonText}>OK</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
-      )}
     </Modal>
   );
 };

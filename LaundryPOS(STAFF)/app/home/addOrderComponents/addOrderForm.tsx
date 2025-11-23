@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   View, 
   Text, 
@@ -20,6 +20,7 @@ import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AddCustomerModal from './AddCustomerModal';
 import designSystem, { colors, typography, spacing, borderRadius, cardStyles, inputStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { useToast } from '@/app/context/ToastContext';
 
 // Interface for order data
 export interface OrderData {
@@ -164,7 +165,20 @@ export const generateUniqueOrderId = async () => {
   }
 };
 
-const AddOrderForm = () => {
+interface AddOrderFormProps {
+  isModal?: boolean;
+  onOrderCreated?: () => void;
+  onClose?: () => void;
+  draftOrderId?: string | null;
+}
+
+const AddOrderForm: React.FC<AddOrderFormProps> = ({
+  isModal = false,
+  onOrderCreated,
+  onClose,
+  draftOrderId = null
+}) => {
+  const { showSuccess, showError, showInfo } = useToast();
   const [userId, setUserId] = useState<string>("");
   const [userStation, setUserStation] = useState<string>("");
   const [services, setServices] = useState<Service[]>([]);
@@ -205,6 +219,27 @@ const AddOrderForm = () => {
   const [showOverpaymentModal, setShowOverpaymentModal] = useState(false);
   const [overpaymentData, setOverpaymentData] = useState<{paidValue: number, totalAmount: number, changeDue: number} | null>(null);
   const [pendingOrderCreation, setPendingOrderCreation] = useState(false);
+
+  // Reset form when modal closes (track previous isModal value)
+  const prevIsModalRef = useRef(isModal);
+  useEffect(() => {
+    if (prevIsModalRef.current && !isModal) {
+      // Modal was open and now closed - reset form
+      setCustomerName("");
+      setCustomerPhone("");
+      setOrderServices([]);
+      setSelectedServiceId("");
+      setQuantity("1");
+      setPickupDate("");
+      setSelectedDiscountId("");
+      setPaidAmount("0");
+      setPaymentStatus("Unpaid");
+      setNotes("");
+      setShowCustomerSuggestions(false);
+      setSkipCustomerCreation(false);
+    }
+    prevIsModalRef.current = isModal;
+  }, [isModal]);
 
   // Fetch logged-in user
   useEffect(() => {
@@ -734,9 +769,25 @@ const AddOrderForm = () => {
       setShowCustomerSuggestions(false);
       setSkipCustomerCreation(false); // Reset the flag
       
-      // Success modal
-      setSuccessMessage("Order created successfully!");
+      // Success feedback
+      const successMsg = "Order created successfully!";
+      setSuccessMessage(successMsg);
+      
+      // Show toast notification immediately
+      showSuccess(successMsg);
+      
+      if (isModal && onOrderCreated) {
+        // Refresh orders list
+        onOrderCreated();
+        // Close modal after a short delay to allow toast to be visible
+        if (onClose) {
+          setTimeout(() => {
+            onClose();
+          }, 800); // Increased delay to ensure toast is visible
+        }
+      } else {
       setShowSuccessModal(true);
+      }
     } catch (error: any) {
       console.error("=== Create order failed ===");
       console.error("Error object:", error);
@@ -744,6 +795,10 @@ const AddOrderForm = () => {
       console.error("Error response data:", error?.response?.data);
       console.error("Error message:", error?.message);
       console.error("Error stack:", error?.stack);
+      
+      // Show error toast notification
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to create order. Please try again.";
+      showError(errorMessage);
       
       // Don't show error alert here since addOrder already shows it
       // But make sure we show a message if something else went wrong
@@ -939,12 +994,8 @@ const AddOrderForm = () => {
               setShowSuccessMessage(false);
             }, 5000);
             
-            // Also show alert as fallback
-            try {
-              Alert.alert("Success", "Draft saved successfully! 💾");
-            } catch (e) {
-              console.log("Alert not available");
-            }
+            // Also show toast notification
+            showSuccess("Draft saved successfully! 💾");
           } catch (error: any) {
             console.error('Error saving draft to DB:', error);
             // Still save locally even if DB save fails
@@ -954,11 +1005,7 @@ const AddOrderForm = () => {
               setShowSuccessMessage(false);
             }, 5000);
             
-            try {
-              Alert.alert("Info", "Draft saved locally! 💾");
-            } catch (e) {
-              console.log("Alert not available");
-            }
+            showInfo("Draft saved locally! 💾");
           }
         } else {
           // Just save to localStorage if customer not found
@@ -1276,15 +1323,15 @@ const AddOrderForm = () => {
             </div>
 
             <div class="status-section">
-              <p><strong>Status:</strong> ${paymentStatus}</p>
-              ${pickupDate ? `<p><strong>Pickup:</strong> ${pickupDate}</p>` : ''}
+              <p><strong>Status:</strong> ${paymentStatus.toLowerCase()}</p>
+              ${pickupDate ? `<p><strong>Pickup:</strong> ${new Date(pickupDate).toISOString().split('T')[0]}</p>` : ''}
               ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
             </div>
           </div>
 
           <div class="receipt-footer">
             <p>Thank you for your business!</p>
-            <p>Keep this receipt for your records</p>
+            <p>keep this receipt for your records</p>
           </div>
         </div>
       `;
@@ -1301,6 +1348,11 @@ const AddOrderForm = () => {
               <head>
                 <title>Receipt Preview - La Bubbles Laundry Shop</title>
                 <style>
+                  * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                  }
                   body {
                     margin: 0;
                     padding: 20px;
@@ -1310,6 +1362,8 @@ const AddOrderForm = () => {
                     justify-content: center;
                     align-items: flex-start;
                     min-height: 100vh;
+                    overflow-x: hidden;
+                    width: 100%;
                   }
                   .preview-container {
                     background: white;
@@ -1317,6 +1371,8 @@ const AddOrderForm = () => {
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
                     padding: 20px;
                     max-width: 400px;
+                    width: 100%;
+                    box-sizing: border-box;
                   }
                   .preview-header {
                     text-align: center;
@@ -1370,6 +1426,8 @@ const AddOrderForm = () => {
                     transform: scale(0.8);
                     transform-origin: top center;
                     margin: 0 auto;
+                    width: fit-content;
+                    overflow: hidden;
                   }
                   .order-receipt {
                     width: 80mm;
@@ -1378,6 +1436,8 @@ const AddOrderForm = () => {
                     font-size: 12px;
                     line-height: 1.2;
                     box-sizing: border-box;
+                    margin: 0;
+                    overflow: hidden;
                   }
                   .receipt-header {
                     text-align: center;
@@ -1528,6 +1588,11 @@ const AddOrderForm = () => {
                               size: 80mm 200mm;
                               margin: 0;
                             }
+                            * {
+                              margin: 0;
+                              padding: 0;
+                              box-sizing: border-box;
+                            }
                             body {
                               margin: 0;
                               padding: 0;
@@ -1535,11 +1600,14 @@ const AddOrderForm = () => {
                               font-size: 12px;
                               line-height: 1.2;
                               width: 80mm;
+                              overflow: hidden;
                             }
                             .order-receipt {
                               width: 80mm;
                               padding: 5mm;
                               box-sizing: border-box;
+                              margin: 0;
+                              overflow: hidden;
                             }
                             .receipt-header {
                               text-align: center;
@@ -1750,7 +1818,8 @@ const AddOrderForm = () => {
       )}
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Page Header */}
+        {/* Page Header - Only show when not in modal mode */}
+        {!isModal && (
         <View style={styles.pageHeader}>
           <View style={styles.titleSection}>
             <Ionicons name="create-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
@@ -1760,6 +1829,7 @@ const AddOrderForm = () => {
             </View>
           </View>
         </View>
+        )}
 
         {/* Two Column Layout */}
         <View style={styles.twoColumnLayout}>
@@ -2102,8 +2172,8 @@ const AddOrderForm = () => {
               {/* Balance Due / Change Due */}
               {changeDue > 0 ? (
                 <View style={[styles.balanceBox, styles.changeBox]}>
-                  <Text style={styles.balanceLabel}>CHANGE DUE</Text>
-                  <Text style={styles.balanceAmount}>₱{changeDue.toFixed(2)}</Text>
+                  <Text style={styles.balanceLabelChange}>CHANGE DUE</Text>
+                  <Text style={styles.balanceAmountChange}>₱{changeDue.toFixed(2)}</Text>
                 </View>
               ) : balanceDue > 0 ? (
                 <View style={styles.balanceBox}>
@@ -2112,8 +2182,8 @@ const AddOrderForm = () => {
                 </View>
               ) : totalAmount > 0 ? (
                 <View style={[styles.balanceBox, styles.paidBox]}>
-                  <Text style={styles.balanceLabel}>FULLY PAID</Text>
-                  <Text style={styles.balanceAmount}>✓</Text>
+                  <Text style={styles.balanceLabelChange}>FULLY PAID</Text>
+                  <Text style={styles.balanceAmountChange}>✓</Text>
                 </View>
               ) : null}
 
@@ -2693,6 +2763,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  balanceLabelChange: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  balanceAmountChange: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#047857',
   },
   summarySection: {
     marginBottom: 16,

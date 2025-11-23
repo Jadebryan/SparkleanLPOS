@@ -1,29 +1,30 @@
 const express = require('express');
 const ServiceController = require('../controllers/ServiceController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
 // All service routes require authentication
 router.use(authenticate);
 
-// Get all services (both admin and staff can view)
-router.get('/', ServiceController.getAllServices);
+// Get all services
+router.get('/', requirePermission('services', 'read'), ServiceController.getAllServices);
 
 // Get single service
-router.get('/:id', ServiceController.getService);
+router.get('/:id', requirePermission('services', 'read'), ServiceController.getService);
 
-// Create service (admin only)
-router.post('/', authorize('admin'), ServiceController.createService);
+// Create service
+router.post('/', requirePermission('services', 'create'), ServiceController.createService);
 
-// Update service (admin only)
-router.put('/:id', authorize('admin'), ServiceController.updateService);
+// Update service
+router.put('/:id', requirePermission('services', 'update'), ServiceController.updateService);
 
-// Archive service (admin only)
-router.put('/:id/archive', authorize('admin'), ServiceController.archiveService);
+// Archive service
+router.put('/:id/archive', requirePermission('services', 'archive'), ServiceController.archiveService);
 
-// Unarchive service (admin only)
-router.put('/:id/unarchive', authorize('admin'), ServiceController.unarchiveService);
+// Unarchive service
+router.put('/:id/unarchive', requirePermission('services', 'unarchive'), ServiceController.unarchiveService);
 
 module.exports = router;
 

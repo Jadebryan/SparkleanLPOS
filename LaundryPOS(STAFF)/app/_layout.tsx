@@ -9,6 +9,7 @@ import { offlineQueue } from '@/utils/offlineQueue';
 import { cacheManager } from '@/utils/cacheManager';
 import OfflineIndicator from './components/OfflineIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './context/ToastContext';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -69,11 +70,13 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <ErrorBoundary>
-        <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-          <OfflineIndicator />
-      <StatusBar style="auto" />
-        </View>
+        <ToastProvider>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+            <OfflineIndicator />
+            <StatusBar style="auto" />
+          </View>
+        </ToastProvider>
       </ErrorBoundary>
     </ThemeProvider>
   );

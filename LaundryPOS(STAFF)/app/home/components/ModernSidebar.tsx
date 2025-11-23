@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert, ScrollView, Modal } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Modal } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,7 +8,6 @@ import { API_BASE_URL } from '@/constants/api';
 
 type RouteLiteral =
   | '/home/orderList'
-  | '/home/addOrder'
   | '/home/customer'
   | '/home/request'
   | '/home/settings'
@@ -16,6 +15,7 @@ type RouteLiteral =
 
 interface NavItem {
   icon: keyof typeof Ionicons.glyphMap;
+  iconActive?: keyof typeof Ionicons.glyphMap;
   route: RouteLiteral;
   label: string;
 }
@@ -43,9 +43,9 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
       >
         <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive, hovered && !isActive && styles.navIconContainerHovered]}>
           <Ionicons
-            name={item.icon}
-            size={24}
-            color={isActive ? '#FFFFFF' : isLogout ? '#DC2626' : '#9CA3AF'}
+            name={isActive && item.iconActive ? item.iconActive : item.icon}
+            size={20}
+            color={isActive ? '#FFFFFF' : isLogout ? '#DC2626' : '#4B5563'}
           />
         </View>
       </TouchableOpacity>
@@ -68,16 +68,15 @@ const ModernSidebar: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems: NavItem[] = [
-    { icon: 'receipt', route: '/home/orderList', label: 'Orders' },
-    { icon: 'add-circle', route: '/home/addOrder', label: 'Add Order' },
-    { icon: 'people', route: '/home/customer', label: 'Customers' },
-    { icon: 'document-text', route: '/home/request', label: 'Requests' },
+    { icon: 'list-outline', iconActive: 'list', route: '/home/orderList', label: 'Orders' },
+    { icon: 'people-outline', iconActive: 'people', route: '/home/customer', label: 'Customers' },
+    { icon: 'folder-outline', iconActive: 'folder', route: '/home/request', label: 'Requests' },
   ];
 
   const generalItems: NavItem[] = [
-    { icon: 'settings', route: '/home/settings', label: 'Settings' },
-    { icon: 'help-circle', route: '/home/help', label: 'Help' },
-    { icon: 'log-out', route: '/home/orderList', label: 'Logout' },
+    { icon: 'settings-outline', iconActive: 'settings', route: '/home/settings', label: 'Settings' },
+    { icon: 'help-circle-outline', iconActive: 'help-circle', route: '/home/help', label: 'Help' },
+    { icon: 'log-out-outline', route: '/home/orderList', label: 'Logout' },
   ];
 
   const handleNavigation = (route: RouteLiteral, isLogout: boolean = false) => {
@@ -120,54 +119,33 @@ const ModernSidebar: React.FC = () => {
   };
 
 
+  // Combine all items for even distribution
+  const allItems: (NavItem & { isLogout: boolean })[] = [
+    ...menuItems.map(item => ({ ...item, isLogout: false })),
+    ...generalItems.slice(0, -1).map(item => ({ ...item, isLogout: false })),
+    { ...generalItems[generalItems.length - 1], isLogout: true }
+  ];
+
   return (
+    <View style={styles.sidebarContainer}>
     <View style={styles.sidebar}>
-      {/* Sidebar Header */}
-      <View style={styles.sidebarHeader}>
-        {/* Logo removed - using icon-only sidebar design */}
-      </View>
-
-      {/* Navigation Sections */}
-      <ScrollView style={styles.navSections} showsVerticalScrollIndicator={false}>
-        {/* Menu Section */}
-        <View style={styles.navSection}>
-          {menuItems.map((item) => {
-            const isActive = pathname === item.route;
+      {/* Navigation Items - Evenly Distributed */}
+      <View style={styles.navContainer}>
+        {allItems.map((item, index) => {
+          const isActive = !item.isLogout && pathname === item.route;
+          // Create a truly unique key using label and index to avoid duplicates
+          const uniqueKey = item.isLogout ? `logout-${item.label}-${index}` : `${item.route}-${item.label}-${index}`;
             return (
               <NavItemComponent
-                key={item.route}
+                key={uniqueKey}
                 item={item}
                 isActive={isActive}
-                isLogout={false}
-                onPress={() => handleNavigation(item.route, false)}
+              isLogout={item.isLogout}
+              onPress={() => handleNavigation(item.route, item.isLogout)}
               />
             );
           })}
         </View>
-
-        {/* General Section */}
-        <View style={styles.navSection}>
-          {generalItems.slice(0, -1).map((item) => {
-            const isActive = pathname === item.route;
-            return (
-              <NavItemComponent
-                key={item.route}
-                item={item}
-                isActive={isActive}
-                isLogout={false}
-                onPress={() => handleNavigation(item.route, false)}
-              />
-            );
-          })}
-          <NavItemComponent
-            key={generalItems[generalItems.length - 1].route}
-            item={generalItems[generalItems.length - 1]}
-            isActive={false}
-            isLogout={true}
-            onPress={() => handleNavigation(generalItems[generalItems.length - 1].route, true)}
-          />
-        </View>
-      </ScrollView>
 
       {/* Logout Confirmation Modal */}
       <Modal
@@ -206,72 +184,77 @@ const ModernSidebar: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  sidebarContainer: {
+    width: 80,
+    marginVertical: 8,
+    marginLeft: 8,
+    marginRight: 0,
+  },
   sidebar: {
-    width: 72,
-    backgroundColor: '#FAFAFA',
-    borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
-    paddingTop: 16,
-    paddingBottom: 24,
-    height: '100%',
-  },
-  sidebarHeader: {
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-    borderBottomWidth: 0,
-    borderBottomColor: 'transparent',
-    marginBottom: 0,
-    alignItems: 'center',
-    minHeight: 0,
-  },
-  navSections: {
+    width: 64,
+    backgroundColor: '#FFFFFF',
+    borderRightWidth: 0,
+    borderRightColor: 'transparent',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     flex: 1,
-    paddingTop: 4,
   },
-  navSection: {
-    paddingHorizontal: 10,
-    marginBottom: 12,
+  navContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   navItemWrapper: {
     position: 'relative',
-    marginVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    width: '100%',
   },
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginVertical: 4,
-    borderRadius: 12,
-    minHeight: 52,
     width: '100%',
+    flex: 1,
   },
   navItemActive: {
     backgroundColor: 'transparent',
   },
   navIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   navIconContainerActive: {
-    backgroundColor: '#2563EB',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: '#111827',
+    borderRadius: 18,
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   navIconContainerHovered: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 18,
   },
   tooltip: {
     position: 'absolute',

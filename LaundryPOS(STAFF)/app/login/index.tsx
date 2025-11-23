@@ -275,9 +275,16 @@ export default function LoginAccount() {
       console.error('Login error:', e);
       console.error('API_BASE_URL:', API_BASE_URL);
       const errorMessage = e?.message || 'Unknown error';
-      setGeneralError(
-        `Network error: ${errorMessage}. Ensure the backend is running at ${API_BASE_URL}`
-      );
+      
+      // Provide more helpful error messages
+      let userFriendlyError = '';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError') || errorMessage.includes('Network request failed')) {
+        userFriendlyError = `Cannot connect to backend server at ${API_BASE_URL}\n\nPlease check:\n• Is the backend server running?\n• Is the server running on port 5000?\n• If using a device/emulator, use your computer's IP address instead of localhost\n\nTo fix: Create a .env file in LaundryPOS(STAFF) with:\nEXPO_PUBLIC_API_URL=http://YOUR_IP:5000/api\n\nExample: EXPO_PUBLIC_API_URL=http://192.168.1.100:5000/api`;
+      } else {
+        userFriendlyError = `Network error: ${errorMessage}\n\nEnsure the backend is running at ${API_BASE_URL}`;
+      }
+      
+      setGeneralError(userFriendlyError);
     } finally {
       setLoading(false);
     }
@@ -469,7 +476,9 @@ export default function LoginAccount() {
                   <Text style={styles.warningText}>{inactiveWarning}</Text>
                 )}
                 {generalError && (
-                  <Text style={styles.errorText}>{generalError}</Text>
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{generalError}</Text>
+                  </View>
                 )}
 
                 {/* Captcha */}
@@ -791,11 +800,18 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     fontFamily: 'Poppins_600SemiBold',
   },
+  errorContainer: {
+    marginTop: 6,
+    padding: 10,
+    backgroundColor: "#FEE2E2",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#EF4444",
+  },
   errorText: {
     fontSize: 12,
     color: "#EF4444",
-    marginTop: 6,
-    paddingLeft: 6,
+    lineHeight: 18,
     fontFamily: 'Poppins_400Regular',
   },
   warningText: {

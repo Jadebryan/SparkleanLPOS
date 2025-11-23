@@ -21,6 +21,9 @@ const dashboardRoutes = require("./routes/DashboardRoutes");
 const reportRoutes = require("./routes/ReportRoutes");
 const stationRoutes = require("./routes/StationRoutes");
 const backupRoutes = require("./routes/BackupRoutes");
+const rbacRoutes = require("./routes/RBACRoutes");
+const systemSettingRoutes = require("./routes/SystemSettingRoutes");
+const uploadRoutes = require("./routes/UploadRoutes");
 
 const app = express();
 
@@ -36,6 +39,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Serve static files (for emergency recovery page)
+app.use(express.static('public'));
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/orders", orderRoutes);
@@ -50,6 +56,9 @@ app.use("/api/stations", stationRoutes);
 app.use("/api/notifications", require("./routes/NotificationRoutes"));
 app.use("/api/backups", backupRoutes);
 app.use("/api/audit-logs", require("./routes/AuditLogRoutes"));
+app.use("/api/rbac", rbacRoutes);
+app.use("/api/system-settings", systemSettingRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -91,8 +100,17 @@ app.get('/api/test-sms', async (req, res) => {
 });
 
 // Connect DB and start server
-ConnectDb().then(() => {
+ConnectDb().then(async () => {
   logger.info('Database connected successfully');
+  
+  // Initialize RBAC
+  try {
+    const { initializeRBAC } = require('./utils/rbac');
+    await initializeRBAC();
+    logger.info('RBAC initialized successfully');
+  } catch (error) {
+    logger.error('Failed to initialize RBAC:', error);
+  }
   
   const PORT = process.env.PORT || 5000;
   const HTTPS_PORT = process.env.HTTPS_PORT || 5443;

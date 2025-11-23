@@ -1,5 +1,7 @@
 // Hook to manage offline status and queue
 import { useState, useEffect, useCallback } from 'react';
+import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { offlineQueue } from '@/utils/offlineQueue';
 
 export const useOffline = () => {
@@ -8,11 +10,29 @@ export const useOffline = () => {
   const [queueCount, setQueueCount] = useState(0);
 
   // Check network status
-  const checkNetworkStatus = useCallback(() => {
+  const checkNetworkStatus = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      // Use navigator.onLine for web
     if (typeof navigator !== 'undefined') {
       setIsOnline(navigator.onLine);
+      } else {
+        setIsOnline(true);
+      }
     } else {
-      setIsOnline(true); // Assume online for React Native
+      // Use NetInfo for React Native (Android/iOS)
+      try {
+        const state = await NetInfo.fetch();
+        // Check both isConnected and isInternetReachable for better accuracy
+        const isConnected = state.isConnected ?? false;
+        const isInternetReachable = state.isInternetReachable ?? true; // Default to true if not available
+        
+        // Consider online if connected AND internet is reachable (or reachability unknown)
+        setIsOnline(isConnected && (isInternetReachable !== false));
+      } catch (error) {
+        console.error('Error checking network status:', error);
+        // Default to online if check fails to avoid false offline states
+        setIsOnline(true);
+      }
     }
   }, []);
 
@@ -53,7 +73,11 @@ export const useOffline = () => {
       updateQueueCount();
     });
 
-    // Listen for online/offline events (web only; some RN runtimes expose a window without these APIs)
+    let netInfoUnsubscribe: (() => void) | null = null;
+    let interval: NodeJS.Timeout | null = null;
+
+    if (Platform.OS === 'web') {
+      // Listen for online/offline events on web
     if (typeof window !== 'undefined' && typeof (window as any).addEventListener === 'function') {
       const handleOnline = () => {
         setIsOnline(true);
@@ -67,7 +91,7 @@ export const useOffline = () => {
       window.addEventListener('offline', handleOffline);
 
       // Periodically check queue count (fallback)
-      const interval = setInterval(() => {
+        interval = setInterval(() => {
         updateQueueCount();
         if (isOnline) {
           syncQueue();
@@ -77,7 +101,32 @@ export const useOffline = () => {
       return () => {
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
-        clearInterval(interval);
+          if (interval) clearInterval(interval);
+          unsubscribe();
+        };
+      }
+    } else {
+      // Use NetInfo for React Native (Android/iOS)
+      netInfoUnsubscribe = NetInfo.addEventListener(state => {
+        const connected = state.isConnected ?? false;
+        setIsOnline(connected);
+        if (connected) {
+          syncQueue();
+        }
+      });
+
+      // Periodically check queue count and sync if online
+      interval = setInterval(() => {
+        updateQueueCount();
+        checkNetworkStatus();
+        if (isOnline) {
+          syncQueue();
+        }
+      }, 5000); // Check every 5 seconds
+
+      return () => {
+        if (netInfoUnsubscribe) netInfoUnsubscribe();
+        if (interval) clearInterval(interval);
         unsubscribe();
       };
     }

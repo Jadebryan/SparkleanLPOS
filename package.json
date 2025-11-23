@@ -1,0 +1,11 @@
+{
+  "name": "laundry-pos",
+  "version": "1.0.0",
+  "description": "Laundry POS System - Complete Project",
+  "private": true,
+  "scripts": {
+    "organize-docs": "node scripts/organize-markdown.js",
+    "setup-git-hooks": "node scripts/setup-git-hooks.js"
+  }
+}
+

@@ -210,7 +210,25 @@ class AuthController {
 
       // Find user by email or username
       const loginIdentifier = email || username;
-      const user = await User.findByCredentials(loginIdentifier, password);
+      
+      if (!loginIdentifier) {
+        return res.status(400).json({
+          success: false,
+          message: "Email or username is required"
+        });
+      }
+
+      // Trim the login identifier to avoid whitespace issues
+      const trimmedIdentifier = loginIdentifier.trim();
+      
+      // Log login attempt for debugging (without password)
+      logger.info('Login attempt', { 
+        identifier: trimmedIdentifier, 
+        hasPassword: !!password,
+        identifierType: email ? 'email' : 'username'
+      });
+
+      const user = await User.findByCredentials(trimmedIdentifier, password);
 
       if (!user) {
         return res.status(401).json({

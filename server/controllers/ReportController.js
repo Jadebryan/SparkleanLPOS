@@ -588,6 +588,339 @@ class ReportController {
       });
     }
   }
+
+  // Generate Sales per Branch Report
+  static async generateSalesPerBranchReport(req, res) {
+    try {
+      const { dateFrom, dateTo } = req.body;
+      
+      if (!dateFrom || !dateTo) {
+        return res.status(400).json({
+          success: false,
+          message: 'Date range is required'
+        });
+      }
+
+      const startDate = new Date(dateFrom);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+
+      // Get all stations
+      const Station = require('../models/StationModel');
+      const stations = await Station.find({ isArchived: false }).sort({ stationId: 1 });
+
+      // Build query for orders
+      const orderQuery = {
+        date: { $gte: startDate, $lte: endDate },
+        isArchived: false,
+        isDraft: { $ne: true }
+      };
+
+      // Staff can only see their own orders
+      if (req.user.role === 'staff') {
+        orderQuery.createdBy = req.user._id;
+      }
+
+      const orders = await Order.find(orderQuery)
+        .populate('createdBy', 'username')
+        .sort({ date: -1 });
+
+      // Parse total amounts
+      const parseTotal = (totalStr) => {
+        if (!totalStr) return 0;
+        const numStr = totalStr.replace(/[₱,]/g, '');
+        return parseFloat(numStr) || 0;
+      };
+
+      // Aggregate sales by branch
+      const branchSales = {};
+      
+      // Initialize all stations
+      stations.forEach(station => {
+        branchSales[station.stationId] = {
+          stationId: station.stationId,
+          stationName: station.name,
+          totalRevenue: 0,
+          totalOrders: 0,
+          paidOrders: 0,
+          unpaidOrders: 0,
+          partialOrders: 0,
+          orders: []
+        };
+      });
+
+      // Process orders
+      orders.forEach(order => {
+        const stationId = order.stationId || 'UNASSIGNED';
+        
+        if (!branchSales[stationId]) {
+          branchSales[stationId] = {
+            stationId: stationId,
+            stationName: stationId === 'UNASSIGNED' ? 'Unassigned' : stationId,
+            totalRevenue: 0,
+            totalOrders: 0,
+            paidOrders: 0,
+            unpaidOrders: 0,
+            partialOrders: 0,
+            orders: []
+          };
+        }
+
+        const revenue = parseTotal(order.total);
+        branchSales[stationId].totalRevenue += revenue;
+        branchSales[stationId].totalOrders += 1;
+        
+        if (order.payment === 'Paid') {
+          branchSales[stationId].paidOrders += 1;
+        } else if (order.payment === 'Unpaid') {
+          branchSales[stationId].unpaidOrders += 1;
+        } else if (order.payment === 'Partial') {
+          branchSales[stationId].partialOrders += 1;
+        }
+
+        branchSales[stationId].orders.push({
+          id: order.id,
+          date: order.date.toISOString().split('T')[0],
+          customer: order.customer,
+          customerPhone: order.customerPhone || '',
+          payment: order.payment,
+          total: order.total,
+          paid: order.paid || 0,
+          balance: order.balance || '₱0.00',
+          createdBy: order.createdBy ? order.createdBy.username : 'Unknown'
+        });
+      });
+
+      // Convert to array and sort by revenue
+      const branchSalesArray = Object.values(branchSales)
+        .map(branch => ({
+          ...branch,
+          totalRevenue: branch.totalRevenue.toFixed(2)
+        }))
+        .sort((a, b) => parseFloat(b.totalRevenue) - parseFloat(a.totalRevenue));
+
+      // Calculate totals
+      const totalRevenue = branchSalesArray.reduce((sum, branch) => sum + parseFloat(branch.totalRevenue), 0);
+      const totalOrders = branchSalesArray.reduce((sum, branch) => sum + branch.totalOrders, 0);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reportType: 'sales-per-branch',
+          dateRange: { from: dateFrom, to: dateTo },
+          summary: {
+            totalBranches: branchSalesArray.length,
+            totalRevenue: totalRevenue.toFixed(2),
+            totalOrders: totalOrders
+          },
+          branches: branchSalesArray
+        }
+      });
+    } catch (error) {
+      console.error('Generate sales per branch report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  // Generate Cashflow per Branch Report
+  static async generateCashflowPerBranchReport(req, res) {
+    try {
+      const { dateFrom, dateTo } = req.body;
+      
+      if (!dateFrom || !dateTo) {
+        return res.status(400).json({
+          success: false,
+          message: 'Date range is required'
+        });
+      }
+
+      const startDate = new Date(dateFrom);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+
+      // Get all stations
+      const Station = require('../models/StationModel');
+      const stations = await Station.find({ isArchived: false }).sort({ stationId: 1 });
+
+      // Build query for orders
+      const orderQuery = {
+        date: { $gte: startDate, $lte: endDate },
+        isArchived: false,
+        isDraft: { $ne: true }
+      };
+
+      // Build query for expenses
+      const expenseQuery = {
+        date: { $gte: startDate, $lte: endDate },
+        isArchived: false,
+        status: 'Approved' // Only count approved expenses
+      };
+
+      // Staff can only see their own orders/expenses
+      if (req.user.role === 'staff') {
+        orderQuery.createdBy = req.user._id;
+        expenseQuery.requestedBy = req.user._id;
+      }
+
+      const orders = await Order.find(orderQuery).sort({ date: 1 });
+      const expenses = await Expense.find(expenseQuery)
+        .populate('requestedBy', 'username')
+        .sort({ date: 1 });
+
+      // Parse total amounts
+      const parseTotal = (totalStr) => {
+        if (!totalStr) return 0;
+        const numStr = totalStr.replace(/[₱,]/g, '');
+        return parseFloat(numStr) || 0;
+      };
+
+      // Aggregate cashflow by branch
+      const branchCashflow = {};
+      
+      // Initialize all stations
+      stations.forEach(station => {
+        branchCashflow[station.stationId] = {
+          stationId: station.stationId,
+          stationName: station.name,
+          revenue: 0,
+          expenses: 0,
+          netCashflow: 0,
+          orders: [],
+          expensesList: []
+        };
+      });
+
+      // Process orders (revenue)
+      orders.forEach(order => {
+        const stationId = order.stationId || 'UNASSIGNED';
+        
+        if (!branchCashflow[stationId]) {
+          branchCashflow[stationId] = {
+            stationId: stationId,
+            stationName: stationId === 'UNASSIGNED' ? 'Unassigned' : stationId,
+            revenue: 0,
+            expenses: 0,
+            netCashflow: 0,
+            orders: [],
+            expensesList: []
+          };
+        }
+
+        const revenue = parseTotal(order.total);
+        branchCashflow[stationId].revenue += revenue;
+        branchCashflow[stationId].netCashflow += revenue;
+      });
+
+      // Process expenses (outflow)
+      expenses.forEach(expense => {
+        const stationId = expense.stationId || 'UNASSIGNED';
+        
+        if (!branchCashflow[stationId]) {
+          branchCashflow[stationId] = {
+            stationId: stationId,
+            stationName: stationId === 'UNASSIGNED' ? 'Unassigned' : stationId,
+            revenue: 0,
+            expenses: 0,
+            netCashflow: 0,
+            orders: [],
+            expensesList: []
+          };
+        }
+
+        const expenseAmount = expense.amount || 0;
+        branchCashflow[stationId].expenses += expenseAmount;
+        branchCashflow[stationId].netCashflow -= expenseAmount;
+
+        branchCashflow[stationId].expensesList.push({
+          date: expense.date.toISOString().split('T')[0],
+          category: expense.category,
+          description: expense.description,
+          amount: expenseAmount,
+          requestedBy: expense.requestedBy ? expense.requestedBy.username : 'Unknown'
+        });
+      });
+
+      // Convert to array and calculate daily breakdown
+      const branchCashflowArray = Object.values(branchCashflow)
+        .map(branch => {
+          // Daily breakdown
+          const dailyBreakdown = {};
+          
+          // Add revenue by day
+          orders.forEach(order => {
+            if ((order.stationId || 'UNASSIGNED') === branch.stationId) {
+              const dateKey = order.date.toISOString().split('T')[0];
+              if (!dailyBreakdown[dateKey]) {
+                dailyBreakdown[dateKey] = { revenue: 0, expenses: 0, netCashflow: 0 };
+              }
+              dailyBreakdown[dateKey].revenue += parseTotal(order.total);
+              dailyBreakdown[dateKey].netCashflow += parseTotal(order.total);
+            }
+          });
+
+          // Add expenses by day
+          expenses.forEach(expense => {
+            if ((expense.stationId || 'UNASSIGNED') === branch.stationId) {
+              const dateKey = expense.date.toISOString().split('T')[0];
+              if (!dailyBreakdown[dateKey]) {
+                dailyBreakdown[dateKey] = { revenue: 0, expenses: 0, netCashflow: 0 };
+              }
+              dailyBreakdown[dateKey].expenses += expense.amount || 0;
+              dailyBreakdown[dateKey].netCashflow -= expense.amount || 0;
+            }
+          });
+
+          const formattedDailyBreakdown = Object.entries(dailyBreakdown)
+            .map(([date, data]) => ({
+              date,
+              revenue: data.revenue.toFixed(2),
+              expenses: data.expenses.toFixed(2),
+              netCashflow: data.netCashflow.toFixed(2)
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          return {
+            ...branch,
+            revenue: branch.revenue.toFixed(2),
+            expenses: branch.expenses.toFixed(2),
+            netCashflow: branch.netCashflow.toFixed(2),
+            dailyBreakdown: formattedDailyBreakdown
+          };
+        })
+        .sort((a, b) => parseFloat(b.netCashflow) - parseFloat(a.netCashflow));
+
+      // Calculate totals
+      const totalRevenue = branchCashflowArray.reduce((sum, branch) => sum + parseFloat(branch.revenue), 0);
+      const totalExpenses = branchCashflowArray.reduce((sum, branch) => sum + parseFloat(branch.expenses), 0);
+      const totalNetCashflow = totalRevenue - totalExpenses;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reportType: 'cashflow-per-branch',
+          dateRange: { from: dateFrom, to: dateTo },
+          summary: {
+            totalBranches: branchCashflowArray.length,
+            totalRevenue: totalRevenue.toFixed(2),
+            totalExpenses: totalExpenses.toFixed(2),
+            totalNetCashflow: totalNetCashflow.toFixed(2)
+          },
+          branches: branchCashflowArray
+        }
+      });
+    } catch (error) {
+      console.error('Generate cashflow per branch report error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
 }
 
 module.exports = ReportController;

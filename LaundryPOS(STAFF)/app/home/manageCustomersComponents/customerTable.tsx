@@ -10,12 +10,16 @@ import {
   Alert,
   ScrollView,
   FlatList,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { Dropdown } from 'react-native-element-dropdown';
+import EmailInput from "@/components/EmailInput";
 import { API_BASE_URL } from "@/constants/api";
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EnhancedEmptyCustomers } from '@/components/ui/EnhancedEmptyState';
+import { useToast } from '@/app/context/ToastContext';
 
 type Customer = {
   _id: string;
@@ -34,6 +38,11 @@ type CustomerTableProps = {
   sortBy?: string;
   onSortChange?: (sort: string) => void;
   onCustomersChange?: (customers: Customer[]) => void;
+  canArchive?: boolean;
+  canUnarchive?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  scrollEnabled?: boolean;
 };
 
 const CustomerTable: React.FC<CustomerTableProps> = ({ 
@@ -42,13 +51,20 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   sortBy = 'name-asc',
   onSortChange,
   onCustomersChange,
+  canArchive = false,
+  canUnarchive = false,
+  refreshing = false,
+  onRefresh,
+  scrollEnabled = true,
 }) => {
+  const { showSuccess } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [processingCustomerId, setProcessingCustomerId] = useState<string | null>(null);
 
   const API_URL = `${API_BASE_URL}/customers`;
 
@@ -57,6 +73,27 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
     fetchCustomers();
   }, []);
 
+  const mapResponseToCustomers = (payload: any, archivedFlag: boolean): Customer[] => {
+    const customersArray = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.customers)
+          ? payload.customers
+          : [];
+
+    return customersArray.map((c: any) => ({
+      _id: c._id || c.id,
+      customerName: c.customerName || c.name,
+      phoneNumber: c.phoneNumber || c.phone,
+      email: c.email || '',
+      totalOrders: c.totalOrders || 0,
+      totalSpent: c.totalSpent || 0,
+      lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
+      isArchived: archivedFlag || c.isArchived || false,
+    }));
+  };
+
   const fetchCustomers = async () => {
     setLoading(true);
     try {
@@ -64,33 +101,18 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      const response = await axios.get(`${API_URL}?showArchived=false`, { headers });
-      const data = response.data;
-      
-      // Handle different response formats
-      const customersArray = Array.isArray(data) 
-        ? data 
-        : Array.isArray(data?.data) 
-          ? data.data 
-          : Array.isArray(data?.customers) 
-            ? data.customers 
-            : [];
-      
-      // Map to include orders/spent info if available
-      const mappedCustomers: Customer[] = customersArray.map((c: any) => ({
-        _id: c._id || c.id,
-        customerName: c.customerName || c.name,
-        phoneNumber: c.phoneNumber || c.phone,
-        email: c.email || '',
-        totalOrders: c.totalOrders || 0,
-        totalSpent: c.totalSpent || 0,
-        lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
-        isArchived: c.isArchived || false,
-      }));
+      const [activeRes, archivedRes] = await Promise.all([
+        axios.get(`${API_URL}?showArchived=false`, { headers }),
+        axios.get(`${API_URL}?showArchived=true`, { headers }).catch(() => ({ data: [] })),
+      ]);
 
-      setCustomers(mappedCustomers);
+      const activeCustomers = mapResponseToCustomers(activeRes.data, false);
+      const archivedCustomers = mapResponseToCustomers(archivedRes.data, true);
+      const combined = [...activeCustomers, ...archivedCustomers];
+
+      setCustomers(combined);
       if (onCustomersChange) {
-        onCustomersChange(mappedCustomers);
+        onCustomersChange(combined);
       }
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -238,7 +260,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
       setEditModalVisible(false);
       setSelectedCustomer(null);
-      Alert.alert("Success", "Customer updated successfully!");
+      showSuccess("Customer updated successfully!");
       
       // Refresh the list to ensure consistency
       fetchCustomers();
@@ -315,6 +337,17 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
           <FlatList
             data={sortedCustomers}
             keyExtractor={(item) => item._id}
+            scrollEnabled={scrollEnabled}
+            nestedScrollEnabled={scrollEnabled}
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl
+                  refreshing={refreshing || false}
+                  onRefresh={onRefresh}
+                  tintColor="#2563EB"
+                />
+              ) : undefined
+            }
             renderItem={({ item: customer }) => (
               <View style={styles.tableRow}>
               {/* Customer */}
@@ -382,13 +415,17 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
             windowSize={10}
             ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No customers found</Text>
+                <EnhancedEmptyCustomers onAddCustomer={() => {
+                  // This will be handled by parent component
+                }} />
               </View>
             )}
           />
         ) : (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No customers found</Text>
+            <EnhancedEmptyCustomers onAddCustomer={() => {
+              // This will be handled by parent component
+            }} />
           </View>
         )}
       </View>
@@ -552,15 +589,13 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Email Address *</Text>
-                    <TextInput
+                    <EmailInput
                       style={styles.textInput}
                       placeholder="customer@example.com"
                       value={selectedCustomer.email || ''}
                       onChangeText={(text) =>
                         setSelectedCustomer({ ...selectedCustomer, email: text })
                       }
-                      keyboardType="email-address"
-                      autoCapitalize="none"
                     />
                   </View>
 

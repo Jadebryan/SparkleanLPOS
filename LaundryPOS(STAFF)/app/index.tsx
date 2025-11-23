@@ -32,6 +32,6 @@ export default function Index() {
   if (!isLoggedIn) {
     return <Redirect href="/login" />;
   } else {
-    return <Redirect href="/home/addOrder" />;
+    return <Redirect href="/home/orderList" />;
   }
 }
