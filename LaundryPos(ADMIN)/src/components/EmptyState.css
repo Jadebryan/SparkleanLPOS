@@ -6,6 +6,7 @@
   padding: 60px 20px;
   text-align: center;
   min-height: 400px;
+  transition: all 0.3s ease;
 }
 
 .empty-state-icon {
@@ -26,6 +27,12 @@
   height: 80px;
   color: var(--color-gray-400, #9ca3af);
   opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.empty-state:hover .empty-state-svg-icon {
+  transform: scale(1.1);
+  opacity: 0.8;
 }
 
 .empty-state-title {

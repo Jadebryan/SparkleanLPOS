@@ -1963,6 +1963,9 @@ const OrderManagement: React.FC = () => {
                               title={orderLocks[order.id]?.isLocked && !orderLocks[order.id]?.isLockedByMe 
                                 ? `This order is being edited by ${orderLocks[order.id].lockedBy?.name || 'another user'}` 
                                 : 'Edit'}
+                              aria-label={orderLocks[order.id]?.isLocked && !orderLocks[order.id]?.isLockedByMe 
+                                ? `This order is being edited by ${orderLocks[order.id].lockedBy?.name || 'another user'}` 
+                                : `Edit order ${order.id}`}
                               style={orderLocks[order.id]?.isLocked && !orderLocks[order.id]?.isLockedByMe 
                                 ? { opacity: 0.4, cursor: 'not-allowed' } 
                                 : {}}
@@ -1973,6 +1976,7 @@ const OrderManagement: React.FC = () => {
                               className="btn-icon-small invoice"
                               onClick={() => navigate(`/invoice/${encodeURIComponent(order.id)}`)}
                               title="View Invoice"
+                              aria-label={`View invoice for order ${order.id}`}
                             >
                               <FiFileText />
                             </button>
@@ -1980,6 +1984,7 @@ const OrderManagement: React.FC = () => {
                               className="btn-icon-small"
                               onClick={() => handlePrintReceipt(order)}
                               title="Print Receipt"
+                              aria-label={`Print receipt for order ${order.id}`}
                             >
                               <FiPrinter />
                             </button>
@@ -1988,6 +1993,7 @@ const OrderManagement: React.FC = () => {
                                 className={`btn-icon-small ${showArchived ? 'restore' : 'delete'}`}
                                 onClick={() => showArchived ? handleUnarchive(order.id) : handleArchive(order.id)}
                                 title={showArchived ? 'Unarchive' : 'Archive'}
+                                aria-label={showArchived ? `Unarchive order ${order.id}` : `Archive order ${order.id}`}
                               >
                                 {showArchived ? <FiRotateCw /> : <FiArchive />}
                               </button>

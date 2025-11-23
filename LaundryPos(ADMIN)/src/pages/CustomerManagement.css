@@ -1205,21 +1205,28 @@
 }
 
 .customers-table td {
-  padding: 16px;
+  padding: 18px 16px;
   border-bottom: 1px solid var(--color-gray-100);
   font-size: 14px;
+  color: var(--color-gray-700);
 }
 
 .customer-row {
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
+  background: var(--color-white);
+}
+
+/* Row striping for better readability */
+.customers-table tbody tr:nth-child(even) {
+  background: var(--color-gray-50);
 }
 
 .customer-row:hover {
-  background: var(--color-very-light-blue, #dbeafe);
+  background: var(--color-very-light-blue, #dbeafe) !important;
   transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .customer-row:active {

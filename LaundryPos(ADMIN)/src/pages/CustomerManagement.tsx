@@ -673,6 +673,7 @@ const CustomerManagement: React.FC = () => {
                         className="btn-icon-small"
                         onClick={() => openModal(customer)}
                         title="View Details"
+                        aria-label={`View details for ${customer.name}`}
                       >
                         <FiEye />
                       </button>
@@ -680,6 +681,7 @@ const CustomerManagement: React.FC = () => {
                         className="btn-icon-small edit"
                         onClick={() => openEditModal(customer)}
                         title="Edit"
+                        aria-label={`Edit customer ${customer.name}`}
                       >
                         <FiEdit2 />
                       </button>
@@ -688,6 +690,7 @@ const CustomerManagement: React.FC = () => {
                           className={`btn-icon-small ${showArchived ? 'restore' : 'delete'}`}
                           onClick={() => showArchived ? handleUnarchive(customer.id) : handleArchive(customer.id)}
                           title={showArchived ? 'Unarchive' : 'Archive'}
+                          aria-label={showArchived ? `Unarchive customer ${customer.name}` : `Archive customer ${customer.name}`}
                         >
                           {showArchived ? <FiRotateCw /> : <FiArchive />}
                         </button>
@@ -812,6 +815,7 @@ const CustomerManagement: React.FC = () => {
                         className="btn-icon-small"
                         onClick={() => openModal(customer)}
                         title="View Details"
+                        aria-label={`View details for ${customer.name}`}
                       >
                         <FiEye />
                       </button>
@@ -819,6 +823,7 @@ const CustomerManagement: React.FC = () => {
                         className="btn-icon-small edit"
                         onClick={() => openEditModal(customer)}
                         title="Edit"
+                        aria-label={`Edit customer ${customer.name}`}
                       >
                         <FiEdit2 />
                       </button>
@@ -827,6 +832,7 @@ const CustomerManagement: React.FC = () => {
                           className={`btn-icon-small ${showArchived ? 'restore' : 'delete'}`}
                           onClick={() => showArchived ? handleUnarchive(customer.id) : handleArchive(customer.id)}
                           title={showArchived ? 'Unarchive' : 'Archive'}
+                          aria-label={showArchived ? `Unarchive customer ${customer.name}` : `Archive customer ${customer.name}`}
                         >
                           {showArchived ? <FiRotateCw /> : <FiArchive />}
                         </button>

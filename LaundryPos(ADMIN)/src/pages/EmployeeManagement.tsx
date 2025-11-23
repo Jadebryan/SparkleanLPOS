@@ -869,6 +869,7 @@ const EmployeeManagement: React.FC = () => {
                               className="btn-icon-small"
                               onClick={() => openModal(employee)}
                               title="View Details"
+                              aria-label={`View details for ${employee.name}`}
                             >
                               <FiEye />
                             </button>
@@ -879,6 +880,7 @@ const EmployeeManagement: React.FC = () => {
                                 handleUpdate()
                               }}
                               title="Edit"
+                              aria-label={`Edit employee ${employee.name}`}
                             >
                               <FiEdit2 />
                             </button>
@@ -886,6 +888,7 @@ const EmployeeManagement: React.FC = () => {
                               className={`btn-toggle-small ${employee.status === 'Active' ? 'active' : 'inactive'}`}
                               onClick={() => handleToggleStatus(employee)}
                               title={employee.status === 'Active' ? 'Deactivate Account' : 'Activate Account'}
+                              aria-label={employee.status === 'Active' ? `Deactivate account for ${employee.name}` : `Activate account for ${employee.name}`}
                             >
                               {employee.status === 'Active' ? <FiToggleRight size={16} /> : <FiToggleLeft size={16} />}
                             </button>
@@ -893,6 +896,7 @@ const EmployeeManagement: React.FC = () => {
                               onClick={() => showArchived ? handleUnarchive(employee.id, employee.name) : handleArchive(employee.id, employee.name)}
                               title={showArchived ? 'Unarchive' : 'Archive'}
                               className={`btn-icon-small ${showArchived ? 'restore' : 'delete'}`}
+                              aria-label={showArchived ? `Unarchive employee ${employee.name}` : `Archive employee ${employee.name}`}
                             >
                               {showArchived ? <FiRotateCw /> : <FiArchive />}
                             </button>

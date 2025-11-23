@@ -3,6 +3,7 @@ import './Button.css'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'icon'
+  size?: 'sm' | 'md' | 'lg'
   children: React.ReactNode
   ariaLabel?: string
   loading?: boolean
@@ -10,6 +11,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const Button: React.FC<ButtonProps> = ({ 
   variant = 'primary', 
+  size = 'md',
   children, 
   className = '',
   ariaLabel,
@@ -21,9 +23,12 @@ const Button: React.FC<ButtonProps> = ({
   const isIconOnly = variant === 'icon' || (typeof children === 'object' && !Array.isArray(children))
   const finalAriaLabel = ariaLabel || (isIconOnly && typeof children === 'string' ? children : undefined)
   
+  // Size class only applies to non-icon buttons
+  const sizeClass = variant === 'icon' ? '' : `btn-${size}`
+  
   return (
     <button 
-      className={`btn btn-${variant} ${loading ? 'btn-loading' : ''} ${className}`}
+      className={`btn btn-${variant} ${sizeClass} ${loading ? 'btn-loading' : ''} ${className}`}
       disabled={disabled || loading}
       aria-label={finalAriaLabel}
       aria-busy={loading}
