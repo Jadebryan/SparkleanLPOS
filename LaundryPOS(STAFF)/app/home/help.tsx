@@ -45,9 +45,16 @@ export default function Help() {
         {
           id: 'dashboard-overview',
           question: 'What can I see on the home page?',
-          answer: 'The home page shows your order list. You can view all orders, create new orders, manage customers, and submit expense requests.',
+          answer: 'The home page shows your order list. You can view all orders, create new orders, manage customers, and submit expense requests. The app supports both portrait and landscape orientations - simply rotate your device to switch views.',
           category: 'getting-started',
-          tags: ['dashboard', 'overview', 'home']
+          tags: ['dashboard', 'overview', 'home', 'orientation']
+        },
+        {
+          id: 'toast-notifications',
+          question: 'What are toast notifications?',
+          answer: 'Toast notifications are non-intrusive messages that appear at the top of the screen to confirm actions like color palette changes, successful operations, or errors. They automatically disappear after a few seconds and don\'t block your workflow.',
+          category: 'getting-started',
+          tags: ['notifications', 'toast', 'feedback', 'messages']
         },
       ]
     },
@@ -263,6 +270,20 @@ export default function Help() {
       icon: 'settings-outline',
       description: 'Managing your account settings',
       items: [
+        {
+          id: 'color-palette',
+          question: 'How do I change the app colors?',
+          answer: 'Go to Settings → Appearance tab to access the color palette selector. Choose from 6 different color palettes: Default (Sparklean Blue & Orange), Ocean Breeze, Forest Green, Royal Purple, Sunset Orange, and Midnight Blue. Your selection is applied immediately across the entire app, including buttons, icons, and all UI elements. Changes are saved automatically.',
+          category: 'account',
+          tags: ['color-palette', 'appearance', 'customization', 'colors', 'themes']
+        },
+        {
+          id: 'app-orientation',
+          question: 'Can I rotate the app to landscape mode?',
+          answer: 'Yes! The app supports both portrait and landscape orientations. Simply rotate your device and the app will automatically adjust. This is especially useful when viewing order lists or customer details on tablets.',
+          category: 'account',
+          tags: ['orientation', 'landscape', 'portrait', 'rotation', 'tablet']
+        },
         {
           id: 'update-profile',
           question: 'How do I update my profile?',

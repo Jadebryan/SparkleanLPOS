@@ -60,16 +60,23 @@ const Help: React.FC = () => {
         {
           id: 'theme-switching',
           question: 'How do I change the theme?',
-          answer: 'Click the theme toggle in the header or use keyboard shortcuts: Ctrl+1 (Light) or Ctrl+2 (Dim).',
+          answer: 'Click the theme toggle in the header or use keyboard shortcuts: Ctrl+1 (Light) or Ctrl+2 (Dim). Note: Theme switching is temporarily disabled when using a custom color palette. Switch back to the default palette in Settings → Appearance to enable theme switching.',
           category: 'getting-started',
-          tags: ['theme', 'appearance', 'keyboard-shortcuts']
+          tags: ['theme', 'appearance', 'keyboard-shortcuts', 'color-palette']
         },
         {
-          id: 'font-customization',
-          question: 'Can I customize the font style?',
-          answer: 'Yes! Go to Settings → Appearance to choose from a variety of font styles. The font previews show exactly how each font will look, and your selection will be applied throughout the application.',
+          id: 'color-palette',
+          question: 'How do I change the color palette?',
+          answer: 'Go to Settings → Appearance tab to choose from multiple color palettes including Default, Ocean Breeze, Forest Green, Royal Purple, Sunset Orange, and Midnight Blue. Your selection is applied immediately across the entire application, including the sidebar, buttons, and all UI elements. The color palette works in both light and dim modes.',
           category: 'getting-started',
-          tags: ['font', 'appearance', 'settings', 'customization']
+          tags: ['color-palette', 'appearance', 'settings', 'customization', 'themes']
+        },
+        {
+          id: 'theme-palette-restriction',
+          question: 'Why can\'t I switch themes when using a custom color palette?',
+          answer: 'Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings → Appearance if you want to change between light and dim themes.',
+          category: 'getting-started',
+          tags: ['theme', 'color-palette', 'restriction', 'development']
         }
       ]
     },
@@ -468,6 +475,13 @@ const Help: React.FC = () => {
       icon: <FiSettings />,
       description: 'Customizing your experience and system settings',
       items: [
+        {
+          id: 'color-palette-settings',
+          question: 'How do I customize the app colors?',
+          answer: 'Go to Settings → Appearance tab to access the color palette selector. Choose from 6 different color palettes: Default (Sparklean Blue & Orange), Ocean Breeze, Forest Green, Royal Purple, Sunset Orange, and Midnight Blue. Each palette changes the primary and accent colors throughout the entire application, including the sidebar, buttons, and all interactive elements. Your selection is saved automatically.',
+          category: 'settings',
+          tags: ['color-palette', 'appearance', 'customization', 'themes', 'colors']
+        },
         {
           id: 'password-strength',
           question: 'How does password strength checking work?',
