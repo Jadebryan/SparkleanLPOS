@@ -4,13 +4,24 @@ import {
   FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiShield, FiKey, 
   FiCheck, FiX, FiAlertCircle, FiSettings, FiSave, FiSend, FiType,
   FiDatabase, FiFileText, FiServer, FiDownload, FiTrash2, FiRefreshCw,
-  FiSearch, FiFilter, FiCalendar, FiClock, FiActivity, FiTrendingUp
+  FiSearch, FiFilter, FiCalendar, FiClock, FiActivity, FiTrendingUp, FiEdit3
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { useUser } from '../context/UserContext'
 import { authAPI, backupAPI, auditLogAPI, settingsAPI } from '../utils/api'
 import { availableFonts, getFontPreference, applyFont, loadFont } from '../utils/fontManager'
-import { colorPalettes, getColorPalettePreference, setColorPalettePreference, applyColorPalette } from '../utils/colorPalette'
+import { HexColorPicker, HexColorInput } from 'react-colorful'
+import {
+  colorPalettes,
+  getColorPalettePreference,
+  setColorPalettePreference,
+  applyColorPalette,
+  createCustomPalette,
+  updateCustomPalette,
+  deleteCustomPalette,
+  getAllPalettes,
+  ColorPalette
+} from '../utils/colorPalette'
 import { Backup, BackupStats, AuditLog, AuditLogStats } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmailInput from '../components/EmailInput'
@@ -23,6 +34,22 @@ const DEFAULT_SESSION_SETTINGS = {
   timeoutMinutes: 15,
   warningSeconds: 60,
 }
+
+const SAVED_COLOR_STORAGE_KEY = 'admin_saved_palette_colors'
+const DEFAULT_SAVED_COLORS = [
+  '#2563EB',
+  '#F97316',
+  '#059669',
+  '#7C3AED',
+  '#DC2626',
+  '#14B8A6',
+  '#F59E0B',
+  '#0EA5E9',
+  '#F43F5E',
+  '#10B981',
+  '#EC4899',
+  '#1E3A8A'
+]
 
 const Settings: React.FC = () => {
   const { user } = useUser()
@@ -116,6 +143,14 @@ const Settings: React.FC = () => {
   
   // Color palette preference state
   const [selectedPalette, setSelectedPalette] = useState<string>(getColorPalettePreference())
+  const [availablePalettes, setAvailablePalettes] = useState<ColorPalette[]>(colorPalettes)
+  const [customPaletteName, setCustomPaletteName] = useState('My Custom Palette')
+  const [primaryColor, setPrimaryColor] = useState('#2563EB')
+  const [accentColor, setAccentColor] = useState('#F97316')
+  const [savedColors, setSavedColors] = useState<string[]>(DEFAULT_SAVED_COLORS)
+  const [paletteLoading, setPaletteLoading] = useState(false)
+  const [colorFocus, setColorFocus] = useState<'primary' | 'accent'>('primary')
+  const [editingPaletteId, setEditingPaletteId] = useState<string | null>(null)
 
   // Backup states
   const [backups, setBackups] = useState<Backup[]>([])
@@ -166,6 +201,138 @@ const Settings: React.FC = () => {
       })
     }
   }, [activeTab])
+
+  useEffect(() => {
+    refreshPalettes()
+    loadSavedColors()
+  }, [])
+
+  const refreshPalettes = () => {
+    setPaletteLoading(true)
+    try {
+      const palettes = getAllPalettes()
+      setAvailablePalettes(palettes)
+    } finally {
+      setPaletteLoading(false)
+    }
+  }
+
+  const loadSavedColors = () => {
+    if (typeof window === 'undefined') return
+    const stored = localStorage.getItem(SAVED_COLOR_STORAGE_KEY)
+    if (stored) {
+      try {
+        const parsed: string[] = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length) {
+          const unique = Array.from(new Set([...DEFAULT_SAVED_COLORS, ...parsed.map(color => color.toUpperCase())]))
+          setSavedColors(unique.slice(0, 20))
+        }
+      } catch (error) {
+        console.error('Failed to parse saved colors', error)
+      }
+    }
+  }
+
+  const persistSavedColors = (colors: string[]) => {
+    if (typeof window === 'undefined') return
+    const customOnly = colors.filter(color => !DEFAULT_SAVED_COLORS.includes(color))
+    localStorage.setItem(SAVED_COLOR_STORAGE_KEY, JSON.stringify(customOnly))
+  }
+
+  const isValidHexColor = (value: string) => /^#[0-9A-F]{6}$/i.test(value)
+
+  const normalizeHexValue = (value: string) => {
+    const cleaned = value.replace('#', '').replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
+    return `#${cleaned.toUpperCase()}`
+  }
+
+  const handleAddSavedColor = (color: string) => {
+    if (!isValidHexColor(color) || savedColors.includes(color.toUpperCase())) return
+    const next = [...savedColors, color.toUpperCase()].slice(-20)
+    setSavedColors(next)
+    persistSavedColors(next)
+  }
+
+  const editingPalette = editingPaletteId ? availablePalettes.find(palette => palette.id === editingPaletteId) : null
+
+  const cancelEditingPalette = () => {
+    setEditingPaletteId(null)
+    setCustomPaletteName('My Custom Palette')
+    setPrimaryColor('#2563EB')
+    setAccentColor('#F97316')
+  }
+
+  const handlePaletteSelection = (paletteId: string, paletteName: string) => {
+    if (editingPaletteId && paletteId !== editingPaletteId) {
+      cancelEditingPalette()
+    }
+    setSelectedPalette(paletteId)
+    setColorPalettePreference(paletteId)
+    toast.success(`Color palette changed to ${paletteName}`)
+  }
+
+  const handleSaveCustomPalette = () => {
+    if (!customPaletteName.trim()) {
+      toast.error('Please provide a name for your palette.')
+      return
+    }
+    if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
+      toast.error('Enter valid HEX colors (e.g. #2563EB).')
+      return
+    }
+    try {
+      setPaletteLoading(true)
+      if (editingPaletteId) {
+        const palette = updateCustomPalette(editingPaletteId, {
+          name: customPaletteName.trim(),
+          primaryColor,
+          accentColor,
+        })
+        refreshPalettes()
+        handlePaletteSelection(palette.id, palette.name)
+        toast.success('Custom palette updated')
+      } else {
+        const palette = createCustomPalette({
+          name: customPaletteName.trim(),
+          primaryColor,
+          accentColor,
+        })
+        refreshPalettes()
+        handlePaletteSelection(palette.id, palette.name)
+      }
+      setCustomPaletteName('My Custom Palette')
+      setEditingPaletteId(null)
+    } catch (error) {
+      console.error('Failed to save custom palette', error)
+      toast.error('Unable to save custom palette.')
+    } finally {
+      setPaletteLoading(false)
+    }
+  }
+
+  const handleDeletePalette = (palette: ColorPalette) => {
+    if (palette.type !== 'custom') return
+    const confirmed = window.confirm(`Delete custom palette "${palette.name}"?`)
+    if (!confirmed) return
+    deleteCustomPalette(palette.id)
+    refreshPalettes()
+    if (selectedPalette === palette.id) {
+      handlePaletteSelection('default', 'Sparklean Blue & Orange')
+    }
+    if (editingPaletteId === palette.id) {
+      cancelEditingPalette()
+    }
+  }
+
+  const handleEditPalette = (palette: ColorPalette) => {
+    if (palette.type !== 'custom') return
+    setEditingPaletteId(palette.id)
+    setCustomPaletteName(palette.name)
+    setPrimaryColor(palette.metadata?.primarySource || palette.primary.blue)
+    setAccentColor(palette.metadata?.accentSource || palette.accent.orange)
+    setColorFocus('primary')
+    toast.success(`Editing ${palette.name}`)
+  }
 
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
@@ -908,34 +1075,162 @@ const Settings: React.FC = () => {
                       Choose a color scheme that matches your style. Changes apply immediately.
                     </p>
                     <div className="color-palette-selector">
-                      {colorPalettes.map((palette) => (
-                        <div
-                          key={palette.id}
-                          className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
-                          onClick={() => {
-                            setSelectedPalette(palette.id)
-                            setColorPalettePreference(palette.id)
-                            toast.success(`Color palette changed to ${palette.name}`, { duration: 2000 })
-                          }}
-                        >
-                          <div className="palette-preview">
-                            {palette.preview.map((color, index) => (
-                              <div
-                                key={index}
-                                className="palette-color-swatch"
-                                style={{ backgroundColor: color }}
+                      {paletteLoading ? (
+                        <div className="palette-loading-card">
+                          <div className="spinner sm"></div>
+                          <p>Loading palettes…</p>
+                        </div>
+                      ) : (
+                        availablePalettes.map((palette) => (
+                          <div
+                            key={palette.id}
+                            className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
+                            onClick={() => handlePaletteSelection(palette.id, palette.name)}
+                          >
+                            <div className="palette-preview">
+                              {palette.preview.map((color, index) => (
+                                <div
+                                  key={index}
+                                  className="palette-color-swatch"
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </div>
+                            <div className="palette-info">
+                              <div className="palette-header">
+                                <div className="palette-name">{palette.name}</div>
+                                {palette.type === 'custom' && <span className="palette-badge">Custom</span>}
+                              </div>
+                              <div className="palette-description">{palette.description}</div>
+                            </div>
+                            {selectedPalette === palette.id && (
+                              <FiCheck className="palette-check-icon" />
+                            )}
+                            {palette.type === 'custom' && (
+                              <div className="palette-actions" onClick={(event) => event.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="palette-action"
+                                  onClick={() => handleEditPalette(palette)}
+                                  aria-label={`Edit ${palette.name}`}
+                                >
+                                  <FiEdit3 />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="palette-action danger"
+                                  onClick={() => handleDeletePalette(palette)}
+                                  aria-label={`Delete ${palette.name}`}
+                                >
+                                  <FiTrash2 />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="custom-palette-card">
+                      <div className="custom-palette-header">
+                        <h3>Build your own palette</h3>
+                        <p>Pick two colors you love. We’ll generate matching shades for the entire dashboard.</p>
+                      </div>
+
+                      {editingPalette && (
+                        <div className="editing-banner">
+                          <FiEdit3 />
+                          <span>Editing {editingPalette.name}</span>
+                          <button type="button" onClick={cancelEditingPalette}>Cancel</button>
+                        </div>
+                      )}
+
+                      <div className="custom-palette-grid">
+                        <div className="color-picker-panel" onPointerDown={() => setColorFocus('primary')}>
+                          <label>Primary color</label>
+                          <HexColorPicker color={primaryColor} onChange={(value) => setPrimaryColor(normalizeHexValue(value))} />
+                          <div className="hex-input-row">
+                            <span>#</span>
+                            <HexColorInput color={primaryColor} onChange={(value) => setPrimaryColor(normalizeHexValue(value))} prefixed />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-secondary small"
+                            onClick={() => handleAddSavedColor(primaryColor)}
+                            disabled={!isValidHexColor(primaryColor)}
+                          >
+                            Save color
+                          </button>
+                        </div>
+
+                        <div className="color-picker-panel" onPointerDown={() => setColorFocus('accent')}>
+                          <label>Accent color</label>
+                          <HexColorPicker color={accentColor} onChange={(value) => setAccentColor(normalizeHexValue(value))} />
+                          <div className="hex-input-row">
+                            <span>#</span>
+                            <HexColorInput color={accentColor} onChange={(value) => setAccentColor(normalizeHexValue(value))} prefixed />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-secondary small"
+                            onClick={() => handleAddSavedColor(accentColor)}
+                            disabled={!isValidHexColor(accentColor)}
+                          >
+                            Save color
+                          </button>
+                        </div>
+
+                        <div className="saved-color-panel">
+                          <div className="saved-header">
+                            <span>Saved colors</span>
+                          </div>
+                          <div className="saved-color-grid">
+                            {savedColors.map((color) => (
+                              <button
+                                key={color}
+                                className="saved-color-swatch"
+                                style={{ background: color }}
+                                onClick={() => {
+                                  if (colorFocus === 'primary') {
+                                    setPrimaryColor(color)
+                                  } else {
+                                    setAccentColor(color)
+                                  }
+                                }}
                               />
                             ))}
                           </div>
-                          <div className="palette-info">
-                            <div className="palette-name">{palette.name}</div>
-                            <div className="palette-description">{palette.description}</div>
-                          </div>
-                          {selectedPalette === palette.id && (
-                            <FiCheck className="palette-check-icon" />
-                          )}
+                          <input
+                            className="palette-name-input"
+                            value={customPaletteName}
+                            onChange={(e) => setCustomPaletteName(e.target.value)}
+                            placeholder="Palette name (e.g. Sunrise Glow)"
+                          />
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={handleSaveCustomPalette}
+                            disabled={
+                              paletteLoading ||
+                              !customPaletteName.trim() ||
+                              !isValidHexColor(primaryColor) ||
+                              !isValidHexColor(accentColor)
+                            }
+                          >
+                            {paletteLoading ? (
+                              <>
+                                <div className="spinner sm"></div>
+                                Saving…
+                              </>
+                            ) : (
+                              <>
+                                <FiSave />
+                                {editingPaletteId ? 'Update palette' : 'Save custom palette'}
+                              </>
+                            )}
+                          </button>
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
                 </div>

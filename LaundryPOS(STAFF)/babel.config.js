@@ -1,5 +1,5 @@
 module.exports = function (api) {
-  api.cache(true);
+  api.cache(() => process.env.NODE_ENV);
   const isProduction = api.env('production');
   
   return {

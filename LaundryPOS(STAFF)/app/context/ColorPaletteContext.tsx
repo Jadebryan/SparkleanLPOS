@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ColorPalette, getColorPalette, getColorPalettePreference } from '@/utils/colorPalette';
+import { ColorPalette, getDefaultPalette, getPaletteById, getColorPalettePreference } from '@/utils/colorPalette';
 
 interface ColorPaletteContextType {
   activePalette: ColorPalette;
@@ -15,7 +15,7 @@ interface ColorPaletteContextType {
 const ColorPaletteContext = createContext<ColorPaletteContextType | undefined>(undefined);
 
 export const ColorPaletteProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activePalette, setActivePaletteState] = useState<ColorPalette>(getColorPalette('default'));
+  const [activePalette, setActivePaletteState] = useState<ColorPalette>(getDefaultPalette());
 
   useEffect(() => {
     loadPalette();
@@ -24,7 +24,7 @@ export const ColorPaletteProvider: React.FC<{ children: ReactNode }> = ({ childr
   const loadPalette = async () => {
     try {
       const paletteId = await getColorPalettePreference();
-      const palette = getColorPalette(paletteId);
+      const palette = await getPaletteById(paletteId);
       setActivePaletteState(palette);
     } catch (error) {
       console.error('Error loading color palette:', error);
@@ -33,7 +33,7 @@ export const ColorPaletteProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const setActivePalette = async (paletteId: string) => {
     try {
-      const palette = getColorPalette(paletteId);
+      const palette = await getPaletteById(paletteId);
       setActivePaletteState(palette);
       await AsyncStorage.setItem('colorPalette', paletteId);
       await AsyncStorage.setItem('activeColorPalette', JSON.stringify(palette));
@@ -54,9 +54,9 @@ export const useColorPalette = () => {
   if (!context) {
     // Return default values if context is not available
     return {
-      activePalette: getColorPalette('default'),
+      activePalette: getDefaultPalette(),
       setActivePalette: async (paletteId: string) => {
-        const palette = getColorPalette(paletteId);
+        const palette = await getPaletteById(paletteId);
         await AsyncStorage.setItem('colorPalette', paletteId);
         await AsyncStorage.setItem('activeColorPalette', JSON.stringify(palette));
       },

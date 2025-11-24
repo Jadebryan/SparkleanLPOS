@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal, Switch } from 'react-native';
+import { View, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal, Switch, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -9,11 +9,21 @@ import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, inputStyles } from '@/app/theme/designSystem';
-import { colorPalettes, getColorPalettePreference, setColorPalettePreference } from '@/utils/colorPalette';
+import {
+  colorPalettes,
+  getColorPalettePreference,
+  setColorPalettePreference,
+  createCustomPalette,
+  updateCustomPalette,
+  deleteCustomPalette,
+  getAllPalettes,
+  ColorPalette,
+} from '@/utils/colorPalette';
 import { useColorPalette } from '@/app/context/ColorPaletteContext';
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { useToast } from '@/app/context/ToastContext';
+import ColorPickerModal from '@/components/ui/ColorPickerModal';
 
 type UserProfile = {
   _id?: string;
@@ -27,6 +37,22 @@ type UserProfile = {
     locationUpdatedAt?: string;
   };
 };
+
+const SAVED_COLOR_STORAGE_KEY = 'staff_saved_palette_swatches';
+const DEFAULT_SAVED_COLORS = [
+  '#2563EB',
+  '#F97316',
+  '#059669',
+  '#7C3AED',
+  '#DC2626',
+  '#14B8A6',
+  '#F59E0B',
+  '#0EA5E9',
+  '#F43F5E',
+  '#10B981',
+  '#EC4899',
+  '#1E3A8A',
+];
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'email' | 'appearance'>('profile');
@@ -74,21 +100,204 @@ export default function Settings() {
   
   // Color palette state
   const [selectedPalette, setSelectedPalette] = useState<string>('default');
+  const [availablePalettes, setAvailablePalettes] = useState<ColorPalette[]>(colorPalettes);
+  const [customPaletteName, setCustomPaletteName] = useState('My Custom Palette');
+  const [primaryColor, setPrimaryColor] = useState('#2563EB');
+  const [accentColor, setAccentColor] = useState('#F97316');
+  const [colorFocus, setColorFocus] = useState<'primary' | 'accent'>('primary');
+  const [activePicker, setActivePicker] = useState<'primary' | 'accent' | null>(null);
+  const [savedSwatches, setSavedSwatches] = useState<string[]>(DEFAULT_SAVED_COLORS);
+  const [paletteLoading, setPaletteLoading] = useState(false);
+  const [editingPaletteId, setEditingPaletteId] = useState<string | null>(null);
   const { setActivePalette } = useColorPalette();
   const dynamicColors = useColors();
   const dynamicButtonStyles = useButtonStyles();
   const { showSuccess } = useToast();
+  const editingPalette = editingPaletteId ? availablePalettes.find(palette => palette.id === editingPaletteId) : null;
+  const [palettePendingDelete, setPalettePendingDelete] = useState<ColorPalette | null>(null);
 
   // Load user profile
   useEffect(() => {
     fetchUserProfile();
     fetchSessionSettings();
-    loadColorPalette();
+    loadAppearancePreferences();
   }, []);
   
-  const loadColorPalette = async () => {
-    const palette = await getColorPalettePreference();
-    setSelectedPalette(palette);
+  const loadAppearancePreferences = async () => {
+    await Promise.all([loadPaletteOptions(), loadSavedColorSwatches()]);
+  };
+  
+  const loadPaletteOptions = async () => {
+    try {
+      setPaletteLoading(true);
+      const [palettes, palettePreference] = await Promise.all([
+        getAllPalettes(),
+        getColorPalettePreference(),
+      ]);
+      setAvailablePalettes(palettes);
+      setSelectedPalette(palettePreference);
+    } catch (error) {
+      console.error('Error loading palettes:', error);
+    } finally {
+      setPaletteLoading(false);
+    }
+  };
+
+  const loadSavedColorSwatches = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(SAVED_COLOR_STORAGE_KEY);
+      if (stored) {
+        const parsed: string[] = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length) {
+          const unique = Array.from(new Set([...DEFAULT_SAVED_COLORS, ...parsed.map(hex => hex.toUpperCase())]));
+          setSavedSwatches(unique.slice(0, 20));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved colors:', error);
+    }
+  };
+
+  const persistSavedColors = async (colors: string[]) => {
+    try {
+      const customOnly = colors.filter(color => !DEFAULT_SAVED_COLORS.includes(color));
+      await AsyncStorage.setItem(SAVED_COLOR_STORAGE_KEY, JSON.stringify(customOnly));
+    } catch (error) {
+      console.error('Error saving colors:', error);
+    }
+  };
+
+  const normalizeHexInput = (value: string) => {
+    const cleaned = value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase();
+    return cleaned ? `#${cleaned}` : '#';
+  };
+
+  const isValidHexColor = (value: string) => /^#[0-9A-F]{6}$/.test(value.toUpperCase());
+
+  const handleSwatchSelect = (color: string, target?: 'primary' | 'accent') => {
+    const normalized = normalizeHexInput(color);
+    if (!isValidHexColor(normalized)) return;
+    const destination = target || colorFocus;
+    if (destination === 'primary') {
+      setPrimaryColor(normalized);
+    } else {
+      setAccentColor(normalized);
+    }
+  };
+
+  const handleAddSavedColor = async (color: string) => {
+    if (!isValidHexColor(color)) return;
+    const normalized = color.toUpperCase();
+    if (savedSwatches.includes(normalized)) return;
+    const next = [...savedSwatches, normalized].slice(-20);
+    setSavedSwatches(next);
+    await persistSavedColors(next);
+  };
+
+  const handleColorInputChange = (value: string, target: 'primary' | 'accent') => {
+    const normalized = normalizeHexInput(value);
+    if (target === 'primary') {
+      setColorFocus('primary');
+      setPrimaryColor(normalized);
+    } else {
+      setColorFocus('accent');
+      setAccentColor(normalized);
+    }
+  };
+
+  const handlePaletteSelection = async (paletteId: string, paletteName?: string) => {
+    try {
+      if (editingPaletteId && paletteId !== editingPaletteId) {
+        cancelEditingPalette();
+      }
+      setSelectedPalette(paletteId);
+      await setColorPalettePreference(paletteId);
+      await setActivePalette(paletteId);
+      showSuccess(`Color palette changed to ${paletteName || 'your palette'}!`);
+    } catch (error) {
+      console.error('Error applying palette:', error);
+      Alert.alert('Error', 'Unable to apply color palette. Please try again.');
+    }
+  };
+
+  const handleSaveCustomPalette = async () => {
+    if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
+      Alert.alert('Invalid colors', 'Please enter valid HEX colors (e.g. #2563EB).');
+      return;
+    }
+    if (!customPaletteName.trim()) {
+      Alert.alert('Missing name', 'Please provide a name for your color palette.');
+      return;
+    }
+
+    try {
+      setPaletteLoading(true);
+      if (editingPaletteId) {
+        const palette = await updateCustomPalette(editingPaletteId, {
+          name: customPaletteName.trim(),
+          primaryColor,
+          accentColor,
+        });
+        await loadPaletteOptions();
+        await handlePaletteSelection(palette.id, palette.name);
+        showSuccess('Custom palette updated!');
+      } else {
+        const palette = await createCustomPalette({
+          name: customPaletteName.trim(),
+          primaryColor,
+          accentColor,
+        });
+        await loadPaletteOptions();
+        await handlePaletteSelection(palette.id, palette.name);
+        showSuccess(`Color palette changed to ${palette.name}!`);
+      }
+      setCustomPaletteName('My Custom Palette');
+      setEditingPaletteId(null);
+    } catch (error) {
+      console.error('Error saving custom palette:', error);
+      Alert.alert('Error', 'Unable to save custom palette.');
+    } finally {
+      setPaletteLoading(false);
+    }
+  };
+
+  const startEditingPalette = (palette: ColorPalette) => {
+    if (palette.type !== 'custom') return;
+    setEditingPaletteId(palette.id);
+    setCustomPaletteName(palette.name);
+    setPrimaryColor(palette.metadata?.primarySource || palette.primary[500]);
+    setAccentColor(palette.metadata?.accentSource || palette.accent[500]);
+    setColorFocus('primary');
+    showSuccess(`Editing ${palette.name}`);
+  };
+
+  const cancelEditingPalette = () => {
+    setEditingPaletteId(null);
+    setCustomPaletteName('My Custom Palette');
+    setPrimaryColor('#2563EB');
+    setAccentColor('#F97316');
+  };
+
+  const deletePaletteById = async (paletteId: string) => {
+    try {
+      await deleteCustomPalette(paletteId);
+      await loadPaletteOptions();
+      if (selectedPalette === paletteId) {
+        await handlePaletteSelection('default', 'Sparklean Blue & Orange');
+      }
+      if (editingPaletteId === paletteId) {
+        cancelEditingPalette();
+      }
+      showSuccess('Custom palette deleted.');
+    } catch (error) {
+      console.error('Error deleting palette:', error);
+      Alert.alert('Error', 'Unable to delete palette.');
+    }
+  };
+
+  const confirmDeletePalette = (palette: ColorPalette) => {
+    if (palette.type !== 'custom') return;
+    setPalettePendingDelete(palette);
   };
 
   const fetchUserProfile = async () => {
@@ -385,24 +594,27 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <View style={GlobalStyles.mainLayout}>
-        <ModernSidebar />
-        <View style={GlobalStyles.mainContent}>
-          <Header title="Settings" />
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
-            <Text style={styles.loadingText}>Loading...</Text>
+      <>
+        <View style={GlobalStyles.mainLayout}>
+          <ModernSidebar />
+          <View style={GlobalStyles.mainContent}>
+            <Header title="Settings" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
           </View>
         </View>
-      </View>
+      </>
     );
   }
 
   return (
-    <View style={GlobalStyles.mainLayout}>
-      <ModernSidebar />
-      <View style={GlobalStyles.mainContent}>
-        <Header title="Settings" />
+    <>
+      <View style={GlobalStyles.mainLayout}>
+        <ModernSidebar />
+        <View style={GlobalStyles.mainContent}>
+          <Header title="Settings" />
         
         {/* Success Modal */}
         {showSuccessMessage && (
@@ -860,41 +1072,194 @@ export default function Settings() {
                       Choose a color scheme that matches your style. Changes apply immediately.
                     </Text>
                     <View style={styles.colorPaletteSelector}>
-                      {colorPalettes.map((palette) => (
+                      {paletteLoading ? (
+                        <View style={styles.paletteLoadingState}>
+                          <ActivityIndicator size="small" color={dynamicColors.primary[500]} />
+                          <Text style={styles.paletteLoadingText}>Loading palettes…</Text>
+                        </View>
+                      ) : (
+                        availablePalettes.map((palette) => (
+                          <Pressable
+                            key={palette.id}
+                            style={[
+                              styles.colorPaletteOption,
+                              selectedPalette === palette.id && [
+                                styles.colorPaletteOptionSelected,
+                                { borderColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }
+                              ],
+                            ]}
+                            onPress={() => handlePaletteSelection(palette.id, palette.name)}
+                          >
+                            <View style={styles.palettePreview}>
+                              {palette.preview.map((color, index) => (
+                                <View
+                                  key={index}
+                                  style={[styles.paletteColorSwatch, { backgroundColor: color }]}
+                                />
+                              ))}
+                            </View>
+                            <View style={styles.paletteInfo}>
+                              <View style={styles.paletteHeaderRow}>
+                                <Text style={styles.paletteName}>{palette.name}</Text>
+                                {palette.type === 'custom' && (
+                                  <View style={styles.paletteBadge}>
+                                    <Text style={styles.paletteBadgeText}>Custom</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.paletteDescription}>{palette.description}</Text>
+                            </View>
+                            {selectedPalette === palette.id && (
+                              <Ionicons name="checkmark-circle" size={24} color={dynamicColors.primary[500]} style={styles.paletteCheckIcon} />
+                            )}
+                            {palette.type === 'custom' && (
+                              <View style={styles.paletteActions} pointerEvents="box-none">
+                                <TouchableOpacity
+                                  style={styles.paletteActionButton}
+                                  onPress={(event) => {
+                                    event?.stopPropagation?.();
+                                    startEditingPalette(palette);
+                                  }}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <Ionicons name="create-outline" size={18} color="#4B5563" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.paletteActionButton, styles.paletteActionDanger]}
+                                  onPress={(event) => {
+                                    event?.stopPropagation?.();
+                                    confirmDeletePalette(palette);
+                                  }}
+                                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                >
+                                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </Pressable>
+                        ))
+                      )}
+                    </View>
+                    
+                    <View style={styles.customPaletteContainer}>
+                      <Text style={styles.label}>Create your own palette</Text>
+                      <Text style={styles.sectionDescription}>
+                        Pick two colors you love or paste a HEX code. We’ll build the rest of the shades automatically.
+                      </Text>
+                      
+                      {editingPalette && (
+                        <View style={styles.editingBanner}>
+                          <Ionicons name="create-outline" size={18} color={dynamicColors.primary[500]} />
+                          <Text style={[styles.editingBannerText, { color: dynamicColors.primary[600] }]}>
+                            Editing {editingPalette.name}
+                          </Text>
+                          <TouchableOpacity style={styles.editingBannerCancel} onPress={cancelEditingPalette}>
+                            <Text style={styles.editingBannerCancelText}>Cancel</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      <View style={styles.customColorGrid}>
+                        <View style={styles.customColorColumn}>
+                          <Text style={styles.customColorLabel}>Primary color</Text>
+                          <TouchableOpacity
+                            style={[styles.customColorPreview, { backgroundColor: isValidHexColor(primaryColor) ? primaryColor : '#E5E7EB' }]}
+                            onPress={() => {
+                              setColorFocus('primary');
+                              setActivePicker('primary');
+                            }}
+                          >
+                            <Text style={styles.customColorValue}>{primaryColor}</Text>
+                          </TouchableOpacity>
+                          <TextInput
+                            style={styles.customColorInput}
+                            value={primaryColor}
+                            onFocus={() => setColorFocus('primary')}
+                            onChangeText={(value) => handleColorInputChange(value, 'primary')}
+                            placeholder="#2563EB"
+                            maxLength={7}
+                            autoCapitalize="characters"
+                          />
+                        </View>
+                        
+                        <View style={styles.customColorColumn}>
+                          <Text style={styles.customColorLabel}>Accent color</Text>
+                          <TouchableOpacity
+                            style={[styles.customColorPreview, { backgroundColor: isValidHexColor(accentColor) ? accentColor : '#E5E7EB' }]}
+                            onPress={() => {
+                              setColorFocus('accent');
+                              setActivePicker('accent');
+                            }}
+                          >
+                            <Text style={styles.customColorValue}>{accentColor}</Text>
+                          </TouchableOpacity>
+                          <TextInput
+                            style={styles.customColorInput}
+                            value={accentColor}
+                            onFocus={() => setColorFocus('accent')}
+                            onChangeText={(value) => handleColorInputChange(value, 'accent')}
+                            placeholder="#F97316"
+                            maxLength={7}
+                            autoCapitalize="characters"
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.customPaletteNameRow}>
+                        <Text style={styles.customColorLabel}>Palette name</Text>
+                        <TextInput
+                          style={styles.customPaletteNameInput}
+                          value={customPaletteName}
+                          onChangeText={setCustomPaletteName}
+                          placeholder="e.g. Sunrise Glow"
+                        />
+                      </View>
+
+                      <View style={styles.savedColorsHeader}>
+                        <Text style={styles.customColorLabel}>Saved colors</Text>
                         <TouchableOpacity
-                          key={palette.id}
                           style={[
-                            styles.colorPaletteOption,
-                            selectedPalette === palette.id && [
-                              styles.colorPaletteOptionSelected,
-                              { borderColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }
-                            ],
+                            styles.addSavedColorButton,
+                            !isValidHexColor(colorFocus === 'primary' ? primaryColor : accentColor) && styles.saveButtonDisabled,
                           ]}
-                          onPress={async () => {
-                            setSelectedPalette(palette.id);
-                            await setColorPalettePreference(palette.id);
-                            await setActivePalette(palette.id);
-                            // Show success toast notification
-                            showSuccess(`Color palette changed to ${palette.name}!`);
-                          }}
+                          onPress={() => handleAddSavedColor(colorFocus === 'primary' ? primaryColor : accentColor)}
+                          disabled={!isValidHexColor(colorFocus === 'primary' ? primaryColor : accentColor)}
                         >
-                          <View style={styles.palettePreview}>
-                            {palette.preview.map((color, index) => (
-                              <View
-                                key={index}
-                                style={[styles.paletteColorSwatch, { backgroundColor: color }]}
-                              />
-                            ))}
-                          </View>
-                          <View style={styles.paletteInfo}>
-                            <Text style={styles.paletteName}>{palette.name}</Text>
-                            <Text style={styles.paletteDescription}>{palette.description}</Text>
-                          </View>
-                          {selectedPalette === palette.id && (
-                            <Ionicons name="checkmark-circle" size={24} color={dynamicColors.primary[500]} style={styles.paletteCheckIcon} />
-                          )}
+                          <Ionicons name="add-circle-outline" size={18} color="#2563EB" />
+                          <Text style={styles.addSavedColorText}>Add current</Text>
                         </TouchableOpacity>
-                      ))}
+                      </View>
+
+                      <View style={styles.savedColorsRow}>
+                        {savedSwatches.map((color) => (
+                          <TouchableOpacity
+                            key={color}
+                            style={[styles.savedColorSwatch, { backgroundColor: color }]}
+                            onPress={() => handleSwatchSelect(color)}
+                          />
+                        ))}
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.saveButton,
+                          dynamicButtonStyles.primary,
+                          (!customPaletteName.trim() || !isValidHexColor(primaryColor) || !isValidHexColor(accentColor) || paletteLoading) && styles.saveButtonDisabled,
+                        ]}
+                        onPress={handleSaveCustomPalette}
+                        disabled={!customPaletteName.trim() || !isValidHexColor(primaryColor) || !isValidHexColor(accentColor) || paletteLoading}
+                      >
+                        {paletteLoading ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="color-palette-outline" size={20} color="#FFFFFF" />
+                            <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>
+                              {editingPaletteId ? 'Update palette' : 'Save custom palette'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -903,8 +1268,53 @@ export default function Settings() {
             </View>
           </View>
         </ScrollView>
+        </View>
       </View>
-    </View>
+
+      <ColorPickerModal
+        visible={Boolean(activePicker)}
+        title={colorFocus === 'primary' ? 'Pick a primary color' : 'Pick an accent color'}
+        color={colorFocus === 'primary' ? primaryColor : accentColor}
+        savedColors={savedSwatches}
+        onClose={() => setActivePicker(null)}
+        onSelect={(color) => {
+          handleSwatchSelect(color, colorFocus);
+          handleAddSavedColor(color);
+          setActivePicker(null);
+        }}
+      />
+
+      <Modal visible={!!palettePendingDelete} transparent animationType="fade" onRequestClose={() => setPalettePendingDelete(null)}>
+        <View style={styles.deleteOverlay}>
+          <View style={styles.deleteCard}>
+            <View style={styles.deleteIconCircle}>
+              <Ionicons name="warning-outline" size={28} color="#DC2626" />
+            </View>
+            <Text style={styles.deleteTitle}>Delete palette?</Text>
+            <Text style={styles.deleteMessage}>
+              Are you sure you want to delete "{palettePendingDelete?.name}"? This action cannot be undone.
+            </Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity style={styles.deleteCancelButton} onPress={() => setPalettePendingDelete(null)}>
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteConfirmButton}
+                onPress={() => {
+                  if (palettePendingDelete) {
+                    deletePaletteById(palettePendingDelete.id);
+                  }
+                  setPalettePendingDelete(null);
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.deleteConfirmText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1142,7 +1552,10 @@ const styles = StyleSheet.create({
   },
   colorPaletteSelector: {
     marginTop: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 16,
+    justifyContent: 'space-between',
   },
   colorPaletteOption: {
     borderWidth: 2,
@@ -1154,10 +1567,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     position: 'relative',
+    flexBasis: '48%',
+    flexGrow: 0,
   },
   colorPaletteOptionSelected: {
     // borderColor: '#2563EB', // Now using dynamic color via inline style
     backgroundColor: '#EFF6FF',
+  },
+  paletteLoadingState: {
+    flexBasis: '100%',
+    paddingVertical: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  paletteLoadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
   },
   palettePreview: {
     flexDirection: 'row',
@@ -1175,6 +1606,24 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  paletteHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  paletteBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  paletteBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1D4ED8',
+    textTransform: 'uppercase',
+  },
   paletteName: {
     fontSize: 16,
     fontWeight: '600',
@@ -1190,6 +1639,212 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
+  },
+  paletteActions: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 6,
+    zIndex: 2,
+  },
+  paletteActionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paletteActionDanger: {
+    backgroundColor: '#FEE2E2',
+  },
+  deleteOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  deleteCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  deleteIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  deleteMessage: {
+    fontSize: 14,
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  deleteActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  deleteCancelButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+  },
+  deleteCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  deleteConfirmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#DC2626',
+  },
+  deleteConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  customPaletteContainer: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 16,
+  },
+  customColorGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  editingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  editingBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  editingBannerCancel: {
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  editingBannerCancelText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  customColorColumn: {
+    flex: 1,
+    gap: 8,
+  },
+  customColorLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  customColorPreview: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customColorValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  customColorInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+    fontFamily: 'Poppins_500Medium',
+    backgroundColor: '#FFFFFF',
+  },
+  customPaletteNameRow: {
+    gap: 8,
+  },
+  customPaletteNameInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  savedColorsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  savedColorsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  savedColorSwatch: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  addSavedColorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+  },
+  addSavedColorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#312E81',
   },
   errorText: {
     fontSize: 12,

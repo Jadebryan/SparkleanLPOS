@@ -3,23 +3,109 @@
  * Allows users to choose different color themes
  */
 
+const CUSTOM_PALETTES_KEY = 'admin_custom_color_palettes'
+type PaletteType = 'preset' | 'custom'
+
+export interface PaletteScale {
+  blue: string
+  darkBlue: string
+  lightBlue: string
+  veryLightBlue: string
+}
+
+export interface AccentScale {
+  orange: string
+  darkOrange: string
+  lightOrange: string
+  veryLightOrange: string
+}
+
 export interface ColorPalette {
   id: string
   name: string
   description: string
-  primary: {
-    blue: string
-    darkBlue: string
-    lightBlue: string
-    veryLightBlue: string
+  type: PaletteType
+  primary: PaletteScale
+  accent: AccentScale
+  preview: string[]
+  metadata?: {
+    primarySource?: string
+    accentSource?: string
+    createdAt?: number
   }
-  accent: {
-    orange: string
-    darkOrange: string
-    lightOrange: string
-    veryLightOrange: string
+}
+
+let customPaletteCache: ColorPalette[] | null = null
+
+const normalizeHex = (value: string) => {
+  if (!value) return '#000000'
+  let hex = value.replace('#', '').trim()
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('')
   }
-  preview: string[] // Preview colors for display
+  if (hex.length !== 6) {
+    hex = hex.padEnd(6, '0').slice(0, 6)
+  }
+  return `#${hex.toUpperCase()}`
+}
+
+const adjustChannel = (channel: number, amount: number) => {
+  return Math.min(255, Math.max(0, Math.round(channel + amount)))
+}
+
+const adjustColor = (hex: string, amount: number) => {
+  const normalized = normalizeHex(hex)
+  const r = parseInt(normalized.slice(1, 3), 16)
+  const g = parseInt(normalized.slice(3, 5), 16)
+  const b = parseInt(normalized.slice(5, 7), 16)
+  const delta = 255 * amount
+  const newR = adjustChannel(r, delta)
+  const newG = adjustChannel(g, delta)
+  const newB = adjustChannel(b, delta)
+  return `#${newR.toString(16).padStart(2, '0')}${newG
+    .toString(16)
+    .padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`.toUpperCase()
+}
+
+const createPrimaryScale = (base: string): PaletteScale => ({
+  blue: normalizeHex(base),
+  darkBlue: adjustColor(base, -0.25),
+  lightBlue: adjustColor(base, 0.2),
+  veryLightBlue: adjustColor(base, 0.45),
+})
+
+const createAccentScale = (base: string): AccentScale => ({
+  orange: normalizeHex(base),
+  darkOrange: adjustColor(base, -0.25),
+  lightOrange: adjustColor(base, 0.2),
+  veryLightOrange: adjustColor(base, 0.45),
+})
+
+const ensureWindow = () => typeof window !== 'undefined'
+
+const persistCustomPalettes = (palettes: ColorPalette[]) => {
+  if (!ensureWindow()) return
+  customPaletteCache = palettes
+  localStorage.setItem(CUSTOM_PALETTES_KEY, JSON.stringify(palettes))
+}
+
+const loadCustomPalettes = (): ColorPalette[] => {
+  if (!ensureWindow()) return []
+  if (customPaletteCache) return customPaletteCache
+  const stored = localStorage.getItem(CUSTOM_PALETTES_KEY)
+  if (!stored) {
+    customPaletteCache = []
+    return []
+  }
+  try {
+    const parsed: ColorPalette[] = JSON.parse(stored)
+    customPaletteCache = parsed
+    return parsed
+  } catch (error) {
+    console.error('Error parsing custom palettes:', error)
+    customPaletteCache = []
+    return []
+  }
 }
 
 export const colorPalettes: ColorPalette[] = [
@@ -27,6 +113,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'default',
     name: 'Sparklean Blue & Orange',
     description: 'The classic Sparklean brand colors',
+    type: 'preset',
     primary: {
       blue: '#2563EB',
       darkBlue: '#1D4ED8',
@@ -45,6 +132,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'ocean',
     name: 'Ocean Breeze',
     description: 'Cool blues and teals for a calm workspace',
+    type: 'preset',
     primary: {
       blue: '#0891B2',
       darkBlue: '#0E7490',
@@ -63,6 +151,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'forest',
     name: 'Forest Green',
     description: 'Natural greens for a fresh feel',
+    type: 'preset',
     primary: {
       blue: '#059669',
       darkBlue: '#047857',
@@ -81,6 +170,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'purple',
     name: 'Royal Purple',
     description: 'Elegant purples for a premium look',
+    type: 'preset',
     primary: {
       blue: '#7C3AED',
       darkBlue: '#6D28D9',
@@ -99,6 +189,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'sunset',
     name: 'Sunset Orange',
     description: 'Warm oranges and reds for energy',
+    type: 'preset',
     primary: {
       blue: '#DC2626',
       darkBlue: '#B91C1C',
@@ -117,6 +208,7 @@ export const colorPalettes: ColorPalette[] = [
     id: 'midnight',
     name: 'Midnight Blue',
     description: 'Deep blues for a professional atmosphere',
+    type: 'preset',
     primary: {
       blue: '#1E40AF',
       darkBlue: '#1E3A8A',
@@ -133,8 +225,61 @@ export const colorPalettes: ColorPalette[] = [
   },
 ]
 
+export const getDefaultPalette = () => colorPalettes[0]
+
 export const getColorPalette = (id: string): ColorPalette => {
-  return colorPalettes.find(p => p.id === id) || colorPalettes[0]
+  const allPalettes = getAllPalettes()
+  return allPalettes.find(p => p.id === id) || colorPalettes[0]
+}
+
+export const getAllPalettes = (): ColorPalette[] => {
+  return [...colorPalettes, ...loadCustomPalettes()]
+}
+
+interface CustomPaletteInput {
+  name: string
+  primaryColor: string
+  accentColor: string
+}
+
+const buildCustomPalette = (input: CustomPaletteInput, paletteId?: string): ColorPalette => ({
+  id: paletteId ?? `custom-${Date.now()}`,
+  name: input.name || 'Custom Palette',
+  description: 'Personalized colors',
+  type: 'custom',
+  primary: createPrimaryScale(input.primaryColor),
+  accent: createAccentScale(input.accentColor),
+  preview: [normalizeHex(input.primaryColor), normalizeHex(input.accentColor)],
+  metadata: {
+    primarySource: normalizeHex(input.primaryColor),
+    accentSource: normalizeHex(input.accentColor),
+    createdAt: Date.now(),
+  },
+})
+
+export const createCustomPalette = (input: CustomPaletteInput): ColorPalette => {
+  if (!ensureWindow()) throw new Error('Custom palettes are only supported in the browser.')
+  const palette = buildCustomPalette(input)
+  const next = [palette, ...loadCustomPalettes()].slice(0, 12)
+  persistCustomPalettes(next)
+  return palette
+}
+
+export const updateCustomPalette = (paletteId: string, input: CustomPaletteInput): ColorPalette => {
+  const palettes = loadCustomPalettes()
+  const index = palettes.findIndex(palette => palette.id === paletteId)
+  if (index === -1) {
+    throw new Error('Custom palette not found')
+  }
+  const updated = buildCustomPalette(input, paletteId)
+  palettes[index] = updated
+  persistCustomPalettes(palettes)
+  return updated
+}
+
+export const deleteCustomPalette = (paletteId: string): void => {
+  const filtered = loadCustomPalettes().filter(palette => palette.id !== paletteId)
+  persistCustomPalettes(filtered)
 }
 
 export const getColorPalettePreference = (): string => {
