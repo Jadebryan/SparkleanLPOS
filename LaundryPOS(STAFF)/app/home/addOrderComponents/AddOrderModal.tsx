@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import AddOrderForm from './addOrderForm';
+import { useColors } from '@/app/theme/useColors';
 
 interface AddOrderModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
   onOrderCreated,
   draftOrderId = null
 }) => {
+  const dynamicColors = useColors();
+  
   if (!isOpen) return null;
 
   return (
@@ -36,9 +39,9 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderLeft}>
-              <Ionicons name="create-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
+              <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
               <View>
-                <Text style={styles.modalTitle}>Create New Order</Text>
+                <Text style={[styles.modalTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
                 <Text style={styles.modalSubtitle}>Process new customer request</Text>
               </View>
             </View>

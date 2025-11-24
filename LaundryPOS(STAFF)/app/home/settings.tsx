@@ -9,6 +9,10 @@ import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, inputStyles } from '@/app/theme/designSystem';
+import { colorPalettes, getColorPalettePreference, setColorPalettePreference } from '@/utils/colorPalette';
+import { useColorPalette } from '@/app/context/ColorPaletteContext';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 
 type UserProfile = {
   _id?: string;
@@ -24,7 +28,7 @@ type UserProfile = {
 };
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'email'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'email' | 'appearance'>('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -66,12 +70,24 @@ export default function Settings() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionSaveSuccess, setSessionSaveSuccess] = useState(false);
+  
+  // Color palette state
+  const [selectedPalette, setSelectedPalette] = useState<string>('default');
+  const { setActivePalette } = useColorPalette();
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
 
   // Load user profile
   useEffect(() => {
     fetchUserProfile();
     fetchSessionSettings();
+    loadColorPalette();
   }, []);
+  
+  const loadColorPalette = async () => {
+    const palette = await getColorPalettePreference();
+    setSelectedPalette(palette);
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -372,7 +388,7 @@ export default function Settings() {
         <View style={GlobalStyles.mainContent}>
           <Header title="Settings" />
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
         </View>
@@ -392,13 +408,13 @@ export default function Settings() {
             <View style={styles.feedbackOverlay}>
               <View style={styles.feedbackCard}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="checkmark-circle" size={24} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={24} color={dynamicColors.success[500]} />
                   <Text style={styles.feedbackTitle}>Success</Text>
                 </View>
                 <Text style={styles.feedbackText}>{successMessage}</Text>
                 <View style={{ marginTop: 16, alignItems: 'flex-end' }}>
-                  <TouchableOpacity style={[styles.saveButton]} onPress={() => setShowSuccessMessage(false)}>
-                    <Text style={styles.saveButtonText}>OK</Text>
+                  <TouchableOpacity style={[styles.saveButton, dynamicButtonStyles.primary]} onPress={() => setShowSuccessMessage(false)}>
+                    <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>OK</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -415,9 +431,9 @@ export default function Settings() {
           {/* Page Header */}
           <View style={styles.pageHeader}>
             <View style={styles.titleRow}>
-              <Ionicons name="settings-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
+              <Ionicons name="settings-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
               <View>
-                <Text style={styles.pageTitle}>Settings</Text>
+                <Text style={[styles.pageTitle, { color: dynamicColors.primary[500] }]}>Settings</Text>
                 <Text style={styles.pageSubtitle}>Manage your profile, email, and security</Text>
               </View>
             </View>
@@ -428,25 +444,44 @@ export default function Settings() {
             <View style={styles.settingsSidebar}>
               <View style={styles.settingsTabs}>
                 <TouchableOpacity
-                  style={[styles.settingsTab, activeTab === 'profile' && styles.settingsTabActive]}
+                  style={[
+                    styles.settingsTab,
+                    activeTab === 'profile' && [styles.settingsTabActive, { borderLeftColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }]
+                  ]}
                   onPress={() => setActiveTab('profile')}
                 >
-                  <Ionicons name="person-outline" size={18} color={activeTab === 'profile' ? '#2563EB' : '#6B7280'} />
-                  <Text style={[styles.settingsTabText, activeTab === 'profile' && styles.settingsTabTextActive]}>Profile</Text>
+                  <Ionicons name="person-outline" size={18} color={activeTab === 'profile' ? dynamicColors.primary[500] : '#6B7280'} />
+                  <Text style={[styles.settingsTabText, activeTab === 'profile' && { color: dynamicColors.primary[500] }]}>Profile</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.settingsTab, activeTab === 'security' && styles.settingsTabActive]}
+                  style={[
+                    styles.settingsTab,
+                    activeTab === 'security' && [styles.settingsTabActive, { borderLeftColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }]
+                  ]}
                   onPress={() => setActiveTab('security')}
                 >
-                  <Ionicons name="shield-checkmark-outline" size={18} color={activeTab === 'security' ? '#2563EB' : '#6B7280'} />
-                  <Text style={[styles.settingsTabText, activeTab === 'security' && styles.settingsTabTextActive]}>Security</Text>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={activeTab === 'security' ? dynamicColors.primary[500] : '#6B7280'} />
+                  <Text style={[styles.settingsTabText, activeTab === 'security' && { color: dynamicColors.primary[500] }]}>Security</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.settingsTab, activeTab === 'email' && styles.settingsTabActive]}
+                  style={[
+                    styles.settingsTab,
+                    activeTab === 'email' && [styles.settingsTabActive, { borderLeftColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }]
+                  ]}
                   onPress={() => setActiveTab('email')}
                 >
-                  <Ionicons name="mail-outline" size={18} color={activeTab === 'email' ? '#2563EB' : '#6B7280'} />
-                  <Text style={[styles.settingsTabText, activeTab === 'email' && styles.settingsTabTextActive]}>Email</Text>
+                  <Ionicons name="mail-outline" size={18} color={activeTab === 'email' ? dynamicColors.primary[500] : '#6B7280'} />
+                  <Text style={[styles.settingsTabText, activeTab === 'email' && { color: dynamicColors.primary[500] }]}>Email</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.settingsTab,
+                    activeTab === 'appearance' && [styles.settingsTabActive, { borderLeftColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }]
+                  ]}
+                  onPress={() => setActiveTab('appearance')}
+                >
+                  <Ionicons name="color-palette-outline" size={18} color={activeTab === 'appearance' ? dynamicColors.primary[500] : '#6B7280'} />
+                  <Text style={[styles.settingsTabText, activeTab === 'appearance' && { color: dynamicColors.primary[500] }]}>Appearance</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -496,7 +531,7 @@ export default function Settings() {
               )}
 
               <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                style={[styles.saveButton, dynamicButtonStyles.primary, saving && styles.saveButtonDisabled]}
                 onPress={handleProfileUpdate}
                 disabled={saving}
               >
@@ -505,7 +540,7 @@ export default function Settings() {
                 ) : (
                   <>
                     <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                    <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Save Changes</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -591,7 +626,7 @@ export default function Settings() {
               </View>
 
               <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                style={[styles.saveButton, dynamicButtonStyles.primary, saving && styles.saveButtonDisabled]}
                 onPress={handlePasswordChange}
                 disabled={saving}
               >
@@ -600,7 +635,7 @@ export default function Settings() {
                 ) : (
                   <>
                     <Ionicons name="lock-closed-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.saveButtonText}>Update Password</Text>
+                    <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Update Password</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -620,7 +655,7 @@ export default function Settings() {
                     value={sessionSettings.enabled}
                     onValueChange={(value) => setSessionSettings(prev => ({ ...prev, enabled: value }))}
                     trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-                    thumbColor={sessionSettings.enabled ? '#2563EB' : '#f4f4f5'}
+                    thumbColor={sessionSettings.enabled ? dynamicColors.primary[500] : '#f4f4f5'}
                   />
                 </View>
 
@@ -663,8 +698,9 @@ export default function Settings() {
                 <TouchableOpacity
                   style={[
                     styles.saveButton,
+                    dynamicButtonStyles.primary,
                     (sessionSaving || sessionLoading) && styles.saveButtonDisabled,
-                    sessionSaveSuccess && { backgroundColor: '#059669' },
+                    sessionSaveSuccess && { backgroundColor: dynamicColors.success[500] },
                   ]}
                   onPress={handleSessionSettingSave}
                   disabled={sessionSaving || sessionLoading}
@@ -674,12 +710,12 @@ export default function Settings() {
                   ) : sessionSaveSuccess ? (
                     <>
                       <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                      <Text style={styles.saveButtonText}>Saved!</Text>
+                      <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Saved!</Text>
                     </>
                   ) : (
                     <>
                       <Ionicons name="time-outline" size={20} color="#FFFFFF" />
-                      <Text style={styles.saveButtonText}>Save Session Settings</Text>
+                      <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Save Session Settings</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -730,6 +766,7 @@ export default function Settings() {
                 <TouchableOpacity
                   style={[
                     styles.saveButton,
+                    dynamicButtonStyles.primary,
                     (saving || !emailForm.newEmail || !emailForm.confirmEmail || emailForm.newEmail !== emailForm.confirmEmail) && styles.saveButtonDisabled
                   ]}
                   onPress={handleSendVerificationEmail}
@@ -740,15 +777,15 @@ export default function Settings() {
                   ) : (
                     <>
                       <Ionicons name="send-outline" size={20} color="#FFFFFF" />
-                      <Text style={styles.saveButtonText}>Send Verification Code</Text>
+                      <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Send Verification Code</Text>
                     </>
                   )}
                 </TouchableOpacity>
               ) : (
                 <View style={styles.verificationSection}>
-                  <View style={styles.verificationStatus}>
-                    <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                    <Text style={styles.verificationStatusText}>
+                  <View style={[styles.verificationStatus, { backgroundColor: dynamicColors.success[50], borderColor: dynamicColors.success[500] }]}>
+                    <Ionicons name="checkmark-circle" size={20} color={dynamicColors.success[500]} />
+                    <Text style={[styles.verificationStatusText, { color: dynamicColors.success[500] }]}>
                       Verification code sent to {emailForm.newEmail}
                     </Text>
                   </View>
@@ -770,6 +807,7 @@ export default function Settings() {
                     <TouchableOpacity
                       style={[
                         styles.saveButton,
+                        dynamicButtonStyles.primary,
                         (saving || verificationCode.length !== 6) && styles.saveButtonDisabled
                       ]}
                       onPress={handleVerifyCode}
@@ -780,7 +818,7 @@ export default function Settings() {
                       ) : (
                         <>
                           <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                          <Text style={styles.saveButtonText}>Verify Code</Text>
+                          <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Verify Code</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -788,7 +826,7 @@ export default function Settings() {
 
                   {isCodeVerified && (
                     <TouchableOpacity
-                      style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                      style={[styles.saveButton, dynamicButtonStyles.primary, saving && styles.saveButtonDisabled]}
                       onPress={handleEmailChange}
                       disabled={saving}
                     >
@@ -797,7 +835,7 @@ export default function Settings() {
                       ) : (
                         <>
                           <Ionicons name="mail-outline" size={20} color="#FFFFFF" />
-                          <Text style={styles.saveButtonText}>Update Email Address</Text>
+                          <Text style={[styles.saveButtonText, dynamicButtonStyles.primaryText]}>Update Email Address</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -807,6 +845,60 @@ export default function Settings() {
               </View>
               )}
 
+              {activeTab === 'appearance' && (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Appearance Settings</Text>
+                  <Text style={styles.sectionDescription}>
+                    Customize the look and feel of your application
+                  </Text>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Color Palette</Text>
+                    <Text style={styles.sectionDescription}>
+                      Choose a color scheme that matches your style. Changes apply immediately.
+                    </Text>
+                    <View style={styles.colorPaletteSelector}>
+                      {colorPalettes.map((palette) => (
+                        <TouchableOpacity
+                          key={palette.id}
+                          style={[
+                            styles.colorPaletteOption,
+                            selectedPalette === palette.id && [
+                              styles.colorPaletteOptionSelected,
+                              { borderColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }
+                            ],
+                          ]}
+                          onPress={async () => {
+                            setSelectedPalette(palette.id);
+                            await setColorPalettePreference(palette.id);
+                            await setActivePalette(palette.id);
+                            // Small delay to ensure state updates
+                            setTimeout(() => {
+                              Alert.alert('Success', `Color palette changed to ${palette.name}!`);
+                            }, 100);
+                          }}
+                        >
+                          <View style={styles.palettePreview}>
+                            {palette.preview.map((color, index) => (
+                              <View
+                                key={index}
+                                style={[styles.paletteColorSwatch, { backgroundColor: color }]}
+                              />
+                            ))}
+                          </View>
+                          <View style={styles.paletteInfo}>
+                            <Text style={styles.paletteName}>{palette.name}</Text>
+                            <Text style={styles.paletteDescription}>{palette.description}</Text>
+                          </View>
+                          {selectedPalette === palette.id && (
+                            <Ionicons name="checkmark-circle" size={24} color={dynamicColors.primary[500]} style={styles.paletteCheckIcon} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
 
             </View>
           </View>
@@ -845,8 +937,8 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
   },
   settingsTabActive: {
-    backgroundColor: '#EFF6FF',
-    borderLeftColor: '#2563EB',
+    // backgroundColor: '#EFF6FF', // Now using dynamic color via inline style
+    // borderLeftColor: '#2563EB', // Now using dynamic color via inline style
   },
   settingsTabText: {
     fontSize: 14,
@@ -854,7 +946,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   settingsTabTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
   },
   settingsContent: {
     flex: 1,
@@ -1048,6 +1140,57 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     fontFamily: 'Poppins_600SemiBold',
   },
+  colorPaletteSelector: {
+    marginTop: 16,
+    gap: 16,
+  },
+  colorPaletteOption: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    position: 'relative',
+  },
+  colorPaletteOptionSelected: {
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
+    backgroundColor: '#EFF6FF',
+  },
+  palettePreview: {
+    flexDirection: 'row',
+    gap: 8,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  paletteColorSwatch: {
+    flex: 1,
+    height: '100%',
+  },
+  paletteInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  paletteName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  paletteDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+  },
+  paletteCheckIcon: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
   errorText: {
     fontSize: 12,
     color: '#EF4444',
@@ -1061,15 +1204,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     padding: 12,
-    backgroundColor: '#D1FAE5',
+    // backgroundColor: '#D1FAE5', // Now using dynamic color via inline style
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#059669',
+    // borderColor: '#059669', // Now using dynamic color via inline style
   },
   verificationStatusText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#059669',
+    // color: '#059669', // Now using dynamic color via inline style
     flex: 1,
   },
   warningBox: {

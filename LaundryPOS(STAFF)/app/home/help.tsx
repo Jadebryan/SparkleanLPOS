@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
+import { useColors } from '@/app/theme/useColors';
 
 interface FAQItem {
   id: string;
@@ -22,6 +23,7 @@ interface HelpSection {
 }
 
 export default function Help() {
+  const dynamicColors = useColors();
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -358,7 +360,7 @@ export default function Help() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleContainer}>
-              <Ionicons name="help-circle" size={32} color="#2563EB" />
+              <Ionicons name="help-circle" size={32} color={dynamicColors.primary[500]} />
               <Text style={styles.title}>Help Center</Text>
             </View>
             <Text style={styles.subtitle}>
@@ -400,7 +402,7 @@ export default function Help() {
                     <Ionicons
                       name={category.icon}
                       size={20}
-                      color={selectedCategory === category.id ? '#2563EB' : '#6B7280'}
+                      color={selectedCategory === category.id ? dynamicColors.primary[500] : '#6B7280'}
                     />
                     <Text
                       style={[
@@ -432,7 +434,7 @@ export default function Help() {
                     <View key={section.id} style={styles.sectionCard}>
                       <View style={styles.sectionHeader}>
                         <View style={styles.sectionIconContainer}>
-                          <Ionicons name={section.icon} size={24} color="#2563EB" />
+                          <Ionicons name={section.icon} size={24} color={dynamicColors.primary[500]} />
                         </View>
                         <View style={styles.sectionInfo}>
                           <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -505,14 +507,14 @@ export default function Help() {
             <Text style={styles.footerText}>Contact your station manager or administrator</Text>
             <View style={styles.contactMethods}>
               <View style={styles.contactMethod}>
-                <Ionicons name="mail-outline" size={20} color="#2563EB" />
+                <Ionicons name="mail-outline" size={20} color={dynamicColors.primary[500]} />
                 <View>
                   <Text style={styles.contactLabel}>Email Support</Text>
                   <Text style={styles.contactValue}>labubbles@example.com</Text>
                 </View>
               </View>
               <View style={styles.contactMethod}>
-                <Ionicons name="call-outline" size={20} color="#2563EB" />
+                <Ionicons name="call-outline" size={20} color={dynamicColors.primary[500]} />
                 <View>
                   <Text style={styles.contactLabel}>Phone Support</Text>
                   <Text style={styles.contactValue}>+63 912 345 6789</Text>
@@ -611,7 +613,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
   },
   categoryTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },
@@ -687,7 +689,7 @@ const styles = StyleSheet.create({
   },
   sectionMore: {
     fontSize: 12,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     marginTop: 4,
     fontWeight: '500',
     fontFamily: 'Poppins_500Medium',
@@ -741,7 +743,7 @@ const styles = StyleSheet.create({
   },
   faqTagText: {
     fontSize: 12,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontFamily: 'Poppins_400Regular',
   },
   noResults: {

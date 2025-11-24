@@ -13,6 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from "@/constants/api";
 import { badgeStyles } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { EnhancedEmptyOrders } from '@/components/ui/EnhancedEmptyState';
 import { ShimmerTableRow } from '@/components/ui/ShimmerLoader';
@@ -61,6 +62,7 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   onPrintReceipt,
   orderLocks = {},
 }) => {
+  const dynamicColors = useColors();
   // Use provided orders/loading or fetch internally (for backward compatibility)
   const [internalOrders, setInternalOrders] = useState<Order[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
@@ -235,7 +237,7 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
       {
         icon: 'create' as const,
         label: 'Edit',
-        color: '#2563EB',
+        // color: '#2563EB', // Now using dynamic color via inline style
         onPress: () => {
           if (onEditOrder) {
             onEditOrder(rawOrder);
@@ -263,14 +265,14 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
       accessibilityRole="button"
       accessibilityHint="Press to view order details"
     >
-              <Text style={[orderStyle.cell, { flex: 1, fontWeight: '600', color: '#2563EB' }]}>
+              <Text style={[orderStyle.cell, { flex: 1, fontWeight: '600', color: dynamicColors.primary[500] }]}>
                 {item.orderId}
               </Text>
               <Text style={[orderStyle.cell, { flex: 1, color: '#6B7280' }]}>
                 {formatDate(item.createDate)}
               </Text>
               <View style={[orderStyle.cell, { flex: 1.5, flexDirection: 'row', alignItems: 'center', paddingLeft: 12 }]}>
-                <View style={orderStyle.customerAvatar}>
+                <View style={[orderStyle.customerAvatar, { backgroundColor: dynamicColors.primary[500] }]}>
                   <Text style={orderStyle.customerInitial}>
                     {item.customerName?.charAt(0)?.toUpperCase() || '?'}
                   </Text>
@@ -312,7 +314,7 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
                 accessibilityLabel="View order details"
                 accessibilityRole="button"
               >
-                <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                <Ionicons name="eye-outline" size={18} color={dynamicColors.primary[500]} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={(e) => {
@@ -389,7 +391,7 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
                 accessibilityLabel="Print receipt"
                 accessibilityRole="button"
               >
-                <Ionicons name="print-outline" size={18} color="#2563EB" />
+                <Ionicons name="print-outline" size={18} color={dynamicColors.primary[500]} />
               </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -460,7 +462,7 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#2563EB"
+              tintColor={dynamicColors.primary[500]}
             />
           ) : undefined
         }
@@ -593,7 +595,7 @@ const orderStyle = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#2563EB",
+    // backgroundColor: "#2563EB", // Now using dynamic color via inline style
     justifyContent: 'center',
     alignItems: 'center',
   },

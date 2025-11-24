@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
+import { useColors } from '@/app/theme/useColors';
 
 type SearchFilterProps = {
   searchQuery: string;
@@ -17,6 +18,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
   onToggleDrafts,
   onOpenFilters,
 }) => {
+  const dynamicColors = useColors();
   return (
     <View style={styles.container}>
       {/* Search Input */}
@@ -38,7 +40,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       {/* Filter Buttons */}
       <View style={styles.filterContainer}>
         <TouchableOpacity 
-          style={[styles.filterButton, showDrafts && styles.filterButtonActive]}
+          style={[styles.filterButton, showDrafts && [styles.filterButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
           onPress={onToggleDrafts}
           accessibilityLabel={showDrafts ? "Show all orders" : "Show draft orders"}
           accessibilityRole="button"
@@ -48,9 +50,9 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
           <Ionicons 
             name={showDrafts ? "document-text" : "document-text-outline"} 
             size={16} 
-            color={showDrafts ? "#2563EB" : "#6B7280"} 
+            color={showDrafts ? dynamicColors.primary[500] : "#6B7280"} 
           />
-          <Text style={[styles.filterButtonText, showDrafts && styles.filterButtonTextActive]}>
+          <Text style={[styles.filterButtonText, showDrafts && { color: dynamicColors.primary[500] }]}>
             {showDrafts ? "All Orders" : "Drafts"}
           </Text>
         </TouchableOpacity>
@@ -120,10 +122,10 @@ const styles = StyleSheet.create({
   },
   filterButtonActive: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   filterButtonTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
   },
 });

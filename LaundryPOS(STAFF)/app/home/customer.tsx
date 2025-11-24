@@ -3,6 +3,8 @@ import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, M
 import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { usePermissions } from '@/hooks/usePermissions';
 
 // Components
@@ -37,6 +39,8 @@ type Customer = {
 };
 
 export default function Customer() {
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const { showSuccess, showError } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState('name-asc');
@@ -266,7 +270,7 @@ export default function Customer() {
               </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
+              style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
               onPress={() => setShowStats(!showStats)}
               accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
               accessibilityRole="button"
@@ -274,16 +278,16 @@ export default function Customer() {
               <Ionicons 
                 name={showStats ? "eye-outline" : "eye-off-outline"} 
                 size={18} 
-                color={showStats ? "#374151" : "#2563EB"} 
+                color={showStats ? "#374151" : dynamicColors.primary[500]} 
               />
-              <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
+              <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
                 Stats
               </Text>
             </TouchableOpacity>
             <View style={styles.exportDropdownContainer}>
               <TouchableOpacity 
                 ref={exportButtonRef}
-                style={styles.exportButton} 
+                style={[styles.exportButton, dynamicButtonStyles.primary]} 
                 onPress={() => {
                   if (exportButtonRef.current) {
                     exportButtonRef.current.measureInWindow((x: number, y: number, width: number, height: number) => {
@@ -296,13 +300,13 @@ export default function Customer() {
                 }}
               >
                 <Ionicons name="download-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>Export</Text>
+                <Text style={[styles.exportButtonText, dynamicButtonStyles.primaryText]}>Export</Text>
                 <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setIsAddModalOpen(true)}>
+            <TouchableOpacity style={[styles.primaryButton, dynamicButtonStyles.primary]} onPress={() => setIsAddModalOpen(true)}>
               <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>Add Customer</Text>
+              <Text style={[styles.primaryButtonText, dynamicButtonStyles.primaryText]}>Add Customer</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -317,9 +321,9 @@ export default function Customer() {
             </View>
           ) : (
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, styles.statCardBlue]}>
-                <View style={[styles.statIcon, styles.statIconBlue]}>
-                  <Ionicons name="folder-outline" size={24} color="#2563EB" />
+              <View style={[styles.statCard, styles.statCardBlue, { borderLeftColor: dynamicColors.primary[500] }]}>
+                <View style={[styles.statIcon, styles.statIconBlue, { backgroundColor: dynamicColors.primary[50] }]}>
+                  <Ionicons name="folder-outline" size={24} color={dynamicColors.primary[500]} />
                 </View>
                 <View>
                   <Text style={styles.statNumber}>{totalCustomers}</Text>
@@ -522,7 +526,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontFamily: 'Poppins_500Medium',
   },
   primaryButton: {
@@ -559,7 +563,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statCardBlue: {
-    borderLeftColor: '#2563EB',
+    // borderLeftColor: '#2563EB', // Now using dynamic color via inline style
   },
   statCardOrange: {
     borderLeftColor: '#F59E0B',
@@ -618,8 +622,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   toggleButtonActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    // backgroundColor: '#EFF6FF', // Now using dynamic color via inline style
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   toggleButtonText: {
     fontSize: 14,
@@ -628,7 +632,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
   },
   toggleButtonTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },
@@ -636,10 +640,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   exportButton: {
-    ...buttonStyles.primary,
+    // ...buttonStyles.primary, // Now using dynamic button styles
   },
   exportButtonText: {
-    ...buttonStyles.primaryText,
+    // ...buttonStyles.primaryText, // Now using dynamic button styles
     marginLeft: spacing.sm,
   },
   exportDropdownOverlay: {

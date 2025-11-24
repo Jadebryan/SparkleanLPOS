@@ -22,6 +22,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EnhancedEmptyCustomers } from '@/components/ui/EnhancedEmptyState';
 import { useToast } from '@/app/context/ToastContext';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 
 type Customer = {
   _id: string;
@@ -60,6 +62,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   scrollEnabled = true,
 }) => {
   const { showSuccess } = useToast();
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -369,7 +373,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
           </View>
         ) : sortedCustomers.length > 0 ? (
           <FlatList
@@ -382,7 +386,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 <RefreshControl
                   refreshing={refreshing || false}
                   onRefresh={onRefresh}
-                  tintColor="#2563EB"
+                  tintColor={dynamicColors.primary[500]}
                 />
               ) : undefined
             }
@@ -390,7 +394,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
               <View style={styles.tableRow}>
               {/* Customer */}
               <View style={[styles.tableCell, { flex: 2, flexDirection: 'row', alignItems: 'center' }]}>
-                <View style={styles.avatar}>
+                <View style={[styles.avatar, { backgroundColor: dynamicColors.primary[500] }]}>
                   <Text style={styles.avatarText}>{getInitials(customer.customerName)}</Text>
                 </View>
                 <Text style={styles.customerName}>{customer.customerName}</Text>
@@ -435,7 +439,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   style={styles.actionButton}
                   onPress={() => handleView(customer)}
                 >
-                  <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                  <Ionicons name="eye-outline" size={18} color={dynamicColors.primary[500]} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.actionButtonEdit]}
@@ -488,7 +492,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
               <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                 {/* Customer Header */}
                 <View style={styles.customerDetailsHeader}>
-                  <View style={styles.customerAvatarLarge}>
+                  <View style={[styles.customerAvatarLarge, { backgroundColor: dynamicColors.primary[500], shadowColor: dynamicColors.primary[500] }]}>
                     <Text style={styles.customerAvatarText}>{getInitials(selectedCustomer.customerName)}</Text>
                   </View>
                   <View>
@@ -502,7 +506,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>EMAIL ADDRESS</Text>
                     <View style={styles.detailValue}>
-                      <Ionicons name="mail-outline" size={16} color="#374151" />
+                      <Ionicons name="mail-outline" size={16} color={dynamicColors.primary[500]} />
                       <Text style={styles.detailValueText}>{selectedCustomer.email || 'N/A'}</Text>
                     </View>
                   </View>
@@ -510,21 +514,21 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>PHONE NUMBER</Text>
                     <View style={styles.detailValue}>
-                      <Ionicons name="call-outline" size={16} color="#374151" />
+                      <Ionicons name="call-outline" size={16} color={dynamicColors.primary[500]} />
                       <Text style={styles.detailValueText}>{selectedCustomer.phoneNumber}</Text>
                     </View>
                   </View>
                   
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>TOTAL ORDERS</Text>
-                    <Text style={[styles.detailValueText, styles.detailValueHighlightBlue]}>
+                    <Text style={[styles.detailValueText, styles.detailValueHighlightBlue, { color: dynamicColors.primary[500] }]}>
                       {selectedCustomer.totalOrders || 0}
                     </Text>
                   </View>
                   
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>TOTAL SPENT</Text>
-                    <Text style={[styles.detailValueText, styles.detailValueHighlightOrange]}>
+                    <Text style={[styles.detailValueText, styles.detailValueHighlightOrange, { color: dynamicColors.accent[500] }]}>
                       ₱{(selectedCustomer.totalSpent || 0).toLocaleString()}
                     </Text>
                   </View>
@@ -544,19 +548,21 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
                 {/* Recent Order History */}
                 <View style={styles.recentActivity}>
-                  <Text style={styles.recentActivityTitle}>Recent Order History</Text>
+                  <View style={[styles.recentActivityTitleContainer, { borderBottomColor: dynamicColors.accent[500] }]}>
+                    <Text style={[styles.recentActivityTitle, { color: dynamicColors.primary[500] }]}>Recent Order History</Text>
+                  </View>
                   <View style={styles.activityList}>
                     {recentOrders.length === 0 ? (
                       <Text style={{ color: '#6B7280' }}>No recent orders found.</Text>
                     ) : (
                       recentOrders.map((o, idx) => (
-                        <View key={idx} style={styles.activityItem}>
+                        <View key={idx} style={[styles.activityItem, { borderLeftColor: dynamicColors.primary[500] }]}>
                           <Text style={styles.activityDate}>{o.date}</Text>
                           <View style={styles.activityDetails}>
                             <Text style={styles.activityText}>
-                              <Text style={styles.activityOrderId}>#{o.id}</Text> - {o.service}
+                              <Text style={[styles.activityOrderId, { color: dynamicColors.primary[500] }]}>#{o.id}</Text> - {o.service}
                             </Text>
-                            <Text style={styles.activityAmount}>{o.amount}</Text>
+                            <Text style={[styles.activityAmount, { color: dynamicColors.accent[500] }]}>{o.amount}</Text>
                           </View>
                         </View>
                       ))
@@ -574,14 +580,14 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 <Text style={styles.modalButtonCloseText}>Close</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonEdit]}
+                style={[styles.modalButton, styles.modalButtonEdit, dynamicButtonStyles.primary]}
                 onPress={() => {
                   setViewModalVisible(false);
                   if (selectedCustomer) handleEdit(selectedCustomer);
                 }}
               >
                 <Ionicons name="pencil-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.modalButtonEditText}>Edit Customer</Text>
+                <Text style={[styles.modalButtonEditText, dynamicButtonStyles.primaryText]}>Edit Customer</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -611,7 +617,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
           >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
-                <Ionicons name="pencil-outline" size={24} color="#2563EB" />
+                <Ionicons name="pencil-outline" size={24} color={dynamicColors.primary[500]} />
                 <View>
                   <Text style={styles.modalTitle}>Edit Customer</Text>
                   <Text style={styles.modalSubtitle}>Update customer information</Text>
@@ -694,7 +700,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
+                style={[styles.modalButton, styles.modalButtonSave, { backgroundColor: dynamicColors.primary[500] }]}
                 onPress={handleUpdate}
               >
                 <Ionicons name="save-outline" size={18} color="#FFFFFF" />
@@ -802,7 +808,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -837,7 +843,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   statValuePrimary: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
   },
   actionButton: {
@@ -923,10 +929,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#2563EB',
+    // shadowColor: '#2563EB', // Now using dynamic color via inline style
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -982,24 +988,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   detailValueHighlightBlue: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontSize: 18,
   },
   detailValueHighlightOrange: {
-    color: '#F97316',
+    // color: '#F97316', // Now using dynamic color via inline style
     fontSize: 18,
   },
   recentActivity: {
     marginTop: 24,
   },
-  recentActivityTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+  recentActivityTitleContainer: {
     marginBottom: 16,
     paddingBottom: 8,
     borderBottomWidth: 2,
-    borderBottomColor: '#F97316',
+    // borderBottomColor: '#F97316', // Now using dynamic color via inline style
+  },
+  recentActivityTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    // color: '#111827', // Now using dynamic color via inline style
   },
   activityList: {
     gap: 12,
@@ -1009,7 +1017,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#2563EB',
+    // borderLeftColor: '#2563EB', // Now using dynamic color via inline style
   },
   activityDate: {
     fontSize: 12,
@@ -1029,11 +1037,11 @@ const styles = StyleSheet.create({
   },
   activityOrderId: {
     fontWeight: '700',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
   },
   activityAmount: {
     fontWeight: '700',
-    color: '#F97316',
+    // color: '#F97316', // Now using dynamic color via inline style
     fontSize: 14,
   },
   formGrid: {
@@ -1115,10 +1123,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   modalButtonSave: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   modalButtonEdit: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   modalButtonEditText: {
     fontSize: 14,
@@ -1128,7 +1136,7 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
   },
   modalButtonCloseText: {
     fontSize: 14,

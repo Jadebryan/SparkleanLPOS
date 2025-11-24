@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ const Toast: React.FC<ToastProps> = ({
   onClose,
   action,
 }) => {
+  const dynamicColors = useColors();
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -118,11 +120,11 @@ const Toast: React.FC<ToastProps> = ({
       case 'info':
       default:
         return {
-          backgroundColor: colors.primary[50],
-          borderColor: colors.primary[500],
+          backgroundColor: dynamicColors.primary[50],
+          borderColor: dynamicColors.primary[500],
           icon: 'information-circle',
-          iconColor: colors.primary[600],
-          textColor: colors.primary[700],
+          iconColor: dynamicColors.primary[600],
+          textColor: dynamicColors.primary[700],
         };
     }
   };

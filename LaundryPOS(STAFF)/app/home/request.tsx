@@ -25,6 +25,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadImageToCloudinary, uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
 import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { useToast } from '@/app/context/ToastContext';
 import { EmptyExpenses } from '@/components/ui/EmptyState';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -56,6 +58,8 @@ const categoryOptions = [
 
 export default function Request() {
   const { showSuccess, showError, showWarning } = useToast();
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -817,7 +821,7 @@ export default function Request() {
       case 'Rejected':
         return '#EF4444';
       case 'Appealed':
-        return '#3B82F6';
+        return dynamicColors.primary[400];
       default:
         return '#F59E0B';
     }
@@ -1175,7 +1179,7 @@ export default function Request() {
               </Animated.View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
+              style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
               onPress={() => setShowStats(!showStats)}
               accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
               accessibilityRole="button"
@@ -1183,39 +1187,39 @@ export default function Request() {
               <Ionicons 
                 name={showStats ? "eye-outline" : "eye-off-outline"} 
                 size={18} 
-                color={showStats ? "#374151" : "#2563EB"} 
+                color={showStats ? "#374151" : dynamicColors.primary[500]} 
               />
-              <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
+              <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
                 Stats
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.viewToggleButton, viewMode === 'grid' && styles.viewToggleButtonActive]}
+              style={[styles.viewToggleButton, viewMode === 'grid' && [styles.viewToggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
               onPress={() => setViewMode('grid')}
               accessibilityLabel="Switch to grid view"
               accessibilityRole="button"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? '#2563EB' : '#6B7280'} />
+              <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? dynamicColors.primary[500] : '#6B7280'} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.viewToggleButton, viewMode === 'list' && styles.viewToggleButtonActive]}
+              style={[styles.viewToggleButton, viewMode === 'list' && [styles.viewToggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
               onPress={() => setViewMode('list')}
               accessibilityLabel="Switch to list view"
               accessibilityRole="button"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="list-outline" size={20} color={viewMode === 'list' ? '#2563EB' : '#6B7280'} />
+              <Ionicons name="list-outline" size={20} color={viewMode === 'list' ? dynamicColors.primary[500] : '#6B7280'} />
             </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.addButton}
+            <TouchableOpacity 
+            style={[styles.addButton, dynamicButtonStyles.primary]}
             onPress={() => setShowAddModal(true)}
             accessibilityLabel="Create new expense request"
             accessibilityRole="button"
             accessibilityHint="Opens a form to submit a new money request"
           >
             <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>New Request</Text>
+            <Text style={[styles.addButtonText, dynamicButtonStyles.primaryText]}>New Request</Text>
           </TouchableOpacity>
           </View>
         </View>
@@ -1256,9 +1260,9 @@ export default function Request() {
                 <Text style={styles.summaryLabel}>Rejected</Text>
               </View>
             </View>
-            <View style={[styles.summaryCard, { borderLeftColor: '#3B82F6' }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                <Ionicons name="cash-outline" size={20} color="#3B82F6" />
+            <View style={[styles.summaryCard, { borderLeftColor: dynamicColors.primary[400] }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: dynamicColors.primary[50] }]}>
+                <Ionicons name="cash-outline" size={20} color={dynamicColors.primary[400]} />
               </View>
               <View style={styles.summaryContent}>
                 <Text style={styles.summaryValue}>
@@ -1309,7 +1313,7 @@ export default function Request() {
                     status === 'Pending' && statusFilter === status && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
                     status === 'Approved' && statusFilter === status && { backgroundColor: '#D1FAE5', borderColor: '#10B981' },
                     status === 'Rejected' && statusFilter === status && { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
-                    status === 'Appealed' && statusFilter === status && { backgroundColor: '#DBEAFE', borderColor: '#3B82F6' },
+                    status === 'Appealed' && statusFilter === status && { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[400] },
                   ]}
                   onPress={() => setStatusFilter(status)}
                   accessibilityLabel={`Filter by ${status}`}
@@ -1376,11 +1380,11 @@ export default function Request() {
                 </Text>
                 {expenses.length === 0 && (
                   <TouchableOpacity
-                    style={[styles.addButton, { marginTop: 16 }]}
+                    style={[styles.addButton, { marginTop: 16 }, dynamicButtonStyles.primary]}
                     onPress={() => setShowAddModal(true)}
                   >
                     <Ionicons name="add" size={20} color="#FFFFFF" />
-                    <Text style={styles.addButtonText}>Create Request</Text>
+                    <Text style={[styles.addButtonText, dynamicButtonStyles.primaryText]}>Create Request</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1417,16 +1421,16 @@ export default function Request() {
                       <Text style={styles.listItemDate}>{formatDate(expense.date)}</Text>
                       {expense.status === 'Approved' && (
                         <TouchableOpacity 
-                          style={styles.listItemActionButton}
+                          style={[styles.listItemActionButton, { borderColor: dynamicColors.primary[500] }]}
                           onPress={() => openReceiptUpload(expense)}
                         >
-                          <Ionicons name="camera-outline" size={14} color="#2563EB" />
-                          <Text style={styles.listItemActionText}>Upload Receipt</Text>
+                          <Ionicons name="camera-outline" size={14} color={dynamicColors.primary[500]} />
+                          <Text style={[styles.listItemActionText, { color: dynamicColors.primary[500] }]}>Upload Receipt</Text>
                         </TouchableOpacity>
                       )}
                       {expense.status === 'Rejected' && !expense.appealReason && (
                         <TouchableOpacity 
-                          style={[styles.listItemActionButton, { backgroundColor: '#3B82F6' }]}
+                          style={[styles.listItemActionButton, { backgroundColor: dynamicColors.primary[400] }]}
                           onPress={() => openAppealModal(expense)}
                         >
                           <Ionicons name="alert-circle-outline" size={14} color="#FFFFFF" />
@@ -1436,16 +1440,16 @@ export default function Request() {
                     </View>
 
                     {expense.adminFeedback && (
-                      <View style={styles.listItemFeedback}>
-                        <Text style={styles.listItemFeedbackLabel}>Admin Feedback:</Text>
-                        <Text style={styles.listItemFeedbackText} numberOfLines={2}>
+                      <View style={[styles.listItemFeedback, { backgroundColor: dynamicColors.accent[50], borderLeftColor: dynamicColors.accent[500] }]}>
+                        <Text style={[styles.listItemFeedbackLabel, { color: dynamicColors.accent[700] }]}>Admin Feedback:</Text>
+                        <Text style={[styles.listItemFeedbackText, { color: dynamicColors.accent[800] }]} numberOfLines={2}>
                           {expense.adminFeedback}
                         </Text>
                       </View>
                     )}
 
                     {expense.appealReason && (
-                      <View style={[styles.listItemFeedback, { backgroundColor: '#DBEAFE', borderLeftColor: '#3B82F6' }]}>
+                      <View style={[styles.listItemFeedback, { backgroundColor: dynamicColors.primary[50], borderLeftColor: dynamicColors.primary[400] }]}>
                         <Text style={[styles.listItemFeedbackLabel, { color: '#1E40AF' }]}>
                           Your Appeal: {expense.appealedAt && `(${formatDate(expense.appealedAt)})`}
                         </Text>
@@ -1527,14 +1531,14 @@ export default function Request() {
                   )}
 
                   {expense.adminFeedback && (
-                    <View style={styles.feedbackContainer}>
-                      <Text style={styles.feedbackLabel}>Admin Feedback:</Text>
-                      <Text style={styles.feedbackText}>{expense.adminFeedback}</Text>
+                    <View style={[styles.feedbackContainer, { backgroundColor: dynamicColors.accent[50], borderLeftColor: dynamicColors.accent[500] }]}>
+                      <Text style={[styles.feedbackLabel, { color: dynamicColors.accent[700] }]}>Admin Feedback:</Text>
+                      <Text style={[styles.feedbackText, { color: dynamicColors.accent[800] }]}>{expense.adminFeedback}</Text>
                     </View>
                   )}
 
                   {expense.appealReason && (
-                    <View style={[styles.feedbackContainer, { backgroundColor: '#DBEAFE', borderLeftColor: '#3B82F6' }]}>
+                    <View style={[styles.feedbackContainer, { backgroundColor: dynamicColors.primary[50], borderLeftColor: dynamicColors.primary[400] }]}>
                       <Text style={[styles.feedbackLabel, { color: '#1E40AF' }]}>
                         Your Appeal: {expense.appealedAt && `(${formatDate(expense.appealedAt)})`}
                       </Text>
@@ -1552,7 +1556,7 @@ export default function Request() {
                                 height: 60,
                                 borderRadius: 6,
                                 borderWidth: 1,
-                                borderColor: '#3B82F6'
+                                borderColor: dynamicColors.primary[400]
                               }}
                             />
                           ))}
@@ -1563,17 +1567,17 @@ export default function Request() {
 
                   {expense.status === 'Approved' && (
                     <TouchableOpacity 
-                      style={styles.uploadReceiptButton}
+                      style={[styles.uploadReceiptButton, { borderColor: dynamicColors.primary[500] }]}
                       onPress={() => openReceiptUpload(expense)}
                     >
-                      <Ionicons name="camera-outline" size={16} color="#2563EB" />
-                      <Text style={styles.uploadReceiptText}>Upload Receipt</Text>
+                      <Ionicons name="camera-outline" size={16} color={dynamicColors.primary[500]} />
+                      <Text style={[styles.uploadReceiptText, { color: dynamicColors.primary[500] }]}>Upload Receipt</Text>
                     </TouchableOpacity>
                   )}
 
                   {expense.status === 'Rejected' && !expense.appealReason && (
                     <TouchableOpacity 
-                      style={[styles.uploadReceiptButton, { backgroundColor: '#3B82F6' }]}
+                      style={[styles.uploadReceiptButton, { backgroundColor: dynamicColors.primary[400] }]}
                       onPress={() => openAppealModal(expense)}
                     >
                       <Ionicons name="alert-circle-outline" size={16} color="#FFFFFF" />
@@ -1617,7 +1621,7 @@ export default function Request() {
             >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
-                  <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
+                  <Ionicons name="add-circle-outline" size={24} color={dynamicColors.primary[500]} />
                   <Text style={styles.modalTitle}>New Money Request</Text>
                 </View>
                 <TouchableOpacity 
@@ -1700,8 +1704,8 @@ export default function Request() {
                           }}
                           activeOpacity={0.7}
                         >
-                          <Ionicons name="add-circle-outline" size={20} color="#2563EB" />
-                          <Text style={styles.imagePickerText}>Add More Images ({imageUris.length}/10)</Text>
+                          <Ionicons name="add-circle-outline" size={20} color={dynamicColors.primary[500]} />
+                          <Text style={[styles.imagePickerText, { color: dynamicColors.primary[500] }]}>Add More Images ({imageUris.length}/10)</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1716,8 +1720,8 @@ export default function Request() {
                       }}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name="camera-outline" size={24} color="#2563EB" />
-                      <Text style={styles.imagePickerText}>Select Images (Up to 10)</Text>
+                      <Ionicons name="camera-outline" size={24} color={dynamicColors.primary[500]} />
+                      <Text style={[styles.imagePickerText, { color: dynamicColors.primary[500] }]}>Select Images (Up to 10)</Text>
                     </TouchableOpacity>
                   )}
                   {Platform.OS === 'web' && typeof window === 'undefined' && (
@@ -1742,7 +1746,7 @@ export default function Request() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton, submitting && styles.submitButtonDisabled]}
+                  style={[styles.modalButton, styles.submitButton, { backgroundColor: dynamicColors.primary[500] }, submitting && styles.submitButtonDisabled]}
                   onPress={() => {
                     console.log('Submit button pressed', { submitting, category, amount, description });
                     handleSubmit();
@@ -1790,7 +1794,7 @@ export default function Request() {
             >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
-                  <Ionicons name="receipt-outline" size={24} color="#2563EB" />
+                  <Ionicons name="receipt-outline" size={24} color={dynamicColors.primary[500]} />
                   <Text style={styles.modalTitle}>Upload Receipt</Text>
                 </View>
                 <TouchableOpacity 
@@ -1832,8 +1836,8 @@ export default function Request() {
                       style={styles.imagePickerButton}
                       onPress={() => handleImagePicker(true)}
                     >
-                      <Ionicons name="camera-outline" size={24} color="#2563EB" />
-                      <Text style={styles.imagePickerText}>Select Receipt Image</Text>
+                      <Ionicons name="camera-outline" size={24} color={dynamicColors.primary[500]} />
+                      <Text style={[styles.imagePickerText, { color: dynamicColors.primary[500] }]}>Select Receipt Image</Text>
                     </TouchableOpacity>
                   )}
                   <Text style={styles.hintText}>
@@ -1851,7 +1855,7 @@ export default function Request() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton, (!receiptImage || uploadingReceipt) && styles.submitButtonDisabled]}
+                  style={[styles.modalButton, styles.submitButton, { backgroundColor: dynamicColors.primary[500] }, (!receiptImage || uploadingReceipt) && styles.submitButtonDisabled]}
                   onPress={handleReceiptUpload}
                   disabled={!receiptImage || uploadingReceipt}
                 >
@@ -1895,7 +1899,7 @@ export default function Request() {
             >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
-                  <Ionicons name="alert-circle-outline" size={24} color="#3B82F6" />
+                  <Ionicons name="alert-circle-outline" size={24} color={dynamicColors.primary[400]} />
                   <Text style={styles.modalTitle}>Appeal Rejected Expense</Text>
                 </View>
                 <TouchableOpacity 
@@ -1915,7 +1919,7 @@ export default function Request() {
                         <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 4 }}>
                           {selectedExpenseForAppeal.description}
                         </Text>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#2563EB', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: dynamicColors.primary[500], marginBottom: 4 }}>
                           ₱{selectedExpenseForAppeal.amount.toFixed(2)}
                         </Text>
                         <Text style={{ fontSize: 12, color: '#6B7280' }}>
@@ -1927,8 +1931,8 @@ export default function Request() {
                     {selectedExpenseForAppeal.adminFeedback && (
                       <View style={styles.formGroup}>
                         <Text style={styles.label}>Admin Feedback</Text>
-                        <View style={{ padding: 12, backgroundColor: '#FEF3C7', borderRadius: 8, borderLeftWidth: 4, borderLeftColor: '#F59E0B' }}>
-                          <Text style={{ fontSize: 14, color: '#78350F' }}>
+                        <View style={{ padding: 12, backgroundColor: dynamicColors.accent[50], borderRadius: 8, borderLeftWidth: 4, borderLeftColor: dynamicColors.accent[500] }}>
+                          <Text style={{ fontSize: 14, color: dynamicColors.accent[800] }}>
                             {selectedExpenseForAppeal.adminFeedback}
                           </Text>
                         </View>
@@ -1974,8 +1978,8 @@ export default function Request() {
                           }}
                           activeOpacity={0.7}
                         >
-                          <Ionicons name="camera-outline" size={24} color="#2563EB" />
-                          <Text style={styles.imagePickerText}>Select Image</Text>
+                          <Ionicons name="camera-outline" size={24} color={dynamicColors.primary[500]} />
+                          <Text style={[styles.imagePickerText, { color: dynamicColors.primary[500] }]}>Select Image</Text>
                         </TouchableOpacity>
                       )}
                       <Text style={styles.hintText}>
@@ -1995,7 +1999,7 @@ export default function Request() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.submitButton, (submittingAppeal || !appealReason.trim()) && styles.submitButtonDisabled]}
+                  style={[styles.modalButton, styles.submitButton, { backgroundColor: dynamicColors.primary[500] }, (submittingAppeal || !appealReason.trim()) && styles.submitButtonDisabled]}
                   onPress={() => {
                     console.log('Submit Appeal button pressed', {
                       submittingAppeal,
@@ -2061,10 +2065,10 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
   addButton: {
-    ...buttonStyles.primary,
+    // ...buttonStyles.primary, // Now using dynamic button styles
   },
   addButtonText: {
-    ...buttonStyles.primaryText,
+    // ...buttonStyles.primaryText, // Now using dynamic button styles
   },
   viewToggleButton: {
     minWidth: 44,
@@ -2079,7 +2083,7 @@ const styles = StyleSheet.create({
   },
   viewToggleButtonActive: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   actionButton: {
     flexDirection: 'row',
@@ -2107,7 +2111,7 @@ const styles = StyleSheet.create({
   },
   toggleButtonActive: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   toggleButtonText: {
     fontSize: 14,
@@ -2116,7 +2120,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
   },
   toggleButtonTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },
@@ -2362,34 +2366,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
     minHeight: 36,
     minWidth: 44,
   },
   listItemActionText: {
     fontSize: 12,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },
   listItemFeedback: {
     marginTop: 12,
     padding: 10,
-    backgroundColor: '#FEF3C7',
+    // backgroundColor: '#FEF3C7', // Now using dynamic color via inline style
     borderRadius: 6,
     borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
+    // borderLeftColor: '#F59E0B', // Now using dynamic color via inline style
   },
   listItemFeedbackLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#92400E',
+    // color: '#92400E', // Now using dynamic color via inline style
     marginBottom: 4,
     fontFamily: 'Poppins_600SemiBold',
   },
   listItemFeedbackText: {
     fontSize: 12,
-    color: '#78350F',
+    // color: '#78350F', // Now using dynamic color via inline style
     lineHeight: 16,
     fontFamily: 'Poppins_400Regular',
   },
@@ -2491,21 +2495,21 @@ const styles = StyleSheet.create({
   feedbackContainer: {
     marginBottom: 12,
     padding: 12,
-    backgroundColor: '#FEF3C7',
+    // backgroundColor: '#FEF3C7', // Now using dynamic color via inline style
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
+    // borderLeftColor: '#F59E0B', // Now using dynamic color via inline style
   },
   feedbackLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#92400E',
+    // color: '#92400E', // Now using dynamic color via inline style
     marginBottom: 4,
     fontFamily: 'Poppins_600SemiBold',
   },
   feedbackText: {
     fontSize: 14,
-    color: '#78350F',
+    // color: '#78350F', // Now using dynamic color via inline style
     lineHeight: 20,
     fontFamily: 'Poppins_400Regular',
   },
@@ -2628,7 +2632,7 @@ const styles = StyleSheet.create({
   },
   imagePickerText: {
     fontSize: 14,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '500',
   },
   imagePreviewContainer: {
@@ -2675,7 +2679,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -2741,7 +2745,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -2750,7 +2754,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadReceiptText: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontSize: 14,
     fontWeight: '600',
   },

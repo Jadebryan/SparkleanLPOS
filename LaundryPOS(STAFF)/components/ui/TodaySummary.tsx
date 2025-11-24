@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows, cardStyles } from '@/app/theme/designSystem';
 import { useFadeIn } from './animations';
 import { Animated } from 'react-native';
+import { useColors } from '@/app/theme/useColors';
 
 interface StatItem {
   label: string;
@@ -28,19 +29,20 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({
   stats,
   onViewAll,
 }) => {
+  const dynamicColors = useColors();
   const fadeAnim = useFadeIn(300);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="calendar-outline" size={16} color={colors.primary[500]} />
+          <Ionicons name="calendar-outline" size={16} color={dynamicColors.primary[500]} />
           <Text style={styles.title}>{title}</Text>
         </View>
         {onViewAll && (
           <TouchableOpacity onPress={onViewAll} style={styles.viewAllButton}>
-            <Text style={styles.viewAllText}>View All</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary[500]} />
+            <Text style={[styles.viewAllText, { color: dynamicColors.primary[500] }]}>View All</Text>
+            <Ionicons name="chevron-forward" size={16} color={dynamicColors.primary[500]} />
           </TouchableOpacity>
         )}
       </View>
@@ -124,7 +126,7 @@ const styles = StyleSheet.create({
   viewAllText: {
     ...typography.caption,
     fontSize: 12,
-    color: colors.primary[500],
+    // color: colors.primary[500], // Now using dynamic color via inline style
     fontWeight: '600',
   },
   statsGrid: {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Animated, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, shadows, typography } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
 import { usePressAnimation } from './animations';
 
 interface Action {
@@ -24,6 +25,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   actions = [],
   position = 'bottom-right',
 }) => {
+  const dynamicColors = useColors();
   const [isExpanded, setIsExpanded] = useState(false);
   const { scaleAnim, handlePressIn, handlePressOut } = usePressAnimation(0.9);
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -86,7 +88,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
             <TouchableOpacity
               style={[
                 styles.actionButtonInner,
-                action.color && { backgroundColor: action.color },
+                action.color ? { backgroundColor: action.color } : { backgroundColor: dynamicColors.primary[500] },
               ]}
               onPress={() => handleActionPress(action)}
               activeOpacity={0.8}
@@ -110,6 +112,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
           <TouchableOpacity
             style={[
               styles.mainButton,
+              { backgroundColor: dynamicColors.primary[500] },
               isExpanded && styles.mainButtonExpanded,
             ]}
             onPress={toggleExpanded}

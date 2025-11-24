@@ -10,6 +10,7 @@ import { cacheManager } from '@/utils/cacheManager';
 import OfflineIndicator from './components/OfflineIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './context/ToastContext';
+import { ColorPaletteProvider } from './context/ColorPaletteContext';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -71,11 +72,13 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <ErrorBoundary>
         <ToastProvider>
-          <View style={{ flex: 1 }}>
-            <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-            <OfflineIndicator />
-            <StatusBar style="auto" />
-          </View>
+          <ColorPaletteProvider>
+            <View style={{ flex: 1 }}>
+              <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+              <OfflineIndicator />
+              <StatusBar style="auto" />
+            </View>
+          </ColorPaletteProvider>
         </ToastProvider>
       </ErrorBoundary>
     </ThemeProvider>

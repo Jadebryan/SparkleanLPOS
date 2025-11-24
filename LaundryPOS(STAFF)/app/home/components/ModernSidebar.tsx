@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from '@/constants/api';
+import { useColors } from '@/app/theme/useColors';
 
 type RouteLiteral =
   | '/home/orderList'
@@ -29,6 +30,7 @@ interface NavItemComponentProps {
 
 const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isLogout, onPress }) => {
   const [hovered, setHovered] = useState(false);
+  const dynamicColors = useColors();
 
   return (
     <View
@@ -41,7 +43,11 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
         onPress={onPress}
         activeOpacity={0.7}
       >
-        <View style={[styles.navIconContainer, isActive && styles.navIconContainerActive, hovered && !isActive && styles.navIconContainerHovered]}>
+        <View style={[
+          styles.navIconContainer, 
+          isActive && [styles.navIconContainerActive, { backgroundColor: dynamicColors.primary[500] }], 
+          hovered && !isActive && styles.navIconContainerHovered
+        ]}>
           <Ionicons
             name={isActive && item.iconActive ? item.iconActive : item.icon}
             size={20}
@@ -65,6 +71,7 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
 const ModernSidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const dynamicColors = useColors();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const menuItems: NavItem[] = [
@@ -169,10 +176,10 @@ const ModernSidebar: React.FC = () => {
             </Text>
             <View style={styles.logoutModalButtons}>
               <TouchableOpacity
-                style={styles.logoutModalCancelButton}
+                style={[styles.logoutModalCancelButton, { backgroundColor: dynamicColors.primary[50] }]}
                 onPress={handleCancelLogout}
               >
-                <Text style={styles.logoutModalCancelText}>Cancel</Text>
+                <Text style={[styles.logoutModalCancelText, { color: dynamicColors.primary[500] }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.logoutModalConfirmButton}

@@ -322,9 +322,10 @@ const buttonPaddingVertical = isTablet ? 16 : 14;
 const buttonPaddingHorizontal = isTablet ? 32 : 24;
 const buttonFontSize = isTablet ? 18 : 16;
 
-export const buttonStyles = StyleSheet.create({
+// Create a function to generate button styles with dynamic colors
+export const createButtonStyles = (primaryColor: string = colors.primary[500]) => StyleSheet.create({
   primary: {
-    backgroundColor: colors.primary[500],
+    backgroundColor: primaryColor,
     paddingVertical: buttonPaddingVertical,
     paddingHorizontal: buttonPaddingHorizontal,
     minHeight: buttonMinHeight,
@@ -333,7 +334,11 @@ export const buttonStyles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
-    ...shadows.primary,
+    shadowColor: primaryColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primaryText: {
     color: colors.text.inverse,
@@ -372,7 +377,7 @@ export const buttonStyles = StyleSheet.create({
     gap: spacing.sm,
   },
   ghostText: {
-    color: colors.primary[500],
+    color: primaryColor,
     fontSize: isTablet ? 16 : 14,
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
@@ -381,6 +386,9 @@ export const buttonStyles = StyleSheet.create({
     opacity: 0.5,
   },
 });
+
+// Default button styles (for backward compatibility)
+export const buttonStyles = createButtonStyles(colors.primary[500]);
 
 // Status Badge Styles
 export const badgeStyles = StyleSheet.create({

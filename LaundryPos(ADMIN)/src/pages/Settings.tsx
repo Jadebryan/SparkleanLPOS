@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import { useUser } from '../context/UserContext'
 import { authAPI, backupAPI, auditLogAPI, settingsAPI } from '../utils/api'
 import { availableFonts, getFontPreference, applyFont, loadFont } from '../utils/fontManager'
+import { colorPalettes, getColorPalettePreference, setColorPalettePreference, applyColorPalette } from '../utils/colorPalette'
 import { Backup, BackupStats, AuditLog, AuditLogStats } from '../types'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmailInput from '../components/EmailInput'
@@ -112,6 +113,9 @@ const Settings: React.FC = () => {
 
   // Font preference state
   const [selectedFont, setSelectedFont] = useState<string>(getFontPreference())
+  
+  // Color palette preference state
+  const [selectedPalette, setSelectedPalette] = useState<string>(getColorPalettePreference())
 
   // Backup states
   const [backups, setBackups] = useState<Backup[]>([])
@@ -146,6 +150,11 @@ const Settings: React.FC = () => {
     const savedFont = getFontPreference()
     setSelectedFont(savedFont)
     applyFont(savedFont)
+    
+    // Initialize color palette
+    const savedPalette = getColorPalettePreference()
+    setSelectedPalette(savedPalette)
+    applyColorPalette(savedPalette)
   }, [])
 
   // Preload all fonts when appearance tab is opened for preview
@@ -885,6 +894,46 @@ const Settings: React.FC = () => {
                           >
                             {font.description}
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>
+                      <FiSettings className="label-icon" />
+                      Color Palette
+                    </label>
+                    <p className="form-description">
+                      Choose a color scheme that matches your style. Changes apply immediately.
+                    </p>
+                    <div className="color-palette-selector">
+                      {colorPalettes.map((palette) => (
+                        <div
+                          key={palette.id}
+                          className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedPalette(palette.id)
+                            setColorPalettePreference(palette.id)
+                            toast.success(`Color palette changed to ${palette.name}`, { duration: 2000 })
+                          }}
+                        >
+                          <div className="palette-preview">
+                            {palette.preview.map((color, index) => (
+                              <div
+                                key={index}
+                                className="palette-color-swatch"
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                          <div className="palette-info">
+                            <div className="palette-name">{palette.name}</div>
+                            <div className="palette-description">{palette.description}</div>
+                          </div>
+                          {selectedPalette === palette.id && (
+                            <FiCheck className="palette-check-icon" />
+                          )}
                         </div>
                       ))}
                     </div>

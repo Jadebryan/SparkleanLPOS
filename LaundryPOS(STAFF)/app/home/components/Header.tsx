@@ -8,6 +8,7 @@ import BrandIcon from '../../components/BrandIcon';
 import { api } from '@/utils/api';
 import { API_BASE_URL } from '@/constants/api';
 import { colors, typography, spacing, borderRadius, tabletUtils } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
 
 interface HeaderProps {
   title?: string;
@@ -16,6 +17,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
   const router = useRouter();
+  const dynamicColors = useColors();
   const [user, setUser] = useState<{ name: string; email: string; username?: string; role?: string; _id?: string } | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userButtonLayout, setUserButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
@@ -402,13 +404,13 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
         <View style={styles.headerLeft}>
           <BrandIcon size={28} />
           <View style={styles.logoText}>
-            <Text style={styles.brandPart1}>Sparklean</Text>
-            <Text style={styles.brandPart2}>Laundry Shop</Text>
+            <Text style={[styles.brandPart1, { color: dynamicColors.primary[500] }]}>Sparklean</Text>
+            <Text style={[styles.brandPart2, { color: dynamicColors.accent[500] }]}>Laundry Shop</Text>
             <Text style={styles.brandPart3}>Staff</Text>
           </View>
           {showPageTitle && title && (
             <View style={styles.pageTitleContainer}>
-              <Text style={styles.pageTitle}>{title}</Text>
+              <Text style={[styles.pageTitle, { color: dynamicColors.primary[500] }]}>{title}</Text>
             </View>
           )}
         </View>
@@ -434,13 +436,14 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
             <Ionicons 
               name={unreadCount > 0 ? "notifications" : "notifications-outline"} 
               size={22} 
-              color={unreadCount > 0 ? "#2563EB" : "#374151"} 
+              color={unreadCount > 0 ? dynamicColors.primary[500] : "#374151"} 
             />
             {unreadCount > 0 && (
               <Animated.View 
                 style={[
                   styles.notificationBadge,
                   {
+                    backgroundColor: dynamicColors.primary[500],
                     transform: [
                       { scale: Animated.multiply(badgeScale, badgePulse) }
                     ]
@@ -523,14 +526,14 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
                 <View style={styles.notificationMenuTitleRow}>
                   <Text style={styles.notificationMenuTitle}>Notifications</Text>
                   {unreadCount > 0 && (
-                    <View style={styles.unreadCountBadge}>
+                    <View style={[styles.unreadCountBadge, { backgroundColor: dynamicColors.primary[500] }]}>
                       <Text style={styles.unreadCountText}>{unreadCount}</Text>
                     </View>
                   )}
                 </View>
                 {unreadCount > 0 && (
-                  <TouchableOpacity onPress={markAllAsRead} style={styles.markAllReadButton}>
-                    <Text style={styles.markAllReadText}>Mark all as read</Text>
+                  <TouchableOpacity onPress={markAllAsRead} style={[styles.markAllReadButton, { backgroundColor: dynamicColors.primary[50] }]}>
+                    <Text style={[styles.markAllReadText, { color: dynamicColors.primary[500] }]}>Mark all as read</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -542,8 +545,8 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
                   <RefreshControl
                     refreshing={refreshingNotifications}
                     onRefresh={() => fetchNotifications(true)}
-                    tintColor="#2563EB"
-                    colors={["#2563EB"]}
+                    tintColor={dynamicColors.primary[500]}
+                    colors={[dynamicColors.primary[500]]}
                   />
                 }
               >
@@ -573,7 +576,7 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
                     const getNotificationColor = () => {
                       switch (notification.type) {
                         case 'order':
-                          return '#2563EB';
+                          return dynamicColors.primary[500];
                         case 'payment':
                           return '#10B981';
                         case 'expense':
@@ -656,7 +659,7 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
           >
             <View style={styles.userMenuPanel} onStartShouldSetResponder={() => true}>
             <View style={styles.userMenuHeader}>
-              <View style={styles.userMenuAvatar}>
+              <View style={[styles.userMenuAvatar, { backgroundColor: dynamicColors.primary[500] }]}>
                 <Text style={styles.userMenuAvatarText}>{initial}</Text>
               </View>
               <View style={styles.userMenuInfo}>
@@ -741,7 +744,7 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
             <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>You will be logged out soon</Text>
             <Text style={{ color: '#374151' }}>No activity detected. You will be logged out in <Text style={{ fontWeight: '700' }}>{idleCountdown}</Text> seconds.</Text>
             <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <Pressable onPress={handleStayLoggedIn} style={{ backgroundColor: '#2563EB', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 }}>
+              <Pressable onPress={handleStayLoggedIn} style={{ backgroundColor: dynamicColors.primary[500], paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 }}>
                 <Text style={{ color: 'white', fontWeight: '600' }}>Stay Logged In</Text>
               </Pressable>
             </View>
@@ -797,13 +800,13 @@ const styles = {
   brandPart1: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontFamily: 'Poppins_700Bold',
   },
   brandPart2: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F97316',
+    // color: '#F97316', // Now using dynamic color via inline style
     fontFamily: 'Poppins_600SemiBold',
   },
   brandPart3: {
@@ -821,7 +824,7 @@ const styles = {
   pageTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontFamily: 'Poppins_600SemiBold',
   },
   headerRight: {
@@ -922,7 +925,7 @@ const styles = {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1073,7 +1076,7 @@ const styles = {
     fontFamily: 'Poppins_700Bold',
   },
   unreadCountBadge: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1094,7 +1097,7 @@ const styles = {
   },
   markAllReadText: {
     fontSize: 13,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },

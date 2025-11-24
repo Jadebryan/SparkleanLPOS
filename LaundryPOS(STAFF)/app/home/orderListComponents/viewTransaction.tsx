@@ -6,6 +6,7 @@ import orderListStyle from "./oderListStyle";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/api";
 import { useToast } from '@/app/context/ToastContext';
+import { useColors } from '@/app/theme/useColors';
 
 type Order = {
   orderId: string;
@@ -63,6 +64,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
   onOrderUpdated,
   onViewInvoice,
 }) => {
+  const dynamicColors = useColors();
   const [isEditing, setIsEditing] = useState(initialEditMode);
   const [paymentStatus, setPaymentStatus] = useState("Unpaid");
   const [orderStatus, setOrderStatus] = useState("Pending");
@@ -672,7 +674,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 {paymentStatus === 'Paid' && (
                   <View style={styles.detailCard}>
                     <Text style={styles.detailLabel}>CHANGE</Text>
-                    <Text style={[styles.detailValue, { color: (orderData.change || 0) > 0 ? '#059669' : '#6B7280', fontWeight: '700' }] }>
+                    <Text style={[styles.detailValue, { color: (orderData.change || 0) > 0 ? dynamicColors.primary[500] : '#6B7280', fontWeight: '700' }] }>
                       ₱{(orderData.change || 0).toFixed(2)}
                     </Text>
                   </View>
@@ -713,7 +715,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
             {/* Last Edited Info */}
             {getLastEditedInfo() && (
               <View style={styles.lastEditedInfo}>
-                <Ionicons name="create-outline" size={14} color="#666" />
+                <Ionicons name="create-outline" size={14} color={dynamicColors.primary[500]} />
                 <Text style={styles.lastEditedText}>{getLastEditedInfo()}</Text>
             </View>
             )}
@@ -721,7 +723,7 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
             {/* Order Items Section */}
             {orderItems.length > 0 && (
               <View style={styles.itemsSection}>
-                <View style={styles.itemsHeader}>
+                <View style={[styles.itemsHeader, { borderBottomColor: dynamicColors.accent[500] }]}>
                   <Text style={styles.itemsTitle}>Order Items</Text>
                 </View>
                 <View style={styles.itemsList}>
@@ -802,8 +804,8 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 onPress={handleViewInvoiceClick} 
                 style={[styles.footerButton, styles.secondaryButton]}
               >
-                <Ionicons name="document-text-outline" size={18} color="#374151" style={{ marginRight: 8 }} />
-                <Text style={styles.secondaryButtonText}>View Invoice</Text>
+                <Ionicons name="document-text-outline" size={18} color={dynamicColors.primary[500]} style={{ marginRight: 8 }} />
+                <Text style={[styles.secondaryButtonText, { color: dynamicColors.primary[500] }]}>View Invoice</Text>
               </TouchableOpacity>
             )}
             {!isEditing && !isOrderCompleted() && (
@@ -816,14 +818,14 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                 ]}
                 disabled={lockStatus?.isLocked && !lockStatus?.isLockedByMe}
               >
-                <Ionicons name="create-outline" size={18} color="#374151" style={{ marginRight: 8 }} />
-                <Text style={styles.secondaryButtonText}>Edit</Text>
+                <Ionicons name="create-outline" size={18} color={dynamicColors.primary[500]} style={{ marginRight: 8 }} />
+                <Text style={[styles.secondaryButtonText, { color: dynamicColors.primary[500] }]}>Edit</Text>
               </TouchableOpacity>
             )}
             {isEditing && (
               <TouchableOpacity 
                 onPress={handleSave} 
-                style={[styles.footerButton, styles.primaryButton]}
+                style={[styles.footerButton, styles.primaryButton, { backgroundColor: dynamicColors.primary[500] }]}
                 disabled={isSaving || (lockStatus?.isLocked && !lockStatus?.isLockedByMe)}
               >
                 {isSaving ? (
@@ -868,6 +870,7 @@ const DetailCard: React.FC<{
   amount = false,
   highlight = false,
 }) => {
+  const dynamicColors = useColors();
   if (type === "select" && editable) {
   const dropdownData = options.map((opt) => ({ label: opt, value: opt }));
 
@@ -895,8 +898,8 @@ const DetailCard: React.FC<{
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={[
         styles.detailValue,
-        amount && styles.detailValueAmount,
-        highlight && styles.detailValueHighlight
+        amount && [styles.detailValueAmount, { color: dynamicColors.accent[500] }],
+        highlight && [styles.detailValueHighlight, { color: dynamicColors.primary[500] }]
       ]}>
         {value}
                 </Text>
@@ -984,10 +987,10 @@ const styles = {
   },
   detailValueAmount: {
     fontSize: 18,
-    color: "#F97316", // Orange
+    // color: "#F97316", // Now using dynamic color via inline style
   },
   detailValueHighlight: {
-    color: "#059669", // Green for change
+    // color: "#059669", // Now using dynamic color via inline style
     fontFamily: "monospace",
   },
   dropdown: {
@@ -1032,7 +1035,7 @@ const styles = {
     marginBottom: 16,
     paddingBottom: 8,
     borderBottomWidth: 2,
-    borderBottomColor: "#F97316",
+    // borderBottomColor: "#F97316", // Now using dynamic color via inline style
   },
   itemsTitle: {
     fontSize: 16,
@@ -1104,7 +1107,7 @@ const styles = {
     color: "#374151",
   },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    // backgroundColor: "#2563EB", // Now using dynamic color via inline style
   },
   primaryButtonText: {
     fontSize: 14,

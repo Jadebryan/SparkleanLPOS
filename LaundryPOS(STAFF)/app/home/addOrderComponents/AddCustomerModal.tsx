@@ -19,6 +19,8 @@ import EmailInput from '@/components/EmailInput';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/constants/api';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 
 interface Customer {
   _id: string;
@@ -44,6 +46,8 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   existingCustomers,
   pendingCustomerData,
 }) => {
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const [isLoading, setIsLoading] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: pendingCustomerData?.name || '',
@@ -277,7 +281,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
           >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
-                <Ionicons name="person-add-outline" size={24} color="#2563EB" />
+                <Ionicons name="person-add-outline" size={24} color={dynamicColors.primary[500]} />
                 <View>
                   <Text style={styles.modalTitle}>Add New Customer</Text>
                   <Text style={styles.modalSubtitle}>Enter customer information to add them to the system</Text>
@@ -289,9 +293,9 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
             </View>
 
             {pendingCustomerData && (
-              <View style={styles.pendingInfo}>
-                <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
-                <Text style={styles.pendingInfoText}>
+              <View style={[styles.pendingInfo, { backgroundColor: dynamicColors.primary[50] }]}>
+                <Ionicons name="information-circle-outline" size={16} color={dynamicColors.primary[500]} />
+                <Text style={[styles.pendingInfoText, { color: dynamicColors.primary[700] }]}>
                   Add "{pendingCustomerData.name}" to the customer database to proceed with the order.
                 </Text>
               </View>
@@ -342,7 +346,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                       onChangeText={(text) => setNewCustomer({ ...newCustomer, lastOrder: text })}
                     />
                     <TouchableOpacity
-                      style={styles.todayButton}
+                      style={[styles.todayButton, { backgroundColor: dynamicColors.primary[500] }]}
                       onPress={() => {
                         const today = new Date();
                         const formattedDate = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
@@ -356,8 +360,8 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 </View>
               </View>
 
-              <View style={styles.formNote}>
-                <Text style={styles.formNoteText}>
+              <View style={[styles.formNote, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[200] }]}>
+                <Text style={[styles.formNoteText, { color: dynamicColors.primary[700] }]}>
                   💡 <Text style={styles.formNoteBold}>Note:</Text> Customer will start with 0 orders and ₱0 spent. These values will be updated automatically when they place orders.
                 </Text>
               </View>
@@ -384,19 +388,19 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.button, styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                style={[styles.button, styles.submitButton, dynamicButtonStyles.primary, isLoading && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Adding...</Text>
+                    <Text style={[styles.submitButtonText, dynamicButtonStyles.primaryText]}>Adding...</Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="save-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Add Customer</Text>
+                    <Text style={[styles.submitButtonText, dynamicButtonStyles.primaryText]}>Add Customer</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -465,7 +469,7 @@ const styles = StyleSheet.create({
   pendingInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EFF6FF',
+    // backgroundColor: '#EFF6FF', // Now using dynamic color via inline style
     padding: 12,
     margin: 20,
     marginBottom: 0,
@@ -475,7 +479,7 @@ const styles = StyleSheet.create({
   pendingInfoText: {
     flex: 1,
     fontSize: 14,
-    color: '#1E40AF',
+    // color: '#1E40AF', // Now using dynamic color via inline style
     lineHeight: 20,
   },
   form: {
@@ -520,7 +524,7 @@ const styles = StyleSheet.create({
   todayButton: {
     position: 'absolute',
     right: 40,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
@@ -537,16 +541,16 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   formNote: {
-    backgroundColor: '#EFF6FF',
+    // backgroundColor: '#EFF6FF', // Now using dynamic color via inline style
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    // borderColor: '#BFDBFE', // Now using dynamic color via inline style
     borderRadius: 8,
     padding: 16,
     marginTop: 20,
   },
   formNoteText: {
     fontSize: 14,
-    color: '#1E40AF',
+    // color: '#1E40AF', // Now using dynamic color via inline style
     lineHeight: 20,
   },
   formNoteBold: {
@@ -589,7 +593,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   submitButton: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   submitButtonDisabled: {
     opacity: 0.6,

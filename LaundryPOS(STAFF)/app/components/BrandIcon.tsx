@@ -1,16 +1,18 @@
 import React from 'react'
 import Svg, { Defs, LinearGradient, Stop, Rect, G, Circle, Path } from 'react-native-svg'
+import { useColors } from '@/app/theme/useColors'
 
 type Props = { size?: number }
 
 export default function BrandIcon({ size = 22 }: Props) {
+  const dynamicColors = useColors()
   const s = size
   return (
     <Svg width={s} height={s} viewBox="0 0 64 64">
       <Defs>
         <LinearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0%" stopColor="#60A5FA" />
-          <Stop offset="100%" stopColor="#2563EB" />
+          <Stop offset="100%" stopColor={dynamicColors.primary[500]} />
         </LinearGradient>
         <LinearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0%" stopColor="#E0F2FE" />

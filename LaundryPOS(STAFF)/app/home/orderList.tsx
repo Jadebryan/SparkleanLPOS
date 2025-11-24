@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import BrandIcon from '../components/BrandIcon';
 import GlobalStyles from "../styles/GlobalStyle";
 import designSystem, { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles, tabletUtils } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 
 // Components
 import ModernSidebar from "./components/ModernSidebar";
@@ -72,7 +74,7 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#60A5FA" />
-        <stop offset="100%" stop-color="#2563EB" />
+        <stop offset="100%" stop-color={dynamicColors.primary[500]} />
       </linearGradient>
       <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#E0F2FE" />
@@ -656,7 +658,7 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
         .preview-subtitle { color: #6B7280; font-size: 12px; margin-bottom: 12px; }
         .print-buttons { display: flex; gap: 8px; margin-bottom: 12px; }
         .btn { padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; }
-        .btn-primary { background: #2563EB; color: #FFFFFF; }
+        .btn-primary { background: ${dynamicColors.primary[500]}; color: #FFFFFF; }
         .container { background: #FFFFFF; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 10px; }
         .ticket { width: 58mm; margin: 0 auto; color: #111827; }
         .center { text-align: center; }
@@ -740,6 +742,8 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
   preview.focus();
 }
 export default function Dashboard() {
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const { showSuccess, showError } = useToast();
   const [showTransaction, setShowTransaction] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -1716,22 +1720,22 @@ export default function Dashboard() {
                 </Animated.View>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.toggleButton, !showStats && styles.toggleButtonActive]}
+                style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
                 onPress={() => setShowStats(!showStats)}
               >
                 <Ionicons 
                   name={showStats ? "eye-outline" : "eye-off-outline"} 
                   size={18} 
-                  color={showStats ? "#374151" : "#2563EB"} 
+                  color={showStats ? "#374151" : dynamicColors.primary[500]} 
                 />
-                <Text style={[styles.toggleButtonText, !showStats && styles.toggleButtonTextActive]}>
+                <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
                   Stats
                 </Text>
               </TouchableOpacity>
               <View style={styles.exportDropdownContainer}>
                 <TouchableOpacity
                   ref={exportButtonRef}
-                  style={styles.exportButton} 
+                  style={[styles.exportButton, dynamicButtonStyles.primary]} 
                   onPress={() => {
                     if (exportButtonRef.current) {
                       exportButtonRef.current.measureInWindow((x, y, width, height) => {
@@ -1744,19 +1748,19 @@ export default function Dashboard() {
                   }}
                 >
                   <Ionicons name="download-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.exportButtonText}>Export</Text>
+                  <Text style={[styles.exportButtonText, dynamicButtonStyles.primaryText]}>Export</Text>
                   <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
-                style={styles.createOrderButton}
+                style={[styles.createOrderButton, dynamicButtonStyles.primary]}
                 onPress={() => {
                   setDraftOrderIdForModal(null);
                   setIsCreateOrderModalOpen(true);
                 }}
               >
                 <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.createOrderButtonText}>Create Order</Text>
+                <Text style={[styles.createOrderButtonText, dynamicButtonStyles.primaryText]}>Create Order</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1776,7 +1780,7 @@ export default function Dashboard() {
                     label: 'Total Orders',
                     value: stats.totalOrders,
                     icon: 'receipt-outline',
-                    color: colors.primary[500],
+                    color: dynamicColors.primary[500],
                     onPress: () => setFilterPayment('All'),
                   },
                   {
@@ -1916,12 +1920,12 @@ export default function Dashboard() {
                   {/* Invoice Header */}
                   <View style={styles.invoiceHeaderSection}>
                     <View style={styles.companyInfo}>
-                      <View style={styles.companyLogo}>
+                      <View style={[styles.companyLogo, { backgroundColor: dynamicColors.primary[500], shadowColor: dynamicColors.primary[500] }]}>
                         <BrandIcon size={36} />
                       </View>
                       <View>
                         <Text style={styles.companyName}>
-                          <Text style={styles.brandPart1}>Sparklean</Text> <Text style={styles.brandPart2}>Laundry Shop{invoiceStationInfo?.name ? ` - ${invoiceStationInfo.name}` : ''}</Text>
+                          <Text style={[styles.brandPart1, { color: dynamicColors.primary[500] }]}>Sparklean</Text> <Text style={styles.brandPart2}>Laundry Shop{invoiceStationInfo?.name ? ` - ${invoiceStationInfo.name}` : ''}</Text>
                         </Text>
                         <Text style={styles.companyDetails}>
                           {invoiceStationInfo?.address || '123 Laundry Street, Clean City'}{'\n'}
@@ -1933,7 +1937,7 @@ export default function Dashboard() {
                     </View>
                     <View style={styles.invoiceInfo}>
                       <Text style={styles.invoiceTitleText}>INVOICE</Text>
-                      <Text style={styles.invoiceNumber}>#{invoiceData.id}</Text>
+                      <Text style={[styles.invoiceNumber, { color: dynamicColors.primary[500] }]}>#{invoiceData.id}</Text>
                       <Text style={styles.invoiceDate}>
                         <Text style={styles.dateLabel}>Date: </Text>{invoiceData.date}
                       </Text>
@@ -2032,7 +2036,7 @@ export default function Dashboard() {
                   </View>
 
                   {/* Notes Section */}
-                  <View style={styles.invoiceNotes}>
+                  <View style={[styles.invoiceNotes, { borderLeftColor: dynamicColors.primary[500] }]}>
                     <Text style={styles.notesTitle}>Notes</Text>
                     <Text style={styles.notesText}>{invoiceData.notes}</Text>
                     {invoiceData.pickupDate && (
@@ -2056,7 +2060,7 @@ export default function Dashboard() {
                       <View style={styles.signatureLine} />
                       <Text style={styles.signatureLabel}>Staff Signature</Text>
                     </View>
-                    <Text style={styles.footerText}>Thank you for your business!</Text>
+                    <Text style={[styles.footerText, { color: dynamicColors.primary[500] }]}>Thank you for your business!</Text>
                   </View>
                 </ScrollView>
                 
@@ -2070,7 +2074,7 @@ export default function Dashboard() {
                         printInvoiceWindow(invoiceData, invoiceStationInfo);
                       }
                     }}
-                    style={styles.primaryButton}
+                    style={[styles.primaryButton, { backgroundColor: dynamicColors.primary[500] }]}
                   >
                     <Text style={styles.primaryButtonText}>Print</Text>
                   </TouchableOpacity>
@@ -2246,7 +2250,7 @@ export default function Dashboard() {
                 setDraftOrderIdForModal(null);
                 setIsCreateOrderModalOpen(true);
               },
-              color: colors.primary[500],
+              color: dynamicColors.primary[500],
             },
             {
               icon: 'person-add-outline',
@@ -2333,7 +2337,7 @@ const styles = StyleSheet.create({
   },
   toggleButtonActive: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   toggleButtonText: {
     fontSize: 14,
@@ -2342,23 +2346,23 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
   },
   toggleButtonTextActive: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '600',
     fontFamily: 'Poppins_600SemiBold',
   },
   exportButton: {
-    ...buttonStyles.primary,
+    // ...buttonStyles.primary, // Now using dynamic button styles
   },
   exportButtonText: {
-    ...buttonStyles.primaryText,
+    // ...buttonStyles.primaryText, // Now using dynamic button styles
     marginLeft: spacing.sm,
   },
   createOrderButton: {
-    ...buttonStyles.primary,
+    // ...buttonStyles.primary, // Now using dynamic button styles
     marginLeft: spacing.sm,
   },
   createOrderButtonText: {
-    ...buttonStyles.primaryText,
+    // ...buttonStyles.primaryText, // Now using dynamic button styles
     marginLeft: spacing.sm,
   },
   exportDropdownContainer: {
@@ -2464,7 +2468,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     marginBottom: 24,
     borderBottomWidth: 3,
-    borderBottomColor: '#2563EB',
+    // borderBottomColor: '#2563EB', // Now using dynamic color via inline style
   },
   companyInfo: {
     flexDirection: 'row',
@@ -2475,11 +2479,11 @@ const styles = StyleSheet.create({
   companyLogo: {
     width: 60,
     height: 60,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#2563EB',
+    // shadowColor: '#2563EB', // Now using dynamic color via inline style
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -2494,7 +2498,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   brandPart1: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
   },
   brandPart2: {
     color: '#F97316',
@@ -2517,7 +2521,7 @@ const styles = StyleSheet.create({
   },
   invoiceNumber: {
     fontSize: 20,
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontWeight: '700',
     marginBottom: 12,
   },
@@ -2692,7 +2696,7 @@ const styles = StyleSheet.create({
     // color applied on child text via paidValue
   },
   paidValue: {
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
   },
   summaryRowBalance: {
     paddingVertical: 16,
@@ -2716,7 +2720,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
+    // borderLeftColor: '#2563EB', // Now using dynamic color via inline style
     marginBottom: 24,
   },
   notesTitle: {
@@ -2761,7 +2765,7 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2563EB',
+    // color: '#2563EB', // Now using dynamic color via inline style
     fontFamily: 'Poppins_700Bold',
   },
   modalFooter: {
@@ -2778,7 +2782,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   primaryButtonText: {
     color: '#FFFFFF',
@@ -2847,8 +2851,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   filterOptionActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
+    // borderColor: '#2563EB', // Now using dynamic color via inline style (handled by InlineFilters component)
   },
   filterOptionText: {
     fontSize: 14,

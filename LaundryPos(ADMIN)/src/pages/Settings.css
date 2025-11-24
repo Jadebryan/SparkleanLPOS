@@ -1488,3 +1488,116 @@
   background: var(--color-very-light-blue);
   border-color: var(--color-primary-blue);
 }
+
+/* Color Palette Selector Styles */
+.color-palette-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.color-palette-option {
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--color-white);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.color-palette-option:hover {
+  border-color: var(--color-primary-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.color-palette-option.selected {
+  border-color: var(--color-primary-blue);
+  background: var(--color-very-light-blue);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.palette-preview {
+  display: flex;
+  gap: 8px;
+  height: 60px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.palette-color-swatch {
+  flex: 1;
+  height: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.palette-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.palette-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.palette-description {
+  font-size: 12px;
+  color: var(--color-gray-600);
+}
+
+.palette-check-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--color-primary-blue);
+  font-size: 20px;
+  font-weight: bold;
+}
+
+/* Dark mode styles for color palette */
+[data-theme="dark"] .color-palette-option {
+  background: var(--color-gray-800);
+  border-color: var(--color-gray-700);
+}
+
+[data-theme="dark"] .color-palette-option:hover {
+  border-color: var(--color-primary-blue);
+  background: var(--color-gray-750);
+}
+
+[data-theme="dark"] .color-palette-option.selected {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--color-primary-blue);
+}
+
+[data-theme="dark"] .palette-name {
+  color: var(--color-gray-100);
+}
+
+[data-theme="dark"] .palette-description {
+  color: var(--color-gray-500);
+}
+
+/* Dim mode styles for color palette */
+[data-theme="dim"] .color-palette-option {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-300);
+}
+
+[data-theme="dim"] .color-palette-option:hover {
+  border-color: var(--color-primary-blue);
+  background: var(--color-white);
+}
+
+[data-theme="dim"] .color-palette-option.selected {
+  background: var(--color-very-light-blue);
+  border-color: var(--color-primary-blue);
+}

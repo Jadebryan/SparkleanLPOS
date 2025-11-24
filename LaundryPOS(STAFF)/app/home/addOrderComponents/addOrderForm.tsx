@@ -20,6 +20,8 @@ import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AddCustomerModal from './AddCustomerModal';
 import designSystem, { colors, typography, spacing, borderRadius, cardStyles, inputStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { useColors } from '@/app/theme/useColors';
+import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { useToast } from '@/app/context/ToastContext';
 
 // Interface for order data
@@ -179,6 +181,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   draftOrderId = null
 }) => {
   const { showSuccess, showError, showInfo } = useToast();
+  const dynamicColors = useColors();
+  const dynamicButtonStyles = useButtonStyles();
   const [userId, setUserId] = useState<string>("");
   const [userStation, setUserStation] = useState<string>("");
   const [services, setServices] = useState<Service[]>([]);
@@ -1225,7 +1229,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                   <defs>
                     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stop-color="#60A5FA" />
-                      <stop offset="100%" stop-color="#2563EB" />
+                      <stop offset="100%" stop-color={dynamicColors.primary[500]} />
                     </linearGradient>
                     <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stop-color="#E0F2FE" />
@@ -1802,14 +1806,14 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
               <Text style={styles.feedbackText}>{successMessage || 'Order created successfully!'}</Text>
               <View style={{ marginTop: 16, alignItems: 'flex-end' }}>
                 <TouchableOpacity 
-                  style={styles.createButton} 
+                  style={[styles.createButton, dynamicButtonStyles.primary]} 
                   onPress={() => {
                     setShowSuccessModal(false);
                     setSuccessMessage("");
                   }}
                 >
                   <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.createButtonText}>OK</Text>
+                  <Text style={[styles.createButtonText, dynamicButtonStyles.primaryText]}>OK</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1822,9 +1826,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         {!isModal && (
         <View style={styles.pageHeader}>
           <View style={styles.titleSection}>
-            <Ionicons name="create-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
+            <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
             <View>
-              <Text style={styles.pageTitle}>Create New Order</Text>
+              <Text style={[styles.pageTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
               <Text style={styles.pageSubtitle}>Process new customer request</Text>
             </View>
           </View>
@@ -1838,7 +1842,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             {/* Customer Information */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Ionicons name="person-outline" size={20} color="#2563EB" />
+                <Ionicons name="person-outline" size={20} color={dynamicColors.primary[500]} />
                 <Text style={styles.cardTitle}>Customer Information</Text>
               </View>
               <View style={styles.inputRow}>
@@ -1903,8 +1907,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                       <Text style={styles.statusIndicatorText}>Existing customer</Text>
                     </View>
                   ) : (
-                    <View style={[styles.statusIndicator, styles.statusIndicatorNew]}>
-                      <Ionicons name="person-add" size={16} color="#2563EB" />
+                    <View style={[styles.statusIndicator, styles.statusIndicatorNew, { backgroundColor: dynamicColors.primary[50] }]}>
+                      <Ionicons name="person-add" size={16} color={dynamicColors.primary[500]} />
                       <Text style={styles.statusIndicatorText}>New customer - will be added to system</Text>
                     </View>
                   )}
@@ -1915,7 +1919,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             {/* Service Details */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Ionicons name="basket-outline" size={20} color="#2563EB" />
+                <Ionicons name="basket-outline" size={20} color={dynamicColors.primary[500]} />
                 <Text style={styles.cardTitle}>Service Details</Text>
               </View>
               <View style={styles.inputRow}>
@@ -1962,9 +1966,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                 placeholder="1"
               />
                 </View>
-                <TouchableOpacity style={styles.addServiceButton} onPress={handleAddService}>
+                <TouchableOpacity style={[styles.addServiceButton, dynamicButtonStyles.primary]} onPress={handleAddService}>
                   <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.addServiceButtonText}>Add Service</Text>
+                  <Text style={[styles.addServiceButtonText, dynamicButtonStyles.primaryText]}>Add Service</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1999,7 +2003,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                           <Text style={styles.serviceItemUnit}>
                             {unit !== 'flat' ? unitLabel : 'flat rate'}
                           </Text>
-                          <Text style={styles.serviceItemPrice}>₱{item.amount.toFixed(2)}</Text>
+                          <Text style={[styles.serviceItemPrice, { color: dynamicColors.accent[500] }]}>₱{item.amount.toFixed(2)}</Text>
             </View>
                       </View>
                       <TouchableOpacity 
@@ -2017,10 +2021,10 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             {/* Payment & Schedule */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Ionicons name="cash-outline" size={20} color="#2563EB" />
+                <Ionicons name="cash-outline" size={20} color={dynamicColors.primary[500]} />
                 <Text style={styles.cardTitle}>Payment & Schedule</Text>
               </View>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: dynamicColors.accent[500] }]} />
               <View style={styles.inputRow}>
                 <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
                   <Text style={styles.label}>Pickup Date</Text>
@@ -2034,7 +2038,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                       placeholder="mm/dd/yyyy"
                     />
                     <TouchableOpacity
-                      style={styles.todayButton}
+                      style={[styles.todayButton, { backgroundColor: dynamicColors.primary[500] }]}
                       onPress={() => {
                         const today = new Date();
                         const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -2165,8 +2169,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
           <View style={styles.rightColumn}>
             <View style={styles.summaryCard}>
               <View style={styles.summaryHeader}>
-                <Ionicons name="document-text-outline" size={20} color="#111827" />
-                <Text style={styles.summaryTitle}>Order Summary</Text>
+                <Ionicons name="document-text-outline" size={20} color={dynamicColors.primary[500]} />
+                <Text style={[styles.summaryTitle, { color: dynamicColors.primary[500] }]}>Order Summary</Text>
             </View>
 
               {/* Balance Due / Change Due */}
@@ -2176,7 +2180,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                   <Text style={styles.balanceAmountChange}>₱{changeDue.toFixed(2)}</Text>
                 </View>
               ) : balanceDue > 0 ? (
-                <View style={styles.balanceBox}>
+                <View style={[styles.balanceBox, { backgroundColor: dynamicColors.accent[500] }]}>
                   <Text style={styles.balanceLabel}>BALANCE DUE</Text>
                   <Text style={styles.balanceAmount}>₱{balanceDue.toFixed(2)}</Text>
                 </View>
@@ -2207,7 +2211,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                           {item.quantity > 1 && unit !== 'flat' && unit !== 'kg' ? 's' : ''}
               </Text>
             </View>
-                      <Text style={styles.summaryAmount}>₱{item.amount.toFixed(2)}</Text>
+                      <Text style={[styles.summaryAmount, { color: dynamicColors.accent[500] }]}>₱{item.amount.toFixed(2)}</Text>
             </View>
                   );
                 })}
@@ -2234,7 +2238,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
           </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>PAID</Text>
-                  <Text style={[styles.summaryValue, { color: '#2563EB' }]}>₱{paid.toFixed(2)}</Text>
+                  <Text style={[styles.summaryValue, { color: dynamicColors.primary[500] }]}>₱{paid.toFixed(2)}</Text>
         </View>
                 {changeDue > 0 && (
                   <View style={styles.summaryRow}>
@@ -2285,9 +2289,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
               </View>
 
               {/* Action Buttons */}
-              <TouchableOpacity style={styles.createButton} onPress={handleCreateOrder}>
+              <TouchableOpacity style={[styles.createButton, dynamicButtonStyles.primary]} onPress={handleCreateOrder}>
                 <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>Create Order</Text>
+                <Text style={[styles.createButtonText, dynamicButtonStyles.primaryText]}>Create Order</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.secondaryButton} onPress={handleSaveDraft}>
                 <Ionicons name="save-outline" size={18} color="#6B7280" />
@@ -2313,7 +2317,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
           <View style={styles.confirmationModalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
-                <Ionicons name="person-add-outline" size={24} color="#2563EB" />
+                <Ionicons name="person-add-outline" size={24} color={dynamicColors.primary[500]} />
                 <Text style={styles.modalTitle}>New Customer Detected</Text>
               </View>
               <TouchableOpacity
@@ -2341,7 +2345,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                 <Text style={styles.modalButtonTextSecondary}>Maybe Next Time</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
+                style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: dynamicColors.primary[500] }]}
                 onPress={handleCustomerConfirmationYes}
               >
                 <Text style={styles.modalButtonTextPrimary}>Yes</Text>
@@ -2515,7 +2519,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 2,
-    backgroundColor: colors.accent[500],
+    // backgroundColor: colors.accent[500], // Now using dynamic color via inline style
     marginBottom: spacing.lg,
     borderRadius: borderRadius.sm,
   },
@@ -2549,7 +2553,7 @@ const styles = StyleSheet.create({
   todayButton: {
     position: 'absolute',
     right: spacing.sm,
-    backgroundColor: colors.primary[500],
+    // backgroundColor: colors.primary[500], // Now using dynamic color via inline style
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.md,
@@ -2650,7 +2654,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5',
   },
   statusIndicatorNew: {
-    backgroundColor: '#DBEAFE',
+    // backgroundColor: '#DBEAFE', // Now using dynamic color via inline style
   },
   statusIndicatorText: {
     fontSize: 14,
@@ -2713,7 +2717,7 @@ const styles = StyleSheet.create({
   serviceItemPrice: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F59E0B',
+    // color: '#F59E0B', // Now using dynamic color via inline style
     marginLeft: 'auto',
   },
   removeButton: {
@@ -2746,7 +2750,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
   },
   balanceBox: {
-    backgroundColor: '#F59E0B',
+    // backgroundColor: '#F59E0B', // Now using dynamic color via inline style
     borderRadius: 8,
     padding: 16,
     marginBottom: 20,
@@ -3131,7 +3135,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   modalButtonPrimary: {
-    backgroundColor: '#2563EB',
+    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
   },
   modalButtonSecondary: {
     backgroundColor: '#F3F4F6',
