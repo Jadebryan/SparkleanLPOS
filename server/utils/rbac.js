@@ -24,7 +24,8 @@ const defaultPermissions = {
     backups: ['create', 'read', 'restore', 'delete', 'cleanup'],
     auditLogs: ['read', 'export'],
     rbac: ['read', 'update'],
-    settings: ['read', 'update']
+    settings: ['read', 'update', 'customize-palette', 'delete-palette'],
+    appearance: ['read', 'update', 'customize-palette', 'delete-palette']
   },
   staff: {
     orders: ['create', 'read', 'update'],
@@ -39,7 +40,8 @@ const defaultPermissions = {
     backups: [],
     auditLogs: [],
     rbac: [],
-    settings: []
+    settings: ['read'],
+    appearance: ['read']
   }
 };
 
@@ -127,7 +129,9 @@ function buildGrantsUsingAPI(permissionsData) {
               'toggle-account': 'updateAny',
               'generate': 'readAny',
               'restore': 'createAny',
-              'cleanup': 'deleteAny'
+              'cleanup': 'deleteAny',
+              'customize-palette': 'updateAny',
+              'delete-palette': 'deleteAny'
             };
             
             const acAction = actionMap[action] || 'readAny';
@@ -209,7 +213,9 @@ function checkPermission(role, resource, action) {
       'toggle-account': 'updateAny',
       'generate': 'readAny',
       'restore': 'createAny',
-      'cleanup': 'deleteAny'
+      'cleanup': 'deleteAny',
+      'customize-palette': 'updateAny',
+      'delete-palette': 'deleteAny'
     };
     
     const acAction = actionMap[action] || 'readAny';

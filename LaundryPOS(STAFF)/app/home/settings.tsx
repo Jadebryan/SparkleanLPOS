@@ -595,26 +595,26 @@ export default function Settings() {
   if (loading) {
     return (
       <>
-        <View style={GlobalStyles.mainLayout}>
-          <ModernSidebar />
-          <View style={GlobalStyles.mainContent}>
-            <Header title="Settings" />
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
-              <Text style={styles.loadingText}>Loading...</Text>
-            </View>
+      <View style={GlobalStyles.mainLayout}>
+        <ModernSidebar />
+        <View style={GlobalStyles.mainContent}>
+          <Header title="Settings" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={dynamicColors.primary[500]} />
+            <Text style={styles.loadingText}>Loading...</Text>
           </View>
         </View>
+      </View>
       </>
     );
   }
 
   return (
     <>
-      <View style={GlobalStyles.mainLayout}>
-        <ModernSidebar />
-        <View style={GlobalStyles.mainContent}>
-          <Header title="Settings" />
+    <View style={GlobalStyles.mainLayout}>
+      <ModernSidebar />
+      <View style={GlobalStyles.mainContent}>
+        <Header title="Settings" />
         
         {/* Success Modal */}
         {showSuccessMessage && (
@@ -1080,38 +1080,38 @@ export default function Settings() {
                       ) : (
                         availablePalettes.map((palette) => (
                           <Pressable
-                            key={palette.id}
-                            style={[
-                              styles.colorPaletteOption,
-                              selectedPalette === palette.id && [
-                                styles.colorPaletteOptionSelected,
-                                { borderColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }
-                              ],
-                            ]}
+                          key={palette.id}
+                          style={[
+                            styles.colorPaletteOption,
+                            selectedPalette === palette.id && [
+                              styles.colorPaletteOptionSelected,
+                              { borderColor: dynamicColors.primary[500], backgroundColor: dynamicColors.primary[50] }
+                            ],
+                          ]}
                             onPress={() => handlePaletteSelection(palette.id, palette.name)}
-                          >
-                            <View style={styles.palettePreview}>
-                              {palette.preview.map((color, index) => (
-                                <View
-                                  key={index}
-                                  style={[styles.paletteColorSwatch, { backgroundColor: color }]}
-                                />
-                              ))}
-                            </View>
-                            <View style={styles.paletteInfo}>
+                        >
+                          <View style={styles.palettePreview}>
+                            {palette.preview.map((color, index) => (
+                              <View
+                                key={index}
+                                style={[styles.paletteColorSwatch, { backgroundColor: color }]}
+                              />
+                            ))}
+                          </View>
+                          <View style={styles.paletteInfo}>
                               <View style={styles.paletteHeaderRow}>
-                                <Text style={styles.paletteName}>{palette.name}</Text>
+                            <Text style={styles.paletteName}>{palette.name}</Text>
                                 {palette.type === 'custom' && (
                                   <View style={styles.paletteBadge}>
                                     <Text style={styles.paletteBadgeText}>Custom</Text>
                                   </View>
                                 )}
                               </View>
-                              <Text style={styles.paletteDescription}>{palette.description}</Text>
-                            </View>
-                            {selectedPalette === palette.id && (
-                              <Ionicons name="checkmark-circle" size={24} color={dynamicColors.primary[500]} style={styles.paletteCheckIcon} />
-                            )}
+                            <Text style={styles.paletteDescription}>{palette.description}</Text>
+                          </View>
+                          {selectedPalette === palette.id && (
+                            <Ionicons name="checkmark-circle" size={24} color={dynamicColors.primary[500]} style={styles.paletteCheckIcon} />
+                          )}
                             {palette.type === 'custom' && (
                               <View style={styles.paletteActions} pointerEvents="box-none">
                                 <TouchableOpacity
@@ -1123,7 +1123,7 @@ export default function Settings() {
                                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                 >
                                   <Ionicons name="create-outline" size={18} color="#4B5563" />
-                                </TouchableOpacity>
+                        </TouchableOpacity>
                                 <TouchableOpacity
                                   style={[styles.paletteActionButton, styles.paletteActionDanger]}
                                   onPress={(event) => {
@@ -1268,8 +1268,8 @@ export default function Settings() {
             </View>
           </View>
         </ScrollView>
-        </View>
       </View>
+    </View>
 
       <ColorPickerModal
         visible={Boolean(activePicker)}

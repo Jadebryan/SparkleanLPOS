@@ -278,6 +278,20 @@ export default function Help() {
           tags: ['color-palette', 'appearance', 'customization', 'colors', 'themes']
         },
         {
+          id: 'custom-palette-builder',
+          question: 'How do I create my own palette?',
+          answer: 'In Settings → Appearance, scroll to the "Create your own palette" card. Pick a primary and accent color (either from the preset swatches or by entering a HEX code), adjust the brightness slider, and tap "Save custom palette". The new palette is stored with your other themes and becomes available instantly across the app.',
+          category: 'account',
+          tags: ['custom', 'palette', 'appearance', 'hex', 'brightness']
+        },
+        {
+          id: 'manage-custom-palettes',
+          question: 'Can I edit or delete a custom palette?',
+          answer: 'Yes. In the Appearance section, each custom palette shows edit ✏️ and delete 🗑️ icons. Tap edit to load the palette back into the builder (you can rename it or tweak the colors), or tap delete to confirm removal through the in-app modal. Edits and deletions update immediately for your profile.',
+          category: 'account',
+          tags: ['custom', 'edit', 'delete', 'palette', 'appearance']
+        },
+        {
           id: 'app-orientation',
           question: 'Can I rotate the app to landscape mode?',
           answer: 'Yes! The app supports both portrait and landscape orientations. Simply rotate your device and the app will automatically adjust. This is especially useful when viewing order lists or customer details on tablets.',

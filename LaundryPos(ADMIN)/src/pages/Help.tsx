@@ -483,6 +483,20 @@ const Help: React.FC = () => {
           tags: ['color-palette', 'appearance', 'customization', 'themes', 'colors']
         },
         {
+          id: 'custom-palette-builder',
+          question: 'How do I build a custom palette?',
+          answer: 'In the Appearance tab, use the "Build your own palette" card. Pick primary and accent colors via the color pickers or by entering HEX codes, fine-tune the brightness sliders, and click "Save custom palette". The new palette is added to the grid above and becomes available to all admin users immediately.',
+          category: 'settings',
+          tags: ['custom', 'palette', 'appearance', 'hex', 'brightness']
+        },
+        {
+          id: 'edit-delete-palettes',
+          question: 'How do I edit or delete custom palettes?',
+          answer: 'Each custom palette tile has edit ✏️ and delete 🗑️ controls. Use edit to load the palette back into the builder, rename it, or change colors, then click "Update palette". Use delete to open the confirmation modal and remove the palette from the system. Only admins with Settings access can manage palettes.',
+          category: 'settings',
+          tags: ['palette', 'edit', 'delete', 'appearance', 'settings', 'admin']
+        },
+        {
           id: 'password-strength',
           question: 'How does password strength checking work?',
           answer: 'When resetting your password, the system checks if it meets strong password requirements (length, complexity). A "Suggest Password" button is available to generate a secure password automatically. The strength indicator shows if your password is weak, medium, or strong.',

@@ -76,16 +76,16 @@
 }
 
 .rbac-toggle-btn:hover {
-  border-color: #2563EB;
-  color: #2563EB;
-  background: #EFF6FF;
+  border-color: var(--color-primary-blue);
+  color: var(--color-primary-blue);
+  background: var(--color-very-light-blue);
 }
 
 .rbac-toggle-btn.active {
-  background: #1D4ED8;
+  background: var(--color-dark-blue);
   color: #FFFFFF;
-  border-color: #1D4ED8;
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+  border-color: var(--color-dark-blue);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--color-primary-blue) 35%, transparent);
 }
 
 .stat-label {

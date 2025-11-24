@@ -51,6 +51,8 @@ const DEFAULT_SAVED_COLORS = [
   '#1E3A8A'
 ]
 
+const FONT_SECTION_COLLAPSED_KEY = 'admin_font_section_collapsed'
+
 const Settings: React.FC = () => {
   const { user } = useUser()
   const [activeTab, setActiveTab] = useState('profile')
@@ -140,6 +142,10 @@ const Settings: React.FC = () => {
 
   // Font preference state
   const [selectedFont, setSelectedFont] = useState<string>(getFontPreference())
+  const [isFontSelectorHidden, setIsFontSelectorHidden] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(FONT_SECTION_COLLAPSED_KEY) === 'true'
+  })
   
   // Color palette preference state
   const [selectedPalette, setSelectedPalette] = useState<string>(getColorPalettePreference())
@@ -151,6 +157,7 @@ const Settings: React.FC = () => {
   const [paletteLoading, setPaletteLoading] = useState(false)
   const [colorFocus, setColorFocus] = useState<'primary' | 'accent'>('primary')
   const [editingPaletteId, setEditingPaletteId] = useState<string | null>(null)
+  const [palettePendingDelete, setPalettePendingDelete] = useState<ColorPalette | null>(null)
 
   // Backup states
   const [backups, setBackups] = useState<Backup[]>([])
@@ -206,6 +213,24 @@ const Settings: React.FC = () => {
     refreshPalettes()
     loadSavedColors()
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = localStorage.getItem(FONT_SECTION_COLLAPSED_KEY)
+    if (stored !== null) {
+      setIsFontSelectorHidden(stored === 'true')
+    }
+  }, [])
+
+  const toggleFontSelector = () => {
+    setIsFontSelectorHidden(prev => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(FONT_SECTION_COLLAPSED_KEY, next ? 'true' : 'false')
+      }
+      return next
+    })
+  }
 
   const refreshPalettes = () => {
     setPaletteLoading(true)
@@ -312,16 +337,24 @@ const Settings: React.FC = () => {
 
   const handleDeletePalette = (palette: ColorPalette) => {
     if (palette.type !== 'custom') return
-    const confirmed = window.confirm(`Delete custom palette "${palette.name}"?`)
-    if (!confirmed) return
-    deleteCustomPalette(palette.id)
+    setPalettePendingDelete(palette)
+  }
+
+  const confirmDeletePalette = () => {
+    if (!palettePendingDelete) return
+    deleteCustomPalette(palettePendingDelete.id)
     refreshPalettes()
-    if (selectedPalette === palette.id) {
+    if (selectedPalette === palettePendingDelete.id) {
       handlePaletteSelection('default', 'Sparklean Blue & Orange')
     }
-    if (editingPaletteId === palette.id) {
+    if (editingPaletteId === palettePendingDelete.id) {
       cancelEditingPalette()
     }
+    setPalettePendingDelete(null)
+  }
+
+  const cancelDeletePalette = () => {
+    setPalettePendingDelete(null)
   }
 
   const handleEditPalette = (palette: ColorPalette) => {
@@ -1020,51 +1053,77 @@ const Settings: React.FC = () => {
 
                 <div className="appearance-form">
                   <div className="form-group">
-                    <label htmlFor="fontSelect">
-                      <FiType className="label-icon" />
-                      Font Family
-                    </label>
-                    <p className="form-description">
-                      Choose a font that matches your preference. Changes apply immediately.
-                    </p>
-                    <div className="font-selector">
-                      {availableFonts.map((font) => (
-                        <div
-                          key={font.name}
-                          className={`font-option ${selectedFont === font.name ? 'selected' : ''}`}
-                          onClick={() => {
-                            setSelectedFont(font.name)
-                            applyFont(font.name)
-                            toast.success(`Font changed to ${font.displayName}`, { duration: 2000 })
-                          }}
-                        >
-                          <div className="font-option-header">
-                            <div 
-                              className="font-option-name"
-                              style={{ fontFamily: font.cssFamily }}
-                            >
-                              {font.displayName}
-                            </div>
-                            {selectedFont === font.name && (
-                              <FiCheck className="font-check-icon" />
-                            )}
-                          </div>
-                          <div 
-                            className="font-preview"
-                            style={{ fontFamily: font.cssFamily }}
-                          >
-                            The quick brown fox jumps over the lazy dog
-                          </div>
-                          <div 
-                            className="font-description"
-                            style={{ fontFamily: font.cssFamily }}
-                          >
-                            {font.description}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="form-label-row">
+                      <label htmlFor="fontSelect">
+                        <FiType className="label-icon" />
+                        Font Family
+                      </label>
+                      <button
+                        type="button"
+                        className="section-toggle-btn"
+                        onClick={toggleFontSelector}
+                      >
+                        {isFontSelectorHidden ? (
+                          <>
+                            <FiEye />
+                            Show fonts
+                          </>
+                        ) : (
+                          <>
+                            <FiEyeOff />
+                            Hide fonts
+                          </>
+                        )}
+                      </button>
                     </div>
+
+                    {!isFontSelectorHidden && (
+                      <>
+                        <p className="form-description">
+                          Choose a font that matches your preference. Changes apply immediately.
+                        </p>
+                        <div className="font-selector">
+                          {availableFonts.map((font) => (
+                            <div
+                              key={font.name}
+                              className={`font-option ${selectedFont === font.name ? 'selected' : ''}`}
+                              onClick={() => {
+                                setSelectedFont(font.name)
+                                applyFont(font.name)
+                                toast.success(`Font changed to ${font.displayName}`, { duration: 2000 })
+                              }}
+                            >
+                              <div className="font-option-header">
+                                <div 
+                                  className="font-option-name"
+                                  style={{ fontFamily: font.cssFamily }}
+                                >
+                                  {font.displayName}
+                                </div>
+                                {selectedFont === font.name && (
+                                  <FiCheck className="font-check-icon" />
+                                )}
+                              </div>
+                              <div 
+                                className="font-preview"
+                                style={{ fontFamily: font.cssFamily }}
+                              >
+                                The quick brown fox jumps over the lazy dog
+                              </div>
+                              <div 
+                                className="font-description"
+                                style={{ fontFamily: font.cssFamily }}
+                              >
+                                {font.description}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
+
+                  <div className="section-break" />
 
                   <div className="form-group">
                     <label>
@@ -1082,30 +1141,30 @@ const Settings: React.FC = () => {
                         </div>
                       ) : (
                         availablePalettes.map((palette) => (
-                          <div
-                            key={palette.id}
-                            className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
+                        <div
+                          key={palette.id}
+                          className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
                             onClick={() => handlePaletteSelection(palette.id, palette.name)}
-                          >
-                            <div className="palette-preview">
-                              {palette.preview.map((color, index) => (
-                                <div
-                                  key={index}
-                                  className="palette-color-swatch"
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                            </div>
-                            <div className="palette-info">
+                        >
+                          <div className="palette-preview">
+                            {palette.preview.map((color, index) => (
+                              <div
+                                key={index}
+                                className="palette-color-swatch"
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                          <div className="palette-info">
                               <div className="palette-header">
-                                <div className="palette-name">{palette.name}</div>
+                            <div className="palette-name">{palette.name}</div>
                                 {palette.type === 'custom' && <span className="palette-badge">Custom</span>}
                               </div>
-                              <div className="palette-description">{palette.description}</div>
-                            </div>
-                            {selectedPalette === palette.id && (
-                              <FiCheck className="palette-check-icon" />
-                            )}
+                            <div className="palette-description">{palette.description}</div>
+                          </div>
+                          {selectedPalette === palette.id && (
+                            <FiCheck className="palette-check-icon" />
+                          )}
                             {palette.type === 'custom' && (
                               <div className="palette-actions" onClick={(event) => event.stopPropagation()}>
                                 <button
@@ -1124,7 +1183,7 @@ const Settings: React.FC = () => {
                                 >
                                   <FiTrash2 />
                                 </button>
-                              </div>
+                        </div>
                             )}
                           </div>
                         ))
@@ -1296,6 +1355,29 @@ const Settings: React.FC = () => {
             )}
           </motion.div>
         </div>
+
+        {palettePendingDelete && (
+          <div className="delete-modal-overlay">
+            <div className="delete-modal-card" role="dialog" aria-modal="true" aria-labelledby="deletePaletteTitle">
+              <div className="delete-icon-circle">
+                <FiAlertCircle size={28} />
+              </div>
+              <h3 id="deletePaletteTitle">Delete palette?</h3>
+              <p>
+                Are you sure you want to delete “{palettePendingDelete.name}”? This action cannot be undone.
+              </p>
+              <div className="delete-modal-actions">
+                <button type="button" className="btn-secondary" onClick={cancelDeletePalette}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary danger" onClick={confirmDeletePalette}>
+                  <FiTrash2 />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
