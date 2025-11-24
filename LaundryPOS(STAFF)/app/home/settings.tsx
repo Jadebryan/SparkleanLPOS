@@ -13,6 +13,7 @@ import { colorPalettes, getColorPalettePreference, setColorPalettePreference } f
 import { useColorPalette } from '@/app/context/ColorPaletteContext';
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
+import { useToast } from '@/app/context/ToastContext';
 
 type UserProfile = {
   _id?: string;
@@ -76,6 +77,7 @@ export default function Settings() {
   const { setActivePalette } = useColorPalette();
   const dynamicColors = useColors();
   const dynamicButtonStyles = useButtonStyles();
+  const { showSuccess } = useToast();
 
   // Load user profile
   useEffect(() => {
@@ -872,10 +874,8 @@ export default function Settings() {
                             setSelectedPalette(palette.id);
                             await setColorPalettePreference(palette.id);
                             await setActivePalette(palette.id);
-                            // Small delay to ensure state updates
-                            setTimeout(() => {
-                              Alert.alert('Success', `Color palette changed to ${palette.name}!`);
-                            }, 100);
+                            // Show success toast notification
+                            showSuccess(`Color palette changed to ${palette.name}!`);
                           }}
                         >
                           <View style={styles.palettePreview}>

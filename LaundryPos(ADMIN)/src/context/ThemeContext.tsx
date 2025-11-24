@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { getColorPalettePreference } from '../utils/colorPalette'
+import toast from 'react-hot-toast'
 
 type Theme = 'light' | 'dim'
 
@@ -35,7 +37,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed))
   }, [sidebarCollapsed])
 
+  const setThemeWithCheck = (newTheme: Theme) => {
+    const currentPalette = getColorPalettePreference()
+    if (currentPalette !== 'default') {
+      toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+      return
+    }
+    setTheme(newTheme)
+  }
+
   const cycleTheme = () => {
+    const currentPalette = getColorPalettePreference()
+    if (currentPalette !== 'default') {
+      toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+      return
+    }
     setTheme(prev => (prev === 'light' ? 'dim' : 'light'))
   }
 
@@ -44,7 +60,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, cycleTheme, sidebarCollapsed, toggleSidebar }}>
+    <ThemeContext.Provider value={{ theme, setTheme: setThemeWithCheck, cycleTheme, sidebarCollapsed, toggleSidebar }}>
       {children}
     </ThemeContext.Provider>
   )

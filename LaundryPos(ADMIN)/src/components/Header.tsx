@@ -10,6 +10,7 @@ import BrandIcon from './BrandIcon'
 import { Order, Customer, Service } from '../types'
 import toast from 'react-hot-toast'
 import { notificationAPI, orderAPI, customerAPI, serviceAPI } from '../utils/api'
+import { getColorPalettePreference } from '../utils/colorPalette'
 import './Header.css'
 
 interface Notification {
@@ -43,6 +44,10 @@ const Header: React.FC<HeaderProps> = ({ username = 'Admin', role = 'admin' }) =
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  
+  // Check if a non-default palette is selected
+  const currentPalette = getColorPalettePreference()
+  const isCustomPalette = currentPalette !== 'default'
 
   // Live search state (replaces mock data)
   const [searching, setSearching] = useState(false)
@@ -320,16 +325,24 @@ const Header: React.FC<HeaderProps> = ({ username = 'Admin', role = 'admin' }) =
       key: '1',
       ctrl: true,
       callback: () => {
-        console.log('Switching to Light mode')
-        setTheme('light')
+        if (!isCustomPalette) {
+          console.log('Switching to Light mode')
+          setTheme('light')
+        } else {
+          toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+        }
       }
     },
     {
       key: '2',
       ctrl: true,
       callback: () => {
-        console.log('Switching to Dim mode')
-        setTheme('dim')
+        if (!isCustomPalette) {
+          console.log('Switching to Dim mode')
+          setTheme('dim')
+        } else {
+          toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+        }
       }
     },
     {
@@ -621,8 +634,18 @@ const Header: React.FC<HeaderProps> = ({ username = 'Admin', role = 'admin' }) =
         <div className="theme-selector">
         <button 
           className="icon-btn theme-toggle" 
-            onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-            data-tooltip="Theme Options"
+            onClick={() => {
+              if (isCustomPalette) {
+                toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+              } else {
+                setThemeDropdownOpen(!themeDropdownOpen)
+              }
+            }}
+            data-tooltip={isCustomPalette ? 'Theme switching disabled (custom palette active)' : 'Theme Options'}
+            style={{
+              opacity: isCustomPalette ? 0.6 : 1,
+              cursor: isCustomPalette ? 'not-allowed' : 'pointer'
+            }}
         >
             {currentTheme && <currentTheme.icon />}
             <FiChevronDown className="dropdown-arrow" />
@@ -637,6 +660,17 @@ const Header: React.FC<HeaderProps> = ({ username = 'Admin', role = 'admin' }) =
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {isCustomPalette && (
+                  <div style={{ 
+                    padding: '12px 16px', 
+                    fontSize: '12px', 
+                    color: 'var(--color-gray-500)',
+                    borderBottom: '1px solid var(--color-gray-200)',
+                    textAlign: 'center'
+                  }}>
+                    Theme switching with custom color palettes is currently under development. This feature will be available in a future update.
+                  </div>
+                )}
                 {themeOptions.map((option) => {
                   const IconComponent = option.icon
                   return (
@@ -644,8 +678,18 @@ const Header: React.FC<HeaderProps> = ({ username = 'Admin', role = 'admin' }) =
                       key={option.value}
                       className={`theme-option ${theme === option.value ? 'active' : ''}`}
                       onClick={() => {
-                        setTheme(option.value as 'light' | 'dim' | 'dark')
-                        setThemeDropdownOpen(false)
+                        if (!isCustomPalette) {
+                          setTheme(option.value as 'light' | 'dim' | 'dark')
+                          setThemeDropdownOpen(false)
+                        } else {
+                          toast.error('Theme switching with custom color palettes is currently under development. This feature will be available in a future update. For now, please switch to the default palette in Settings to change themes.')
+                          setThemeDropdownOpen(false)
+                        }
+                      }}
+                      disabled={isCustomPalette}
+                      style={{
+                        opacity: isCustomPalette ? 0.5 : 1,
+                        cursor: isCustomPalette ? 'not-allowed' : 'pointer'
                       }}
                     >
                       <IconComponent />

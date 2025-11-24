@@ -154,23 +154,103 @@ export const applyColorPalette = (paletteId: string): void => {
   
   const palette = getColorPalette(paletteId)
   const root = document.documentElement
+  const currentTheme = root.getAttribute('data-theme') || 'light'
   
-  // Apply primary colors
+  // Apply primary colors to root
   root.style.setProperty('--color-primary-blue', palette.primary.blue)
   root.style.setProperty('--color-dark-blue', palette.primary.darkBlue)
   root.style.setProperty('--color-light-blue', palette.primary.lightBlue)
-  root.style.setProperty('--color-very-light-blue', palette.primary.veryLightBlue)
   
-  // Apply accent colors
+  // Apply accent colors to root
   root.style.setProperty('--color-primary-orange', palette.accent.orange)
   root.style.setProperty('--color-dark-orange', palette.accent.darkOrange)
   root.style.setProperty('--color-light-orange', palette.accent.lightOrange)
-  root.style.setProperty('--color-very-light-orange', palette.accent.veryLightOrange)
+  
+  // For very light colors, adjust based on theme
+  // In light mode, use the original very light colors
+  // In dark/dim mode, use darker versions for better contrast
+  let veryLightBlue: string
+  let veryLightOrange: string
+  
+  if (currentTheme === 'light') {
+    veryLightBlue = palette.primary.veryLightBlue
+    veryLightOrange = palette.accent.veryLightOrange
+  } else {
+    // For dark/dim mode, use slightly darker versions of the palette colors
+    // This ensures the palette colors work well in dark backgrounds
+    // Convert hex to RGB, darken it, then convert back
+    const darkenColor = (hex: string, factor: number = 0.5): string => {
+      const r = parseInt(hex.slice(1, 3), 16)
+      const g = parseInt(hex.slice(3, 5), 16)
+      const b = parseInt(hex.slice(5, 7), 16)
+      const newR = Math.max(0, Math.floor(r * (1 - factor)))
+      const newG = Math.max(0, Math.floor(g * (1 - factor)))
+      const newB = Math.max(0, Math.floor(b * (1 - factor)))
+      return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`
+    }
+    
+    // Use darker versions for dark/dim mode
+    veryLightBlue = darkenColor(palette.primary.blue, 0.5)
+    veryLightOrange = darkenColor(palette.accent.orange, 0.5)
+  }
+  
+  root.style.setProperty('--color-very-light-blue', veryLightBlue)
+  root.style.setProperty('--color-very-light-orange', veryLightOrange)
+  
+  // Inject a style element with higher specificity to override dim/dark mode rules
+  let styleElement = document.getElementById('color-palette-override') as HTMLStyleElement
+  if (!styleElement) {
+    styleElement = document.createElement('style')
+    styleElement.id = 'color-palette-override'
+    document.head.appendChild(styleElement)
+  }
+  
+  // Create CSS rules that override theme-specific colors when palette is active
+  styleElement.textContent = `
+    [data-palette="${paletteId}"] {
+      --color-primary-blue: ${palette.primary.blue} !important;
+      --color-dark-blue: ${palette.primary.darkBlue} !important;
+      --color-light-blue: ${palette.primary.lightBlue} !important;
+      --color-primary-orange: ${palette.accent.orange} !important;
+      --color-dark-orange: ${palette.accent.darkOrange} !important;
+      --color-light-orange: ${palette.accent.lightOrange} !important;
+      --color-very-light-blue: ${veryLightBlue} !important;
+      --color-very-light-orange: ${veryLightOrange} !important;
+    }
+    
+    [data-theme="dim"][data-palette="${paletteId}"] {
+      --color-very-light-blue: ${veryLightBlue} !important;
+      --color-very-light-orange: ${veryLightOrange} !important;
+    }
+    
+    [data-theme="dark"][data-palette="${paletteId}"] {
+      --color-very-light-blue: ${veryLightBlue} !important;
+      --color-very-light-orange: ${veryLightOrange} !important;
+    }
+  `
+  
+  // Also apply to data-palette attribute for CSS selector support
+  root.setAttribute('data-palette', paletteId)
 }
 
 // Initialize color palette on load
 if (typeof window !== 'undefined') {
   const savedPalette = getColorPalettePreference()
   applyColorPalette(savedPalette)
+  
+  // Re-apply palette when theme changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+        const currentPalette = getColorPalettePreference()
+        applyColorPalette(currentPalette)
+      }
+    })
+  })
+  
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  })
 }
 

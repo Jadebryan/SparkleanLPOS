@@ -93,7 +93,8 @@ body {
   --color-warning-bg: #78350F;
   --color-error-bg: #7F1D1D;
   
-  /* Override light backgrounds for dark mode */
+  /* Override light backgrounds for dark mode - will be overridden by palette if set */
+  /* These are fallback values if no palette is applied */
   --color-very-light-blue: #1E3A8A;
   --color-very-light-orange: #9A3412;
   
@@ -195,7 +196,8 @@ body {
   --color-warning-bg: #744210;
   --color-error-bg: #742A2A;
   
-  /* Override light backgrounds for dim mode */
+  /* Override light backgrounds for dim mode - will be overridden by palette if set */
+  /* These are fallback values if no palette is applied */
   --color-very-light-blue: #2A4A8A;
   --color-very-light-orange: #8B4513;
   
@@ -204,6 +206,12 @@ body {
   --color-bg-primary: var(--color-gray-50);
   --color-bg-secondary: var(--color-gray-200);
   --color-bg-tertiary: var(--color-gray-100);
+}
+
+/* Ensure palette colors override dim mode defaults */
+[data-theme="dim"][data-palette] {
+  /* Palette colors are applied via inline styles which have higher specificity */
+  /* This selector ensures the palette attribute is recognized */
 }
 
 [data-theme="dim"] body {
