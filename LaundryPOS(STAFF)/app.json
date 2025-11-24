@@ -1,6 +1,21 @@
 {
   "expo": {
     "scheme": "laundrypos-staff",
+    "name": "Laundry POS Staff",
+    "slug": "laundrypos-staff",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "jsEngine": "hermes",
     "plugins": [
       "expo-font",
       [
@@ -14,24 +29,42 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you upload images for orders and receipts.",
-          "cameraPermission": "The app accesses your camera to let you take photos for orders and receipts."
+          "photosPermission": "The app accesses your photos to upload images for orders and receipts.",
+          "cameraPermission": "The app accesses your camera to take photos for orders and receipts."
         }
       ]
     ],
     "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.laundrypos.staff",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "We need access to your photos to upload images for orders and receipts.",
         "NSCameraUsageDescription": "We need access to your camera to take photos for orders and receipts."
-      }
+      },
+      "jsEngine": "hermes"
     },
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.laundrypos.staff",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES"
-      ]
+      ],
+      "jsEngine": "hermes"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
     }
   }
 }

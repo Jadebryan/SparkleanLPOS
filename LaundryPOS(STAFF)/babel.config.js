@@ -1,5 +1,7 @@
 module.exports = function (api) {
   api.cache(true);
+  const isProduction = api.env('production');
+  
   return {
     presets: ['babel-preset-expo'],
     plugins: [
@@ -13,6 +15,12 @@ module.exports = function (api) {
           extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
         },
       ],
+      // Remove console.logs in production
+      ...(isProduction ? [
+        ['transform-remove-console', {
+          exclude: ['error', 'warn'] // Keep error and warn logs
+        }]
+      ] : []),
     ],
   };
 };

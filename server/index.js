@@ -8,6 +8,16 @@ const sslConfig = require("./configs/ssl");
 const httpsRedirect = require("./middleware/httpsRedirect");
 const requestLogger = require("./middleware/requestLogger");
 const logger = require("./utils/logger");
+const { validateEnvironment } = require("./utils/envValidator");
+
+// Validate environment variables on startup
+try {
+  validateEnvironment();
+} catch (error) {
+  logger.error('❌ Environment validation failed:', error.message);
+  logger.error('Please check your .env file and ensure all required variables are set.');
+  process.exit(1);
+}
 
 // Import routes
 const authRoutes = require("./routes/AuthRoutes");
@@ -28,22 +38,80 @@ const supportRoutes = require("./routes/SupportRoutes");
 
 const app = express();
 
-// Middleware
+// Security middleware (must be first)
+const helmet = require('helmet');
+const compression = require('compression');
+
+// Helmet security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  crossOriginEmbedderPolicy: false, // Allow external resources if needed
+}));
+
+// Compression middleware (compress responses)
+app.use(compression());
+
 // HTTPS redirect middleware (must be before other middleware)
 app.use(httpsRedirect);
 
 // Request logging middleware (log all HTTP requests)
 app.use(requestLogger);
 
-app.use(cors());
-// Increase body size limit to 50MB to handle base64 images
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Body parsing middleware
+// Reduced from 50MB to 10MB for better security
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static files (for emergency recovery page)
 app.use(express.static('public'));
 
+// Rate limiting middleware
+const { apiLimiter, authLimiter, sensitiveLimiter, uploadLimiter } = require('./middleware/rateLimiter');
+
+// Apply rate limiting to routes
+// The rate limiter itself handles skipping (health check, lock endpoints in dev, etc.)
+app.use("/api/", apiLimiter);
+
 // Routes
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", sensitiveLimiter);
+app.use("/api/auth/reset-password", sensitiveLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/customers", customerRoutes);
@@ -59,17 +127,48 @@ app.use("/api/backups", backupRoutes);
 app.use("/api/audit-logs", require("./routes/AuditLogRoutes"));
 app.use("/api/rbac", rbacRoutes);
 app.use("/api/system-settings", systemSettingRoutes);
-app.use("/api/upload", uploadRoutes);
+app.use("/api/upload", uploadLimiter, uploadRoutes);
 app.use("/api/support", supportRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
+// Enhanced health check endpoint
+app.get('/api/health', async (req, res) => {
+  const mongoose = require('mongoose');
+  
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB',
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024) + ' MB',
+    },
+    database: 'unknown',
+    version: require('./package.json').version,
+    environment: process.env.NODE_ENV || 'development',
+  };
+
+  // Check database connection
+  try {
+    await mongoose.connection.db.admin().ping();
+    health.database = 'connected';
+  } catch (error) {
+    health.database = 'disconnected';
+    health.status = 'unhealthy';
+  }
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
+
+// Error handling middleware (must be last)
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+
+// 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Global error handler
+app.use(errorHandler);
 
 // SMS test endpoint (for debugging)
 app.get('/api/test-sms', async (req, res) => {

@@ -76,7 +76,12 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes are automatically created by unique: true in schema
+// Indexes
+// Unique indexes are automatically created by unique: true in schema (email, username)
+// Additional indexes for query optimization
+userSchema.index({ role: 1, isActive: 1 }); // For filtering users by role and status
+userSchema.index({ stationId: 1 }); // For filtering users by station
+userSchema.index({ lastLogin: -1 }); // For sorting by last login
 
 // Virtual for account lock status
 userSchema.virtual('isLocked').get(function() {
