@@ -18,7 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import BrandIcon from '../components/BrandIcon';
 import GlobalStyles from "../styles/GlobalStyle";
-import designSystem, { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles, tabletUtils } from '@/app/theme/designSystem';
+import designSystem, { colors, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles, tabletUtils } from '@/app/theme/designSystem';
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
 
@@ -36,10 +36,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
 import { logger } from "@/utils/logger";
 import { useToast } from "@/app/context/ToastContext";
-import { ShimmerStatsCard } from "@/components/ui/ShimmerLoader";
 import InlineFilters, { FilterOption } from "@/components/ui/InlineFilters";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
-import { TodaySummary } from "@/components/ui/TodaySummary";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { useRouter } from "expo-router";
 
@@ -658,7 +656,7 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
         .preview-subtitle { color: #6B7280; font-size: 12px; margin-bottom: 12px; }
         .print-buttons { display: flex; gap: 8px; margin-bottom: 12px; }
         .btn { padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; }
-        .btn-primary { background: ${dynamicColors.primary[500]}; color: #FFFFFF; }
+        .btn-primary { background: #2563EB; color: #FFFFFF; }
         .container { background: #FFFFFF; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 10px; }
         .ticket { width: 58mm; margin: 0 auto; color: #111827; }
         .center { text-align: center; }
@@ -761,7 +759,6 @@ export default function Dashboard() {
   const [showDrafts, setShowDrafts] = useState(false);
   const [filterPayment, setFilterPayment] = useState("All");
   const [showFiltersModal, setShowFiltersModal] = useState(false);
-  const [showStats, setShowStats] = useState(true);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exportButtonLayout, setExportButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const exportButtonRef = useRef<any>(null);
@@ -932,33 +929,6 @@ export default function Dashboard() {
       clearInterval(interval);
     };
   }, [orders]);
-
-  // Load stats visibility preference from AsyncStorage
-  useEffect(() => {
-    const loadStatsPreference = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('order-management-show-stats');
-        if (saved !== null) {
-          setShowStats(JSON.parse(saved));
-        }
-      } catch (error) {
-        logger.error('Error loading stats preference:', error);
-      }
-    };
-    loadStatsPreference();
-  }, []);
-
-  // Save stats visibility preference to AsyncStorage
-  useEffect(() => {
-    const saveStatsPreference = async () => {
-      try {
-        await AsyncStorage.setItem('order-management-show-stats', JSON.stringify(showStats));
-      } catch (error) {
-        logger.error('Error saving stats preference:', error);
-      }
-    };
-    saveStatsPreference();
-  }, [showStats]);
 
   // Refresh orders when needed (e.g., after modal closes)
   useEffect(() => {
@@ -1685,17 +1655,57 @@ export default function Dashboard() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled={true}
         >
-          {/* Page Title Section */}
+          {/* Page Controls */}
           <View style={styles.pageHeader}>
-            <View style={styles.titleSection}>
-              <View style={styles.titleRow}>
-                <Ionicons name="clipboard-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
-                <View>
-                  <Text style={styles.pageTitle}>Order Management</Text>
-                  <Text style={styles.pageSubtitle}>View and manage all orders</Text>
+            <View style={styles.headerStats}>
+              <View style={styles.statItem}>
+                <Ionicons name="receipt-outline" size={16} color={dynamicColors.primary[500]} />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: dynamicColors.primary[500] }]}>{stats.totalOrders}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
                 </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="checkmark-circle-outline" size={16} color="#059669" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#059669' }]}>{stats.paidOrders}</Text>
+                  <Text style={styles.statLabel}>Paid</Text>
                 </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#DC2626' }]}>{stats.unpaidOrders}</Text>
+                  <Text style={styles.statLabel}>Unpaid</Text>
                 </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="cash-outline" size={16} color={dynamicColors.accent[500]} />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: dynamicColors.accent[500] }]}>₱{stats.totalRevenue.toFixed(0)}</Text>
+                  <Text style={styles.statLabel}>Revenue</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="time-outline" size={16} color="#F59E0B" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.pendingOrders}</Text>
+                  <Text style={styles.statLabel}>Pending</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="checkmark-done-outline" size={16} color="#059669" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#059669' }]}>{stats.completedOrders}</Text>
+                  <Text style={styles.statLabel}>Completed</Text>
+                </View>
+              </View>
+            </View>
             <View style={styles.headerActions}>
               <TouchableOpacity 
                 style={styles.actionButton}
@@ -1714,23 +1724,10 @@ export default function Dashboard() {
                 >
                   <Ionicons 
                     name="refresh" 
-                    size={18} 
+                    size={16} 
                     color={refreshing ? "#9CA3AF" : "#6B7280"}
                   />
                 </Animated.View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
-                onPress={() => setShowStats(!showStats)}
-              >
-                <Ionicons 
-                  name={showStats ? "eye-outline" : "eye-off-outline"} 
-                  size={18} 
-                  color={showStats ? "#374151" : dynamicColors.primary[500]} 
-                />
-                <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
-                  Stats
-                </Text>
               </TouchableOpacity>
               <View style={styles.exportDropdownContainer}>
                 <TouchableOpacity
@@ -1747,9 +1744,9 @@ export default function Dashboard() {
                     }
                   }}
                 >
-                  <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+                  <Ionicons name="download-outline" size={16} color="#FFFFFF" />
                   <Text style={[styles.exportButtonText, dynamicButtonStyles.primaryText]}>Export</Text>
-                  <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                  <Ionicons name="chevron-down" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
@@ -1759,69 +1756,11 @@ export default function Dashboard() {
                   setIsCreateOrderModalOpen(true);
                 }}
               >
-                <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
                 <Text style={[styles.createOrderButtonText, dynamicButtonStyles.primaryText]}>Create Order</Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Today's Summary */}
-          {showStats && (
-            loading ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <ShimmerStatsCard key={index} />
-                ))}
-              </View>
-            ) : (
-              <TodaySummary
-                stats={[
-                  {
-                    label: 'Total Orders',
-                    value: stats.totalOrders,
-                    icon: 'receipt-outline',
-                    color: dynamicColors.primary[500],
-                    onPress: () => setFilterPayment('All'),
-                  },
-                  {
-                    label: 'Paid Orders',
-                    value: stats.paidOrders,
-                    icon: 'checkmark-circle-outline',
-                    color: colors.success[500],
-                    trend: stats.totalOrders > 0 
-                      ? { value: Math.round((stats.paidOrders / stats.totalOrders) * 100), isPositive: true }
-                      : undefined,
-                    onPress: () => setFilterPayment('Paid'),
-                  },
-                  {
-                    label: 'Unpaid Orders',
-                    value: stats.unpaidOrders,
-                    icon: 'close-circle-outline',
-                    color: colors.error[500],
-                    onPress: () => setFilterPayment('Unpaid'),
-                  },
-                  {
-                    label: 'Total Revenue',
-                    value: `₱${stats.totalRevenue.toFixed(2)}`,
-                    icon: 'cash-outline',
-                    color: colors.success[600],
-                  },
-                  {
-                    label: 'Pending',
-                    value: stats.pendingOrders,
-                    icon: 'time-outline',
-                    color: colors.warning[500],
-                  },
-                  {
-                    label: 'Completed',
-                    value: stats.completedOrders,
-                    icon: 'checkmark-done-outline',
-                    color: colors.success[600],
-                  },
-                ]}
-              />
-            )
-          )}
 
           {/* Search and Filter Section */}
           <View style={styles.searchSection}>
@@ -2282,28 +2221,55 @@ const styles = StyleSheet.create({
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: spacing.xl,
+    gap: spacing.md,
+    flexWrap: 'wrap',
   },
-  titleSection: {
-    flex: 1,
-  },
-  titleRow: {
+  headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    flexWrap: 'wrap',
   },
-  pageTitle: {
-    ...typography.h1,
-    marginBottom: spacing.xs,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  pageSubtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
+  statContent: {
+    flexDirection: 'column',
+    gap: 1,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#E5E7EB',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
+    flexShrink: 0,
   },
   resetButton: {
     ...buttonStyles.secondary,
@@ -2312,43 +2278,19 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    minWidth: 40,
+    minHeight: 40,
   },
   refreshingButton: {
     opacity: 0.6,
   },
   resetButtonText: {
     ...buttonStyles.secondaryText,
-  },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#EFF6FF',
-    // borderColor: '#2563EB', // Now using dynamic color via inline style
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Poppins_500Medium',
-  },
-  toggleButtonTextActive: {
-    // color: '#2563EB', // Now using dynamic color via inline style
-    fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
   },
   exportButton: {
     // ...buttonStyles.primary, // Now using dynamic button styles

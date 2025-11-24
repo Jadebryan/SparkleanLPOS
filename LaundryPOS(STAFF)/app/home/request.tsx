@@ -24,7 +24,7 @@ import { API_BASE_URL } from '@/constants/api';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadImageToCloudinary, uploadImagesToCloudinary } from '@/utils/cloudinaryUpload';
-import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { colors, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { useToast } from '@/app/context/ToastContext';
@@ -67,7 +67,6 @@ export default function Request() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Approved' | 'Rejected' | 'Appealed'>('All');
-  const [showStats, setShowStats] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
   
@@ -104,33 +103,6 @@ export default function Request() {
 
   // Ref for file input (for web)
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Load stats visibility preference from AsyncStorage
-  useEffect(() => {
-    const loadStatsPreference = async () => {
-    try {
-        const saved = await AsyncStorage.getItem('request-management-show-stats');
-        if (saved !== null) {
-          setShowStats(JSON.parse(saved));
-        }
-      } catch (error) {
-        console.error('Error loading stats preference:', error);
-      }
-    };
-    loadStatsPreference();
-  }, []);
-
-  // Save stats visibility preference to AsyncStorage
-  useEffect(() => {
-    const saveStatsPreference = async () => {
-    try {
-        await AsyncStorage.setItem('request-management-show-stats', JSON.stringify(showStats));
-      } catch (error) {
-        console.error('Error saving stats preference:', error);
-      }
-  };
-    saveStatsPreference();
-  }, [showStats]);
 
   useEffect(() => {
     fetchExpenses();
@@ -1145,16 +1117,69 @@ export default function Request() {
         <Header title="Money Request" />
 
 
-        {/* Page Header */}
+        {/* Page Controls */}
         <View style={styles.pageHeader}>
-          <View style={styles.titleSection}>
-            <Ionicons name="receipt-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.pageTitle}>Money Request</Text>
-              <Text style={styles.pageSubtitle}>Submit and track your money requests</Text>
+          <View style={styles.headerStats}>
+            <View style={styles.statItem}>
+              <Ionicons name="time-outline" size={16} color="#F59E0B" />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: '#F59E0B' }]}>
+                  {expenses.filter(e => e.status === 'Pending').length}
+                </Text>
+                <Text style={styles.statLabel}>Pending</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="checkmark-circle-outline" size={16} color="#10B981" />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>
+                  {expenses.filter(e => e.status === 'Approved').length}
+                </Text>
+                <Text style={styles.statLabel}>Approved</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="close-circle-outline" size={16} color="#EF4444" />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: '#EF4444' }]}>
+                  {expenses.filter(e => e.status === 'Rejected').length}
+                </Text>
+                <Text style={styles.statLabel}>Rejected</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="cash-outline" size={16} color={dynamicColors.primary[500]} />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: dynamicColors.primary[500] }]}>
+                  ₱{expenses.reduce((sum, e) => sum + (e.status === 'Approved' ? e.amount : 0), 0).toFixed(0)}
+                </Text>
+                <Text style={styles.statLabel}>Total Approved</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="document-text-outline" size={16} color={dynamicColors.accent[500]} />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: dynamicColors.accent[500] }]}>
+                  {expenses.length}
+                </Text>
+                <Text style={styles.statLabel}>Total Requests</Text>
+              </View>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Ionicons name="alert-circle-outline" size={16} color="#7C3AED" />
+              <View style={styles.statContent}>
+                <Text style={[styles.statValue, { color: '#7C3AED' }]}>
+                  {expenses.filter(e => e.status === 'Appealed').length}
+                </Text>
+                <Text style={styles.statLabel}>Appealed</Text>
+              </View>
             </View>
           </View>
-
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <TouchableOpacity 
               style={styles.actionButton} 
@@ -1173,25 +1198,10 @@ export default function Request() {
               >
                 <Ionicons 
                   name="refresh" 
-                  size={18} 
+                  size={16} 
                   color={refreshing ? "#9CA3AF" : "#6B7280"}
                 />
               </Animated.View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
-              onPress={() => setShowStats(!showStats)}
-              accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
-              accessibilityRole="button"
-            >
-              <Ionicons 
-                name={showStats ? "eye-outline" : "eye-off-outline"} 
-                size={18} 
-                color={showStats ? "#374151" : dynamicColors.primary[500]} 
-              />
-              <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
-                Stats
-              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewToggleButton, viewMode === 'grid' && [styles.viewToggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
@@ -1200,7 +1210,7 @@ export default function Request() {
               accessibilityRole="button"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="grid-outline" size={20} color={viewMode === 'grid' ? dynamicColors.primary[500] : '#6B7280'} />
+              <Ionicons name="grid-outline" size={18} color={viewMode === 'grid' ? dynamicColors.primary[500] : '#6B7280'} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewToggleButton, viewMode === 'list' && [styles.viewToggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
@@ -1209,7 +1219,7 @@ export default function Request() {
               accessibilityRole="button"
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="list-outline" size={20} color={viewMode === 'list' ? dynamicColors.primary[500] : '#6B7280'} />
+              <Ionicons name="list-outline" size={18} color={viewMode === 'list' ? dynamicColors.primary[500] : '#6B7280'} />
             </TouchableOpacity>
             <TouchableOpacity 
             style={[styles.addButton, dynamicButtonStyles.primary]}
@@ -1218,61 +1228,11 @@ export default function Request() {
             accessibilityRole="button"
             accessibilityHint="Opens a form to submit a new money request"
           >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Ionicons name="add" size={16} color="#FFFFFF" />
             <Text style={[styles.addButtonText, dynamicButtonStyles.primaryText]}>New Request</Text>
           </TouchableOpacity>
           </View>
         </View>
-
-        {/* Summary Cards */}
-        {!loading && expenses.length > 0 && showStats && (
-          <View style={styles.summaryContainer}>
-            <View style={[styles.summaryCard, { borderLeftColor: '#F59E0B' }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="time-outline" size={20} color="#F59E0B" />
-              </View>
-              <View style={styles.summaryContent}>
-                <Text style={styles.summaryValue}>
-                  {expenses.filter(e => e.status === 'Pending').length}
-                </Text>
-                <Text style={styles.summaryLabel}>Pending</Text>
-              </View>
-            </View>
-            <View style={[styles.summaryCard, { borderLeftColor: '#10B981' }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: '#D1FAE5' }]}>
-                <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
-              </View>
-              <View style={styles.summaryContent}>
-                <Text style={styles.summaryValue}>
-                  {expenses.filter(e => e.status === 'Approved').length}
-                </Text>
-                <Text style={styles.summaryLabel}>Approved</Text>
-              </View>
-            </View>
-            <View style={[styles.summaryCard, { borderLeftColor: '#EF4444' }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
-              </View>
-              <View style={styles.summaryContent}>
-                <Text style={styles.summaryValue}>
-                  {expenses.filter(e => e.status === 'Rejected').length}
-                </Text>
-                <Text style={styles.summaryLabel}>Rejected</Text>
-              </View>
-            </View>
-            <View style={[styles.summaryCard, { borderLeftColor: dynamicColors.primary[400] }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: dynamicColors.primary[50] }]}>
-                <Ionicons name="cash-outline" size={20} color={dynamicColors.primary[400]} />
-              </View>
-              <View style={styles.summaryContent}>
-                <Text style={styles.summaryValue}>
-                  ₱{expenses.reduce((sum, e) => sum + (e.status === 'Approved' ? e.amount : 0), 0).toFixed(2)}
-                </Text>
-                <Text style={styles.summaryLabel}>Total Approved</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* Search and Filters */}
         {!loading && expenses.length > 0 && (
@@ -2062,19 +2022,47 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    gap: 12,
+    flexWrap: 'wrap',
   },
-  titleSection: {
+  headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     flex: 1,
+    flexWrap: 'wrap',
   },
-  pageTitle: {
-    ...typography.h2,
-    marginBottom: spacing.xs,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  pageSubtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
+  statContent: {
+    flexDirection: 'column',
+    gap: 1,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#E5E7EB',
   },
   addButton: {
     // ...buttonStyles.primary, // Now using dynamic button styles
@@ -2083,9 +2071,9 @@ const styles = StyleSheet.create({
     // ...buttonStyles.primaryText, // Now using dynamic button styles
   },
   viewToggleButton: {
-    minWidth: 44,
-    minHeight: 44,
-    padding: 10,
+    minWidth: 40,
+    minHeight: 40,
+    padding: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -2100,84 +2088,13 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
-    minHeight: 44,
-    minWidth: 44,
-    justifyContent: 'center',
-  },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 44,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#EFF6FF',
-    // borderColor: '#2563EB', // Now using dynamic color via inline style
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    fontFamily: 'Poppins_500Medium',
-  },
-  toggleButtonTextActive: {
-    // color: '#2563EB', // Now using dynamic color via inline style
-    fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
-  },
-  summaryContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  summaryCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderLeftWidth: 4,
-    gap: 12,
-  },
-  summaryIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  summaryContent: {
-    flex: 1,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    fontFamily: 'Poppins_700Bold',
-    marginBottom: 2,
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontFamily: 'Poppins_400Regular',
+    minHeight: 40,
+    minWidth: 40,
   },
   filtersContainer: {
     backgroundColor: '#FFFFFF',

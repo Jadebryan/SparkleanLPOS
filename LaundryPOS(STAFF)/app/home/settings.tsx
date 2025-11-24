@@ -8,7 +8,7 @@ import { API_BASE_URL } from '@/constants/api';
 import GlobalStyles from "../styles/GlobalStyle";
 import ModernSidebar from './components/ModernSidebar';
 import Header from './components/Header';
-import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, inputStyles } from '@/app/theme/designSystem';
+import { colors, spacing, borderRadius, cardStyles, buttonStyles, inputStyles } from '@/app/theme/designSystem';
 import {
   colorPalettes,
   getColorPalettePreference,
@@ -642,17 +642,6 @@ export default function Settings() {
           contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Page Header */}
-          <View style={styles.pageHeader}>
-            <View style={styles.titleRow}>
-              <Ionicons name="settings-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
-              <View>
-                <Text style={[styles.pageTitle, { color: dynamicColors.primary[500] }]}>Settings</Text>
-                <Text style={styles.pageSubtitle}>Manage your profile, email, and security</Text>
-              </View>
-            </View>
-          </View>
-
           <View style={styles.settingsContainer}>
             {/* Sidebar Tabs */}
             <View style={styles.settingsSidebar}>
@@ -1522,21 +1511,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     fontFamily: 'Poppins_400Regular',
-  },
-  pageHeader: {
-    marginBottom: 16,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pageTitle: {
-    ...typography.h1,
-    marginBottom: spacing.xs,
-  },
-  pageSubtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
   },
   currentEmailValue: {
     fontSize: 16,

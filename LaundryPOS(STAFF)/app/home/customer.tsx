@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
-import { colors, typography, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
+import { colors, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -24,7 +24,6 @@ import {
 } from '@/utils/exportUtils';
 import { useToast } from '@/app/context/ToastContext';
 import { EnhancedEmptyCustomers } from '@/components/ui/EnhancedEmptyState';
-import { ShimmerStatsCard } from '@/components/ui/ShimmerLoader';
 import { FloatingActionButton } from '@/components/ui/FloatingActionButton';
 
 type Customer = {
@@ -47,7 +46,6 @@ export default function Customer() {
   const [refreshing, setRefreshing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [showStats, setShowStats] = useState(true);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exportButtonLayout, setExportButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const exportButtonRef = useRef<any>(null);
@@ -60,33 +58,6 @@ export default function Customer() {
   const { hasPermission: hasPermissionFor } = usePermissions();
   const canArchiveCustomers = hasPermissionFor('customers', 'archive');
   const canUnarchiveCustomers = hasPermissionFor('customers', 'unarchive');
-
-  // Load stats visibility preference from AsyncStorage
-  useEffect(() => {
-    const loadStatsPreference = async () => {
-      try {
-        const saved = await AsyncStorage.getItem('customer-management-show-stats');
-        if (saved !== null) {
-          setShowStats(JSON.parse(saved));
-        }
-      } catch (error) {
-        console.error('Error loading stats preference:', error);
-      }
-    };
-    loadStatsPreference();
-  }, []);
-
-  // Save stats visibility preference to AsyncStorage
-  useEffect(() => {
-    const saveStatsPreference = async () => {
-      try {
-        await AsyncStorage.setItem('customer-management-show-stats', JSON.stringify(showStats));
-      } catch (error) {
-        console.error('Error saving stats preference:', error);
-      }
-    };
-    saveStatsPreference();
-  }, [showStats]);
 
   // Calculate stats
   const totalCustomers = customers.length;
@@ -236,54 +207,72 @@ export default function Customer() {
             </View>
           )}
 
-          {/* Page Header */}
+          {/* Page Controls */}
           <View style={styles.pageHeader}>
-          <View style={styles.titleSection}>
-            <Ionicons name="people-outline" size={28} color="#111827" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.pageTitle}>Customer Management</Text>
-              <Text style={styles.pageSubtitle}>Manage customer information and relationships</Text>
+            <View style={styles.headerStats}>
+              <View style={styles.statItem}>
+                <Ionicons name="people-outline" size={16} color={dynamicColors.primary[500]} />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: dynamicColors.primary[500] }]}>{totalCustomers}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="calendar-outline" size={16} color="#F59E0B" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#F59E0B' }]}>{newThisMonth}</Text>
+                  <Text style={styles.statLabel}>New This Month</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="cash-outline" size={16} color={dynamicColors.accent[500]} />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: dynamicColors.accent[500] }]}>₱{totalRevenue.toFixed(0)}</Text>
+                  <Text style={styles.statLabel}>Revenue</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="receipt-outline" size={16} color="#059669" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#059669' }]}>{totalOrders}</Text>
+                  <Text style={styles.statLabel}>Total Orders</Text>
+                </View>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="trending-up-outline" size={16} color="#7C3AED" />
+                <View style={styles.statContent}>
+                  <Text style={[styles.statValue, { color: '#7C3AED' }]}>₱{Math.round(avgOrderValue)}</Text>
+                  <Text style={styles.statLabel}>Avg Order</Text>
+                </View>
+              </View>
             </View>
-          </View>
-
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={styles.actionButton} 
-              onPress={handleReset}
-              disabled={isRefreshing}
-            >
-              <Animated.View
-                style={{
-                  transform: [{
-                    rotate: spinValue.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg'],
-                    }),
-                  }],
-                }}
+            <View style={styles.headerActions}>
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={handleReset}
+                disabled={isRefreshing}
               >
-                <Ionicons 
-                  name="refresh" 
-                  size={18} 
-                  color={isRefreshing ? "#9CA3AF" : "#6B7280"}
-                />
-              </Animated.View>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toggleButton, !showStats && [styles.toggleButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
-              onPress={() => setShowStats(!showStats)}
-              accessibilityLabel={showStats ? "Hide stats" : "Show stats"}
-              accessibilityRole="button"
-            >
-              <Ionicons 
-                name={showStats ? "eye-outline" : "eye-off-outline"} 
-                size={18} 
-                color={showStats ? "#374151" : dynamicColors.primary[500]} 
-              />
-              <Text style={[styles.toggleButtonText, !showStats && { color: dynamicColors.primary[500] }]}>
-                Stats
-              </Text>
-            </TouchableOpacity>
+                <Animated.View
+                  style={{
+                    transform: [{
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg'],
+                      }),
+                    }],
+                  }}
+                >
+                  <Ionicons 
+                    name="refresh" 
+                    size={16} 
+                    color={isRefreshing ? "#9CA3AF" : "#6B7280"}
+                  />
+                </Animated.View>
+              </TouchableOpacity>
             <View style={styles.exportDropdownContainer}>
               <TouchableOpacity 
                 ref={exportButtonRef}
@@ -299,70 +288,17 @@ export default function Customer() {
                   }
                 }}
               >
-                <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+                <Ionicons name="download-outline" size={16} color="#FFFFFF" />
                 <Text style={[styles.exportButtonText, dynamicButtonStyles.primaryText]}>Export</Text>
-                <Ionicons name="chevron-down" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                <Ionicons name="chevron-down" size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={[styles.primaryButton, dynamicButtonStyles.primary]} onPress={() => setIsAddModalOpen(true)}>
-              <Ionicons name="person-add-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="person-add-outline" size={16} color="#FFFFFF" />
               <Text style={[styles.primaryButtonText, dynamicButtonStyles.primaryText]}>Add Customer</Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Stats Grid */}
-        {showStats && (
-          loading ? (
-            <View style={styles.statsGrid}>
-              {Array.from({ length: 4 }).map((_, index) => (
-                <ShimmerStatsCard key={index} />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.statsGrid}>
-              <View style={[styles.statCard, styles.statCardBlue, { borderLeftColor: dynamicColors.primary[500] }]}>
-                <View style={[styles.statIcon, styles.statIconBlue, { backgroundColor: dynamicColors.primary[50] }]}>
-                  <Ionicons name="folder-outline" size={24} color={dynamicColors.primary[500]} />
-                </View>
-                <View>
-                  <Text style={styles.statNumber}>{totalCustomers}</Text>
-                  <Text style={styles.statLabel}>Total Customers</Text>
-                </View>
-              </View>
-
-              <View style={[styles.statCard, styles.statCardOrange]}>
-                <View style={[styles.statIcon, styles.statIconOrange]}>
-                  <Ionicons name="calendar-outline" size={24} color="#F59E0B" />
-                </View>
-                <View>
-                  <Text style={styles.statNumber}>{newThisMonth}</Text>
-                  <Text style={styles.statLabel}>New This Month</Text>
-                </View>
-              </View>
-
-              <View style={[styles.statCard, styles.statCardGreen]}>
-                <View style={[styles.statIcon, styles.statIconGreen]}>
-                  <Ionicons name="cash-outline" size={24} color="#059669" />
-                </View>
-                <View>
-                  <Text style={styles.statNumber}>₱{totalRevenue.toLocaleString()}</Text>
-                  <Text style={styles.statLabel}>Total Revenue</Text>
-                </View>
-              </View>
-
-              <View style={[styles.statCard, styles.statCardPurple]}>
-                <View style={[styles.statIcon, styles.statIconPurple]}>
-                  <Ionicons name="bar-chart-outline" size={24} color="#7C3AED" />
-                </View>
-                <View>
-                  <Text style={styles.statNumber}>₱{Math.round(avgOrderValue)}</Text>
-                  <Text style={styles.statLabel}>Avg. Order Value</Text>
-                </View>
-              </View>
-            </View>
-          )
-        )}
 
           {/* Search and Filter Bar - scroll disabled to allow parent ScrollView to handle scrolling */}
           <CustomerTable 
@@ -490,38 +426,69 @@ const styles = StyleSheet.create({
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     padding: spacing.xl,
     backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
+    gap: spacing.md,
+    flexWrap: 'wrap',
   },
-  titleSection: {
-    flex: 1,
+  headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    flexWrap: 'wrap',
   },
-  pageTitle: {
-    ...typography.h2,
-    marginBottom: spacing.xs,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  pageSubtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
+  statContent: {
+    flexDirection: 'column',
+    gap: 1,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#E5E7EB',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    flexShrink: 0,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    minWidth: 40,
+    minHeight: 40,
   },
   actionButtonText: {
     fontSize: 14,
@@ -538,92 +505,8 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  statCard: {
-    flex: 1,
-    minWidth: 180,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statCardBlue: {
-    // borderLeftColor: '#2563EB', // Now using dynamic color via inline style
-  },
-  statCardOrange: {
-    borderLeftColor: '#F59E0B',
-  },
-  statCardGreen: {
-    borderLeftColor: '#059669',
-  },
-  statCardPurple: {
-    borderLeftColor: '#7C3AED',
-  },
-  statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  statIconBlue: {
-    backgroundColor: '#EFF6FF',
-  },
-  statIconOrange: {
-    backgroundColor: '#FFFBEB',
-  },
-  statIconGreen: {
-    backgroundColor: '#ECFDF5',
-  },
-  statIconPurple: {
-    backgroundColor: '#F5F3FF',
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-    fontFamily: 'Poppins_700Bold',
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-    fontFamily: 'Poppins_500Medium',
-  },
   actionButtonActive: {
     backgroundColor: '#E0F2FE',
-  },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  toggleButtonActive: {
-    // backgroundColor: '#EFF6FF', // Now using dynamic color via inline style
-    // borderColor: '#2563EB', // Now using dynamic color via inline style
   },
   toggleButtonText: {
     fontSize: 14,

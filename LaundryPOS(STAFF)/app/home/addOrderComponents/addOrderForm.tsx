@@ -1822,19 +1822,6 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       )}
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Page Header - Only show when not in modal mode */}
-        {!isModal && (
-        <View style={styles.pageHeader}>
-          <View style={styles.titleSection}>
-            <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
-            <View>
-              <Text style={[styles.pageTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
-              <Text style={styles.pageSubtitle}>Process new customer request</Text>
-            </View>
-          </View>
-        </View>
-        )}
-
         {/* Two Column Layout */}
         <View style={styles.twoColumnLayout}>
           {/* Left Column - Form */}
@@ -2469,24 +2456,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  pageHeader: {
-    padding: spacing.xl,
-    backgroundColor: colors.background.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-  },
-  titleSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pageTitle: {
-    ...typography.h2,
-    marginBottom: spacing.xs,
-  },
-  pageSubtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
   },
   twoColumnLayout: {
     flexDirection: 'row',

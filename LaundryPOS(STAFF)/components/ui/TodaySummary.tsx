@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: '45%',
+    minWidth: '30%',
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
