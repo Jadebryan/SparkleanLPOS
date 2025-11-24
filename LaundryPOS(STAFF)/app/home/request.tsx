@@ -1617,8 +1617,11 @@ export default function Request() {
                   opacity: addModalOpacity,
                 },
               ]}
-              onStartShouldSetResponder={() => true}
             >
+              <Pressable
+                onPress={(e) => e.stopPropagation()}
+                style={{ flex: 1 }}
+              >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="add-circle-outline" size={24} color={dynamicColors.primary[500]} />
@@ -1765,11 +1768,12 @@ export default function Request() {
                       <Text style={styles.submitButtonText}>Submit Request</Text>
                     </>
                   )}
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
+            </View>
+              </Pressable>
             </Animated.View>
-          </Pressable>
-        </Modal>
+        </Pressable>
+      </Modal>
 
         {/* Upload Receipt Modal */}
         <Modal
@@ -1790,8 +1794,11 @@ export default function Request() {
                   opacity: receiptModalOpacity,
                 },
               ]}
-              onStartShouldSetResponder={() => true}
             >
+              <Pressable
+                onPress={(e) => e.stopPropagation()}
+                style={{ flex: 1 }}
+              >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="receipt-outline" size={24} color={dynamicColors.primary[500]} />
@@ -1872,6 +1879,7 @@ export default function Request() {
                   )}
                 </TouchableOpacity>
               </View>
+              </Pressable>
             </Animated.View>
           </Pressable>
         </Modal>
@@ -1895,8 +1903,11 @@ export default function Request() {
                   opacity: appealModalOpacity,
                 },
               ]}
-              onStartShouldSetResponder={() => true}
             >
+              <Pressable
+                onPress={(e) => e.stopPropagation()}
+                style={{ flex: 1 }}
+              >
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleContainer}>
                   <Ionicons name="alert-circle-outline" size={24} color={dynamicColors.primary[400]} />
@@ -2033,6 +2044,7 @@ export default function Request() {
                   )}
                 </TouchableOpacity>
               </View>
+              </Pressable>
             </Animated.View>
           </Pressable>
         </Modal>

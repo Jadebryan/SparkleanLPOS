@@ -277,8 +277,11 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 opacity: modalOpacity,
               },
             ]}
-            onStartShouldSetResponder={() => true}
           >
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{ flex: 1 }}
+            >
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleContainer}>
                 <Ionicons name="person-add-outline" size={24} color={dynamicColors.primary[500]} />
@@ -405,6 +408,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
                 )}
               </TouchableOpacity>
             </View>
+            </Pressable>
           </Animated.View>
         </KeyboardAvoidingView>
       </Pressable>
@@ -558,16 +562,18 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 12,
-    padding: 20,
+    padding: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#F9FAFB',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
   button: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
     gap: 8,

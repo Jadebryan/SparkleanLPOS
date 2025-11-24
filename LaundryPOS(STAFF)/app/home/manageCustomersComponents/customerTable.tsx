@@ -13,6 +13,8 @@ import {
   FlatList,
   RefreshControl,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import { Dropdown } from 'react-native-element-dropdown';
@@ -81,6 +83,10 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   // Animate edit modal (matching Admin app style)
   useEffect(() => {
     if (editModalVisible) {
+      // Reset to initial values first
+      editModalOpacity.setValue(0);
+      editModalScale.setValue(0.9);
+      // Then animate
       Animated.parallel([
         Animated.timing(editModalOpacity, {
           toValue: 1,
@@ -597,39 +603,46 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       {/* Edit Customer Modal */}
       <Modal
         visible={editModalVisible}
-        transparent
-        animationType="slide"
+        transparent={true}
+        animationType="fade"
         onRequestClose={() => setEditModalVisible(false)}
       >
         <Pressable
           style={styles.modalOverlay}
           onPress={() => setEditModalVisible(false)}
         >
-          <Animated.View
-            style={[
-              styles.modalContent,
-              {
-                transform: [{ scale: editModalScale }],
-                opacity: editModalOpacity,
-              },
-            ]}
-            onStartShouldSetResponder={() => true}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.keyboardView}
           >
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleContainer}>
-                <Ionicons name="pencil-outline" size={24} color={dynamicColors.primary[500]} />
-                <View>
-                  <Text style={styles.modalTitle}>Edit Customer</Text>
-                  <Text style={styles.modalSubtitle}>Update customer information</Text>
+            <Pressable 
+              onPress={(e) => e.stopPropagation()}
+              style={{ width: '100%', maxWidth: 600, alignSelf: 'center' }}
+            >
+              <Animated.View
+                style={[
+                  styles.modalContent,
+                  {
+                    transform: [{ scale: editModalScale }],
+                    opacity: editModalOpacity,
+                  },
+                ]}
+              >
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalTitleContainer}>
+                    <Ionicons name="pencil-outline" size={24} color={dynamicColors.primary[500]} />
+                    <View>
+                      <Text style={styles.modalTitle}>Edit Customer</Text>
+                      <Text style={styles.modalSubtitle}>Update customer information</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#6B7280" />
+                  </TouchableOpacity>
                 </View>
-              </View>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
 
-            {selectedCustomer && (
-              <View style={styles.modalBody}>
+                {selectedCustomer && (
+                  <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                 <View style={styles.formGrid}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Full Name *</Text>
@@ -688,26 +701,28 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   <Text style={styles.formNoteText}>
                     💡 <Text style={styles.formNoteBold}>Note:</Text> Make sure all required fields are filled correctly before updating.
                   </Text>
-                </View>
-              </View>
-            )}
+                  </View>
+                  </ScrollView>
+                )}
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setEditModalVisible(false)}
-              >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave, { backgroundColor: dynamicColors.primary[500] }]}
-                onPress={handleUpdate}
-              >
-                <Ionicons name="save-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.modalButtonSaveText}>Update Customer</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={() => setEditModalVisible(false)}
+                  >
+                    <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonSave, { backgroundColor: dynamicColors.primary[500] }]}
+                    onPress={handleUpdate}
+                  >
+                    <Ionicons name="save-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.modalButtonSaveText}>Update Customer</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </View>
@@ -876,17 +891,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  keyboardView: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
   modalContent: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     width: '100%',
     maxWidth: 600,
     maxHeight: '90%',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.3,
     shadowRadius: 25,
-    elevation: 8,
+    elevation: 10,
+    alignSelf: 'center',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1102,19 +1125,20 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 12,
-    padding: 20,
+    padding: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#F9FAFB',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
   modalButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    gap: 6,
   },
   modalButtonClose: {
     backgroundColor: '#F3F4F6',
