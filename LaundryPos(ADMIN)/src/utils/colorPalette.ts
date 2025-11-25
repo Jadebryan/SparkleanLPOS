@@ -111,22 +111,22 @@ const loadCustomPalettes = (): ColorPalette[] => {
 export const colorPalettes: ColorPalette[] = [
   {
     id: 'default',
-    name: 'Sparklean Blue & Orange',
+    name: 'Sparklean Orange & Blue',
     description: 'The classic Sparklean brand colors',
     type: 'preset',
     primary: {
-      blue: '#2563EB',
-      darkBlue: '#1D4ED8',
-      lightBlue: '#3B82F6',
-      veryLightBlue: '#DBEAFE',
+      blue: '#F97316',
+      darkBlue: '#EA580C',
+      lightBlue: '#FB923C',
+      veryLightBlue: '#FED7AA',
     },
     accent: {
-      orange: '#EA580C',
-      darkOrange: '#C2410C',
-      lightOrange: '#FB923C',
-      veryLightOrange: '#FED7AA',
+      orange: '#2563EB',
+      darkOrange: '#1D4ED8',
+      lightOrange: '#3B82F6',
+      veryLightOrange: '#DBEAFE',
     },
-    preview: ['#2563EB', '#EA580C'],
+    preview: ['#F97316', '#2563EB'],
   },
   {
     id: 'ocean',
@@ -145,7 +145,7 @@ export const colorPalettes: ColorPalette[] = [
       lightOrange: '#2DD4BF',
       veryLightOrange: '#CCFBF1',
     },
-    preview: ['#0891B2', '#14B8A6'],
+    preview: ['#14B8A6', '#0891B2'],
   },
   {
     id: 'forest',
@@ -164,7 +164,7 @@ export const colorPalettes: ColorPalette[] = [
       lightOrange: '#FBBF24',
       veryLightOrange: '#FEF3C7',
     },
-    preview: ['#059669', '#F59E0B'],
+    preview: ['#F59E0B', '#059669'],
   },
   {
     id: 'purple',
@@ -183,7 +183,7 @@ export const colorPalettes: ColorPalette[] = [
       lightOrange: '#F472B6',
       veryLightOrange: '#FCE7F3',
     },
-    preview: ['#7C3AED', '#EC4899'],
+    preview: ['#EC4899', '#7C3AED'],
   },
   {
     id: 'sunset',
@@ -202,7 +202,7 @@ export const colorPalettes: ColorPalette[] = [
       lightOrange: '#FB923C',
       veryLightOrange: '#FED7AA',
     },
-    preview: ['#DC2626', '#F97316'],
+    preview: ['#F97316', '#DC2626'],
   },
   {
     id: 'midnight',
@@ -221,7 +221,7 @@ export const colorPalettes: ColorPalette[] = [
       lightOrange: '#FBBF24',
       veryLightOrange: '#FEF3C7',
     },
-    preview: ['#1E40AF', '#F59E0B'],
+    preview: ['#F59E0B', '#1E40AF'],
   },
 ]
 
@@ -249,7 +249,7 @@ const buildCustomPalette = (input: CustomPaletteInput, paletteId?: string): Colo
   type: 'custom',
   primary: createPrimaryScale(input.primaryColor),
   accent: createAccentScale(input.accentColor),
-  preview: [normalizeHex(input.primaryColor), normalizeHex(input.accentColor)],
+  preview: [normalizeHex(input.accentColor), normalizeHex(input.primaryColor)],
   metadata: {
     primarySource: normalizeHex(input.primaryColor),
     accentSource: normalizeHex(input.accentColor),
@@ -301,15 +301,17 @@ export const applyColorPalette = (paletteId: string): void => {
   const root = document.documentElement
   const currentTheme = root.getAttribute('data-theme') || 'light'
   
-  // Apply primary colors to root
-  root.style.setProperty('--color-primary-blue', palette.primary.blue)
-  root.style.setProperty('--color-dark-blue', palette.primary.darkBlue)
-  root.style.setProperty('--color-light-blue', palette.primary.lightBlue)
+  const primaryScale = palette.primary
+  const accentScale = palette.accent
   
-  // Apply accent colors to root
-  root.style.setProperty('--color-primary-orange', palette.accent.orange)
-  root.style.setProperty('--color-dark-orange', palette.accent.darkOrange)
-  root.style.setProperty('--color-light-orange', palette.accent.lightOrange)
+  // Apply primary and accent colors to CSS variables
+  root.style.setProperty('--color-primary-blue', primaryScale.blue)
+  root.style.setProperty('--color-dark-blue', primaryScale.darkBlue)
+  root.style.setProperty('--color-light-blue', primaryScale.lightBlue)
+  
+  root.style.setProperty('--color-primary-orange', accentScale.orange)
+  root.style.setProperty('--color-dark-orange', accentScale.darkOrange)
+  root.style.setProperty('--color-light-orange', accentScale.lightOrange)
   
   // For very light colors, adjust based on theme
   // In light mode, use the original very light colors
@@ -318,8 +320,8 @@ export const applyColorPalette = (paletteId: string): void => {
   let veryLightOrange: string
   
   if (currentTheme === 'light') {
-    veryLightBlue = palette.primary.veryLightBlue
-    veryLightOrange = palette.accent.veryLightOrange
+    veryLightBlue = primaryScale.veryLightBlue
+    veryLightOrange = accentScale.veryLightOrange
   } else {
     // For dark/dim mode, use slightly darker versions of the palette colors
     // This ensures the palette colors work well in dark backgrounds
@@ -335,8 +337,8 @@ export const applyColorPalette = (paletteId: string): void => {
     }
     
     // Use darker versions for dark/dim mode
-    veryLightBlue = darkenColor(palette.primary.blue, 0.5)
-    veryLightOrange = darkenColor(palette.accent.orange, 0.5)
+    veryLightBlue = darkenColor(primaryScale.blue, 0.5)
+    veryLightOrange = darkenColor(accentScale.orange, 0.5)
   }
   
   root.style.setProperty('--color-very-light-blue', veryLightBlue)
@@ -353,12 +355,12 @@ export const applyColorPalette = (paletteId: string): void => {
   // Create CSS rules that override theme-specific colors when palette is active
   styleElement.textContent = `
     [data-palette="${paletteId}"] {
-      --color-primary-blue: ${palette.primary.blue} !important;
-      --color-dark-blue: ${palette.primary.darkBlue} !important;
-      --color-light-blue: ${palette.primary.lightBlue} !important;
-      --color-primary-orange: ${palette.accent.orange} !important;
-      --color-dark-orange: ${palette.accent.darkOrange} !important;
-      --color-light-orange: ${palette.accent.lightOrange} !important;
+      --color-primary-blue: ${primaryScale.blue} !important;
+      --color-dark-blue: ${primaryScale.darkBlue} !important;
+      --color-light-blue: ${primaryScale.lightBlue} !important;
+      --color-primary-orange: ${accentScale.orange} !important;
+      --color-dark-orange: ${accentScale.darkOrange} !important;
+      --color-light-orange: ${accentScale.lightOrange} !important;
       --color-very-light-blue: ${veryLightBlue} !important;
       --color-very-light-orange: ${veryLightOrange} !important;
     }

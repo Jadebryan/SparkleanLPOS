@@ -198,7 +198,7 @@ export default function ResetPassword() {
           animationType="fade"
           onRequestClose={() => setShowSuccess(false)}
         >
-          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSuccess(false)}>
+          <View style={styles.modalOverlay}>
             <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
               <Ionicons name="checkmark-circle" size={56} color="#10B981" style={{ marginBottom: 10 }} />
               <Text style={styles.modalTitle}>Password reset successful!</Text>
@@ -215,7 +215,7 @@ export default function ResetPassword() {
                 <Text style={styles.modalPrimaryText}>Go to Login</Text>
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         </Modal>
       </KeyboardAvoidingView>
     </LinearGradient>

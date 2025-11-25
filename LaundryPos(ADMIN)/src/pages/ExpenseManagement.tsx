@@ -786,7 +786,7 @@ const ExpenseManagement: React.FC = () => {
                                         setImageViewerOpen(true)
                                       }}
                                     >
-                                      <div style={{ fontSize: '11px', color: '#2563EB', marginBottom: '4px', fontWeight: '600' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--color-primary-orange)', marginBottom: '4px', fontWeight: '600' }}>
                                         Receipt ({expense.receipts.length}) • {new Date(expense.receipts[0].uploadedAt).toLocaleDateString()}
                                       </div>
                                       <img 
@@ -881,7 +881,7 @@ const ExpenseManagement: React.FC = () => {
                                   className="btn-icon-small"
                                   onClick={() => handleAddFeedback(expense)}
                                   title="Add/Edit Feedback"
-                                  style={{ color: '#2563EB' }}
+                                  style={{ color: 'var(--color-primary-orange)' }}
                                 >
                                   <FiMessageSquare />
                                 </button>
@@ -1003,7 +1003,7 @@ const ExpenseManagement: React.FC = () => {
                                           setSelectedImageIndex(expense.images?.length || 0)
                                           setImageViewerOpen(true)
                                         }}
-                                        style={{ borderColor: '#2563EB', borderWidth: '2px' }}
+                                        style={{ borderColor: 'var(--color-primary-orange)', borderWidth: '2px' }}
                                       >
                                         <img 
                                           src={expense.receipts[0].image} 
@@ -1011,11 +1011,11 @@ const ExpenseManagement: React.FC = () => {
                                           className="expense-image-thumbnail"
                                         />
                                         {expense.receipts.length > 1 && (
-                                          <div className="expense-thumbnail-badge" style={{ backgroundColor: '#2563EB' }}>
+                                          <div className="expense-thumbnail-badge" style={{ backgroundColor: 'var(--color-primary-orange)' }}>
                                             +{expense.receipts.length - 1}
                                           </div>
                                         )}
-                                        <span style={{ fontSize: '9px', color: '#2563EB', marginTop: '2px', display: 'block', textAlign: 'center', fontWeight: '600' }}>
+                                        <span style={{ fontSize: '9px', color: 'var(--color-primary-orange)', marginTop: '2px', display: 'block', textAlign: 'center', fontWeight: '600' }}>
                                           Receipt • {new Date(expense.receipts[0].uploadedAt).toLocaleDateString()}
                                         </span>
                                       </div>
@@ -1094,7 +1094,7 @@ const ExpenseManagement: React.FC = () => {
         {/* Expense Details Modal */}
         <AnimatePresence>
           {isModalOpen && selectedExpense && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -1192,7 +1192,7 @@ const ExpenseManagement: React.FC = () => {
 
                       {selectedExpense.receipts && selectedExpense.receipts.length > 0 && (
                         <>
-                          <h5 style={{ fontSize: '14px', fontWeight: '600', color: '#2563EB', marginBottom: '12px', marginTop: selectedExpense.images && selectedExpense.images.length > 0 ? '20px' : '0' }}>
+                          <h5 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-primary-orange)', marginBottom: '12px', marginTop: selectedExpense.images && selectedExpense.images.length > 0 ? '20px' : '0' }}>
                             Purchase Receipts ({selectedExpense.receipts.length})
                           </h5>
                           <div className="expense-images-gallery">
@@ -1204,7 +1204,7 @@ const ExpenseManagement: React.FC = () => {
                                   setSelectedImageIndex((selectedExpense.images?.length || 0) + index)
                                   setImageViewerOpen(true)
                                 }}
-                                style={{ border: '2px solid #2563EB' }}
+                                style={{ border: '2px solid var(--color-primary-orange)' }}
                               >
                                 <img 
                                   src={receipt.image} 
@@ -1214,7 +1214,7 @@ const ExpenseManagement: React.FC = () => {
                             <div className="image-overlay">
                               <FiEye size={20} />
                             </div>
-                                <div style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '10px', color: '#2563EB', backgroundColor: 'rgba(255,255,255,0.9)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                <div style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '10px', color: 'var(--color-primary-orange)', backgroundColor: 'rgba(255,255,255,0.9)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
                                   Receipt • {new Date(receipt.uploadedAt).toLocaleDateString()}
                                 </div>
                           </div>
@@ -1290,7 +1290,7 @@ const ExpenseManagement: React.FC = () => {
         {/* Image Viewer Modal */}
         <AnimatePresence>
           {imageViewerOpen && selectedExpense && ((selectedExpense.images && selectedExpense.images.length > 0) || (selectedExpense.receipts && selectedExpense.receipts.length > 0) || (selectedExpense.appealImages && selectedExpense.appealImages.length > 0)) && (
-            <div className="modal-overlay" onClick={() => setImageViewerOpen(false)}>
+            <div className="modal-overlay">
               <motion.div
                 className="image-viewer-modal"
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -1404,9 +1404,9 @@ const ExpenseManagement: React.FC = () => {
                                   alt={`Receipt ${idx + 1}`}
                                   className={`image-thumbnail ${displayIdx === selectedImageIndex ? 'active' : ''}`}
                                   onClick={() => setSelectedImageIndex(displayIdx)}
-                                  style={{ borderColor: displayIdx === selectedImageIndex ? '#2563EB' : '#D1D5DB' }}
+                                  style={{ borderColor: displayIdx === selectedImageIndex ? 'var(--color-primary-orange)' : '#D1D5DB' }}
                                 />
-                                <span style={{ fontSize: '9px', position: 'absolute', bottom: '-16px', left: '50%', transform: 'translateX(-50%)', color: '#2563EB', fontWeight: '600' }}>
+                                <span style={{ fontSize: '9px', position: 'absolute', bottom: '-16px', left: '50%', transform: 'translateX(-50%)', color: 'var(--color-primary-orange)', fontWeight: '600' }}>
                                   {new Date(receipt.uploadedAt).toLocaleDateString()}
                                 </span>
                               </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { colors } from '@/app/theme/designSystem';
 
 type OrderStatsProps = {
   totalOrders: number;
@@ -23,8 +24,8 @@ const OrderStats: React.FC<OrderStatsProps> = ({
     <View style={styles.statsContainer}>
       {/* Total Orders */}
       <View style={styles.statCard}>
-        <View style={[styles.statIconContainer, { backgroundColor: '#EFF6FF' }]}>
-          <Ionicons name="document-text-outline" size={24} color="#2563EB" />
+        <View style={[styles.statIconContainer, { backgroundColor: colors.accent[50] }]}>
+          <Ionicons name="document-text-outline" size={24} color={colors.accent[500]} />
         </View>
         <View style={styles.statContent}>
           <Text style={styles.statLabel}>Total Orders</Text>

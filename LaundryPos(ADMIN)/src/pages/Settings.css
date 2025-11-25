@@ -1564,7 +1564,7 @@
 .color-palette-option.selected {
   border-color: var(--color-primary-blue);
   background: var(--color-very-light-blue);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary-blue) 25%, transparent);
 }
 
 .palette-preview {
@@ -1620,8 +1620,8 @@
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--color-very-light-blue);
+  color: var(--color-dark-blue);
 }
 
 .palette-actions {

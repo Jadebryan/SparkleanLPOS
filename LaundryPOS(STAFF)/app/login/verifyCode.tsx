@@ -6,6 +6,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "@/constants/api";
+import { colors } from "@/app/theme/designSystem";
+
+const PRIMARY_COLOR = colors.primary[500];
+const PRIMARY_DISABLED = colors.primary[200];
+const ACCENT_COLOR = colors.accent[500];
 
 export default function VerifyCode() {
   const router = useRouter();
@@ -39,11 +44,11 @@ export default function VerifyCode() {
   };
 
   return (
-    <LinearGradient colors={["#DBEAFE", "#FED7AA"]} style={styles.bg}>
+    <LinearGradient colors={[colors.accent[100], colors.primary[100]]} style={styles.bg}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
         <StatusBar style="dark" />
         <View style={styles.card}>
-          <Ionicons name="mail-open-outline" size={44} color="#2563EB" style={{ marginBottom: 10 }} />
+          <Ionicons name="mail-open-outline" size={44} color={ACCENT_COLOR} style={{ marginBottom: 10 }} />
           <Text style={styles.title}>Enter Verification Code</Text>
           <Text style={styles.subtitle}>
             We sent a 6-digit code to <Text style={styles.email}>{email || "your email"}</Text>. Please enter it below.
@@ -100,7 +105,7 @@ const styles = StyleSheet.create({
   },
   title:{ fontSize:18, fontWeight:'800', color:'#111827', marginBottom:6, textAlign:'center', fontFamily:'Poppins_700Bold' },
   subtitle:{ fontSize:13, color:'#374151', textAlign:'center', marginBottom:14, fontFamily:'Poppins_400Regular' },
-  email:{ color:'#2563EB', fontWeight:'700', fontFamily:'Poppins_700Bold' },
+  email:{ color:ACCENT_COLOR, fontWeight:'700', fontFamily:'Poppins_700Bold' },
   inputGroup:{ width:'100%', marginTop:8 },
   labelRow:{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 },
   label:{ fontSize:13, fontWeight:'600', color:'#374151', fontFamily:'Poppins_600SemiBold' },
@@ -110,7 +115,7 @@ const styles = StyleSheet.create({
   actionsRow:{ flexDirection:'row', gap:12, marginTop:16, width:'100%', justifyContent:'flex-end' },
   backBtn:{ paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#E5E7EB' },
   backText:{ color:'#374151', fontWeight:'700', fontFamily:'Poppins_700Bold' },
-  primaryBtn:{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#3B82F6' },
-  primaryDisabled:{ backgroundColor:'#9fb7f7' },
+  primaryBtn:{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:PRIMARY_COLOR },
+  primaryDisabled:{ backgroundColor:PRIMARY_DISABLED },
   primaryText:{ color:'#FFFFFF', fontWeight:'700', fontFamily:'Poppins_700Bold' },
 });

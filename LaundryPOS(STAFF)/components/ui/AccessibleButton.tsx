@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { colors } from '@/app/theme/designSystem';
 
 interface AccessibleButtonProps {
   onPress: () => void;
@@ -31,31 +32,31 @@ const AccessibleButton: React.FC<AccessibleButtonProps> = ({
     switch (variant) {
       case 'primary':
         return {
-          backgroundColor: disabled ? '#9CA3AF' : '#2563EB',
+          backgroundColor: disabled ? colors.gray[400] : colors.primary[500],
           borderColor: 'transparent',
           textColor: '#FFFFFF',
         };
       case 'secondary':
         return {
           backgroundColor: '#FFFFFF',
-          borderColor: disabled ? '#D1D5DB' : '#E5E7EB',
-          textColor: disabled ? '#9CA3AF' : '#374151',
+          borderColor: disabled ? colors.gray[300] : colors.gray[200],
+          textColor: disabled ? colors.gray[400] : '#374151',
         };
       case 'ghost':
         return {
           backgroundColor: 'transparent',
           borderColor: 'transparent',
-          textColor: disabled ? '#9CA3AF' : '#2563EB',
+          textColor: disabled ? colors.gray[400] : colors.accent[500],
         };
       case 'danger':
         return {
-          backgroundColor: disabled ? '#9CA3AF' : '#DC2626',
+          backgroundColor: disabled ? colors.gray[400] : '#DC2626',
           borderColor: 'transparent',
           textColor: '#FFFFFF',
         };
       default:
         return {
-          backgroundColor: '#2563EB',
+          backgroundColor: colors.primary[500],
           borderColor: 'transparent',
           textColor: '#FFFFFF',
         };

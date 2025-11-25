@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
+import { colors } from '@/app/theme/designSystem';
 
 interface ColorPickerModalProps {
   visible: boolean;
@@ -13,7 +14,7 @@ interface ColorPickerModalProps {
 }
 
 const PRESET_COLORS = [
-  '#2563EB', '#F97316', '#059669', '#7C3AED', '#DC2626', '#14B8A6',
+  colors.primary[500], colors.accent[500], '#059669', '#7C3AED', '#DC2626', '#14B8A6',
   '#F59E0B', '#0EA5E9', '#F43F5E', '#10B981', '#EC4899', '#1E3A8A',
   '#FB923C', '#0F766E', '#9333EA', '#EF4444', '#06B6D4', '#A855F7',
 ];
@@ -67,7 +68,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   }, [color, visible]);
 
   const displayColor = useMemo(() => {
-    if (!isValidHex(baseColor)) return '#2563EB';
+    if (!isValidHex(baseColor)) return colors.primary[500];
     return adjustLightness(baseColor, lightness);
   }, [baseColor, lightness]);
 
@@ -114,9 +115,9 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
               minimumValue={-40}
               maximumValue={40}
               value={lightness}
-              minimumTrackTintColor="#2563EB"
+              minimumTrackTintColor={colors.primary[500]}
               maximumTrackTintColor="#D1D5DB"
-              thumbTintColor="#2563EB"
+              thumbTintColor={colors.primary[500]}
               onValueChange={setLightness}
             />
             <View style={styles.sliderScale}>
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   presetSwatchActive: {
-    borderColor: '#2563EB',
+    borderColor: colors.primary[500],
   },
   savedColorsSection: {
     gap: 8,
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   primaryButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.primary[500],
   },
   primaryText: {
     color: '#FFFFFF',

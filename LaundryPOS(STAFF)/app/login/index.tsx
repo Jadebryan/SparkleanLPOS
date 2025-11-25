@@ -21,6 +21,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import BrandIcon from "../components/BrandIcon";
 import { API_BASE_URL } from "@/constants/api";
+import { colors } from "@/app/theme/designSystem";
+
+const PRIMARY_COLOR = colors.primary[500];
+const PRIMARY_DARK = colors.primary[600];
+const ACCENT_COLOR = colors.accent[500];
 
 export default function LoginAccount() {
   const router = useRouter();
@@ -501,7 +506,7 @@ export default function LoginAccount() {
                       editable={!loading}
                     />
                     <TouchableOpacity onPress={regenerateCaptcha} style={styles.captchaRefresh}>
-                      <Ionicons name="refresh-outline" size={18} color="#2563EB" />
+                      <Ionicons name="refresh-outline" size={18} color={ACCENT_COLOR} />
                     </TouchableOpacity>
                   </View>
                   {captchaError && <Text style={styles.errorText}>{captchaError}</Text>}
@@ -542,9 +547,9 @@ export default function LoginAccount() {
                   animationType="fade"
                   onRequestClose={() => setShowRememberConfirm(false)}
                 >
-                  <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowRememberConfirm(false)}>
+                  <View style={styles.modalOverlay}>
                     <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-                      <Ionicons name="information-circle-outline" size={44} color="#2563EB" style={{ marginBottom: 8 }} />
+                      <Ionicons name="information-circle-outline" size={44} color={ACCENT_COLOR} style={{ marginBottom: 8 }} />
                       <Text style={styles.modalTitle}>Enable Remember Me?</Text>
                       <Text style={styles.modalSubtitle}>We'll save your email or username on this device for next time. Your password is never saved.</Text>
                       <View style={{ flexDirection:'row', gap:12, marginTop:12 }}>
@@ -571,7 +576,7 @@ export default function LoginAccount() {
                         </TouchableOpacity>
                       </View>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 </Modal>
 
                 <TouchableOpacity
@@ -681,7 +686,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#2563EB",
+    color: ACCENT_COLOR,
     fontFamily: 'Poppins_700Bold',
   },
   subtitle: {
@@ -757,8 +762,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkboxChecked: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
   },
   rememberMeText: {
     fontSize: 13,
@@ -768,13 +773,13 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     width: "100%",
-    backgroundColor: "#F97316",
+    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
-    shadowColor: "#EA580C",
+    shadowColor: PRIMARY_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -796,7 +801,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#2563EB",
+    color: ACCENT_COLOR,
     textDecorationLine: "underline",
     fontFamily: 'Poppins_600SemiBold',
   },
@@ -862,7 +867,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
   },
   footerLink: {
-    color: "#2563EB",
+    color: ACCENT_COLOR,
     fontWeight: "600",
     textDecorationLine: "underline",
     fontFamily: 'Poppins_600SemiBold',
@@ -892,6 +897,6 @@ const styles = StyleSheet.create({
   modalSubtitle:{ fontSize:13, color:'#6B7280', textAlign:'center' },
   backBtn:{ paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#E5E7EB' },
   backText:{ color:'#374151', fontWeight:'700' },
-  primaryBtn:{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:'#3B82F6' },
+  primaryBtn:{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12, paddingHorizontal:20, borderRadius:10, backgroundColor:PRIMARY_COLOR },
   primaryText:{ color:'#FFFFFF', fontWeight:'700' }
 });

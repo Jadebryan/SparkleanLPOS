@@ -6,6 +6,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { API_BASE_URL } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
 import BrandIcon from "../components/BrandIcon";
+import { colors } from "@/app/theme/designSystem";
+
+const PRIMARY_COLOR = colors.primary[500];
+const PRIMARY_DARK = colors.primary[600];
+const PRIMARY_DISABLED = colors.primary[200];
+const ACCENT_COLOR = colors.accent[500];
 
 export default function ForgotPassword() {
   const router = useRouter();
@@ -257,7 +263,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#2563EB",
+    color: ACCENT_COLOR,
   },
   subtitleTop: {
     fontSize: 13,
@@ -313,19 +319,19 @@ const styles = StyleSheet.create({
   button: { 
     marginTop: 4,
     width: "100%", 
-    backgroundColor: "#F97316",
+    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#EA580C",
+    shadowColor: PRIMARY_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 4,
   },
   buttonDisabled: { 
-    backgroundColor: "#9fb7f7",
+    backgroundColor: PRIMARY_DISABLED,
     opacity: 0.7,
   },
   buttonText: { 
@@ -334,7 +340,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   cancelText: { 
-    color: "#2563eb", 
+    color: ACCENT_COLOR, 
     textDecorationLine: "underline",
     fontSize: 13,
     fontWeight: "600",
@@ -358,7 +364,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footerLink: {
-    color: "#2563EB",
+    color: ACCENT_COLOR,
     fontWeight: "600",
     textDecorationLine: "underline",
   },

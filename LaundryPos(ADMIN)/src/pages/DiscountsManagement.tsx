@@ -753,7 +753,7 @@ const DiscountsManagement: React.FC = () => {
         {/* Discount Details Modal */}
         <AnimatePresence>
           {isModalOpen && selectedDiscount && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

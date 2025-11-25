@@ -537,12 +537,12 @@ const Dashboard: React.FC = () => {
                   }}
                 />
                 <Bar dataKey="target" fill={isLowLightTheme ? '#4B5563' : '#E5E7EB'} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="value" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--color-primary-blue)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             <div className="chart-legend">
               <div className="legend-item">
-                <div className="legend-color" style={{ background: '#2563EB' }}></div>
+                <div className="legend-color" style={{ background: 'var(--color-primary-blue)' }}></div>
                 <span>Actual Revenue</span>
               </div>
               <div className="legend-item">

@@ -242,7 +242,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <h3 style={{ marginTop: 0, marginBottom: 8 }}>You will be logged out soon</h3>
             <p style={{ margin: 0, color: '#374151' }}>No activity detected. You will be logged out in <strong>{warningCountdown}</strong> seconds.</p>
             <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={stayLoggedIn} style={{ padding: '8px 12px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Stay Logged In</button>
+              <button onClick={stayLoggedIn} style={{ padding: '8px 12px', background: 'var(--color-primary-blue)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Stay Logged In</button>
             </div>
           </div>
         </div>

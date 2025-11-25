@@ -7,17 +7,17 @@
 }
 
 :root {
-  /* Primary Blue Colors */
-  --color-primary-blue: #2563EB;
-  --color-dark-blue: #1D4ED8;
-  --color-light-blue: #3B82F6;
-  --color-very-light-blue: #DBEAFE;
+  /* Primary Brand Colors (Orange) */
+  --color-primary-blue: #F97316;
+  --color-dark-blue: #EA580C;
+  --color-light-blue: #FB923C;
+  --color-very-light-blue: #FED7AA;
   
-  /* Primary Orange Colors */
-  --color-primary-orange: #EA580C;
-  --color-dark-orange: #C2410C;
-  --color-light-orange: #FB923C;
-  --color-very-light-orange: #FED7AA;
+  /* Accent Colors (Blue) */
+  --color-primary-orange: #2563EB;
+  --color-dark-orange: #1D4ED8;
+  --color-light-orange: #3B82F6;
+  --color-very-light-orange: #DBEAFE;
   
   /* Neutral Colors */
   --color-gray-50: #F9FAFB;

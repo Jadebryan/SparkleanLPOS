@@ -1847,7 +1847,7 @@ const OrderManagement: React.FC = () => {
                       <span className="stat-value" style={{ 
                         fontFamily: 'monospace', 
                         fontSize: '13px',
-                        color: order.stationId ? '#2563EB' : '#6B7280'
+                        color: order.stationId ? 'var(--color-primary-orange)' : '#6B7280'
                       }}>
                         {order.stationId || 'N/A'}
                       </span>
@@ -2037,7 +2037,7 @@ const OrderManagement: React.FC = () => {
 
         {/* Order Details Modal */}
         {isModalOpen && selectedOrder && (
-          <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-overlay">
             <motion.div
               className="modal-large"
               initial={{ scale: 0.9, opacity: 0 }}

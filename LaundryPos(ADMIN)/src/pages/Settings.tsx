@@ -37,8 +37,8 @@ const DEFAULT_SESSION_SETTINGS = {
 
 const SAVED_COLOR_STORAGE_KEY = 'admin_saved_palette_colors'
 const DEFAULT_SAVED_COLORS = [
-  '#2563EB',
   '#F97316',
+  '#2563EB',
   '#059669',
   '#7C3AED',
   '#DC2626',
@@ -151,8 +151,8 @@ const Settings: React.FC = () => {
   const [selectedPalette, setSelectedPalette] = useState<string>(getColorPalettePreference())
   const [availablePalettes, setAvailablePalettes] = useState<ColorPalette[]>(colorPalettes)
   const [customPaletteName, setCustomPaletteName] = useState('My Custom Palette')
-  const [primaryColor, setPrimaryColor] = useState('#2563EB')
-  const [accentColor, setAccentColor] = useState('#F97316')
+  const [primaryColor, setPrimaryColor] = useState('#F97316')
+  const [accentColor, setAccentColor] = useState('#2563EB')
   const [savedColors, setSavedColors] = useState<string[]>(DEFAULT_SAVED_COLORS)
   const [paletteLoading, setPaletteLoading] = useState(false)
   const [colorFocus, setColorFocus] = useState<'primary' | 'accent'>('primary')
@@ -283,8 +283,8 @@ const Settings: React.FC = () => {
   const cancelEditingPalette = () => {
     setEditingPaletteId(null)
     setCustomPaletteName('My Custom Palette')
-    setPrimaryColor('#2563EB')
-    setAccentColor('#F97316')
+    setPrimaryColor('#F97316')
+    setAccentColor('#2563EB')
   }
 
   const handlePaletteSelection = (paletteId: string, paletteName: string) => {
@@ -302,7 +302,7 @@ const Settings: React.FC = () => {
       return
     }
     if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
-      toast.error('Enter valid HEX colors (e.g. #2563EB).')
+      toast.error('Enter valid HEX colors (e.g. #F97316).')
       return
     }
     try {
@@ -345,7 +345,7 @@ const Settings: React.FC = () => {
     deleteCustomPalette(palettePendingDelete.id)
     refreshPalettes()
     if (selectedPalette === palettePendingDelete.id) {
-      handlePaletteSelection('default', 'Sparklean Blue & Orange')
+    handlePaletteSelection('default', 'Sparklean Orange & Blue')
     }
     if (editingPaletteId === palettePendingDelete.id) {
       cancelEditingPalette()

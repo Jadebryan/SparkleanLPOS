@@ -496,7 +496,7 @@ const StationManagement: React.FC = () => {
         {/* View/Edit Modal */}
         <AnimatePresence>
           {isModalOpen && selectedStation && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

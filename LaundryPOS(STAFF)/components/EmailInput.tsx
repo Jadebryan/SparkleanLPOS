@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { View, TextInput, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native'
+import { colors } from '@/app/theme/designSystem'
 
 interface EmailInputProps {
   value: string
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#2563EB',
+    borderColor: colors.accent[500],
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     ...Platform.select({
       ios: {
-        shadowColor: '#2563EB',
+        shadowColor: colors.accent[500],
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -134,7 +135,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   suggestionDomain: {
-    color: '#2563EB',
+    color: colors.accent[500],
     fontWeight: '600',
     fontSize: 14,
     marginRight: 8,

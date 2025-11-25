@@ -73,22 +73,22 @@ const createScaleFromBase = (baseColor: string): PaletteScale => ({
 export const colorPalettes: ColorPalette[] = [
   {
     id: 'default',
-    name: 'Sparklean Blue & Orange',
+    name: 'Sparklean Orange & Blue',
     description: 'The classic Sparklean brand colors',
     type: 'preset',
     primary: {
-      500: '#2563EB',
-      600: '#1D4ED8',
-      400: '#3B82F6',
-      50: '#EFF6FF',
-    },
-    accent: {
       500: '#F97316',
       600: '#EA580C',
       400: '#FB923C',
       50: '#FFF7ED',
     },
-    preview: ['#2563EB', '#F97316'],
+    accent: {
+      500: '#2563EB',
+      600: '#1D4ED8',
+      400: '#3B82F6',
+      50: '#EFF6FF',
+    },
+    preview: ['#F97316', '#2563EB'],
   },
   {
     id: 'ocean',

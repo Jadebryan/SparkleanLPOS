@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import Header from "./components/Header";
 import SearchFilter from "./orderListComponents/searchFilter";
 import OrderTable from "./orderListComponents/orderTable";
 import ViewTransaction from "./orderListComponents/viewTransaction";
-import AddOrderModal from "./addOrderComponents/AddOrderModal";
+import MultiTabOrderModal, { OrderModalTab } from "./addOrderComponents/MultiTabOrderModal";
 import { API_BASE_URL } from "@/constants/api";
 import { api } from "@/utils/api";
 import { exportToCSV, exportToExcel, exportToPDF, getExportFilename } from "@/utils/exportUtils";
@@ -55,6 +55,8 @@ type Order = {
   lastEditedAt?: string | Date;
   __raw?: any;
 };
+
+const PRIMARY_HEX = colors.primary[500];
 
 // Helper: print invoice/receipt preview & print (supports both invoice and receipt formats)
 const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
@@ -656,7 +658,7 @@ const printInvoiceWindow = (invoiceData: any, stationInfo?: any) => {
         .preview-subtitle { color: #6B7280; font-size: 12px; margin-bottom: 12px; }
         .print-buttons { display: flex; gap: 8px; margin-bottom: 12px; }
         .btn { padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; }
-        .btn-primary { background: #2563EB; color: #FFFFFF; }
+        .btn-primary { background: ${PRIMARY_HEX}; color: #FFFFFF; }
         .container { background: #FFFFFF; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 10px; }
         .ticket { width: 58mm; margin: 0 auto; color: #111827; }
         .center { text-align: center; }
@@ -765,11 +767,80 @@ export default function Dashboard() {
   const [staffName, setStaffName] = useState<string>("");
   const [orderLocks, setOrderLocks] = useState<Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>>({});
   const lockCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
-  const [draftOrderIdForModal, setDraftOrderIdForModal] = useState<string | null>(null);
+  // Multi-tab modal state
+  const [orderModalTabs, setOrderModalTabs] = useState<OrderModalTab[]>([]);
+  const [activeOrderTabId, setActiveOrderTabId] = useState<string | null>(null);
+  const nextTabZIndex = useRef(1);
   const { hasPermission: hasPermissionFor } = usePermissions();
   const router = useRouter();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+  // Tab management functions
+  const openOrderModal = useCallback((draftOrderId: string | null = null) => {
+    const tabId = `order-tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tabTitle = draftOrderId ? `Order Draft` : `New Order ${orderModalTabs.length + 1}`;
+    
+    const newTab: OrderModalTab = {
+      id: tabId,
+      title: tabTitle,
+      draftOrderId,
+      position: {
+        x: 20 + (orderModalTabs.length * 10),
+        y: 20 + (orderModalTabs.length * 10),
+      },
+      isMinimized: false,
+      zIndex: nextTabZIndex.current++,
+    };
+
+    setOrderModalTabs(prev => [...prev, newTab]);
+    setActiveOrderTabId(tabId);
+  }, [orderModalTabs.length]);
+
+  const closeOrderTab = useCallback((tabId: string) => {
+    setOrderModalTabs(prev => {
+      const newTabs = prev.filter(tab => tab.id !== tabId);
+      if (activeOrderTabId === tabId) {
+        // If closing active tab, activate the last remaining tab or null
+        setActiveOrderTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
+      }
+      return newTabs;
+    });
+  }, [activeOrderTabId]);
+
+  const minimizeOrderTab = useCallback((tabId: string) => {
+    setOrderModalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId ? { ...tab, isMinimized: true } : tab
+      )
+    );
+  }, []);
+
+  const maximizeOrderTab = useCallback((tabId: string) => {
+    setOrderModalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId ? { ...tab, isMinimized: false } : tab
+      )
+    );
+    setActiveOrderTabId(tabId);
+  }, []);
+
+  const dragOrderTab = useCallback((tabId: string, x: number, y: number) => {
+    setOrderModalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId ? { ...tab, position: { x, y }, zIndex: nextTabZIndex.current++ } : tab
+      )
+    );
+  }, []);
+
+  const activateOrderTab = useCallback((tabId: string) => {
+    setActiveOrderTabId(tabId);
+    // Bring tab to front
+    setOrderModalTabs(prev =>
+      prev.map(tab =>
+        tab.id === tabId ? { ...tab, zIndex: nextTabZIndex.current++, isMinimized: false } : tab
+      )
+    );
+  }, []);
   
   // Stats state
   const [stats, setStats] = useState({
@@ -791,8 +862,7 @@ export default function Dashboard() {
       category: 'Orders',
       keywords: ['order', 'new', 'create', 'add'],
       onPress: () => {
-        setDraftOrderIdForModal(null);
-        setIsCreateOrderModalOpen(true);
+        openOrderModal(null);
       },
       shortcut: 'N',
     },
@@ -1752,8 +1822,7 @@ export default function Dashboard() {
               <TouchableOpacity
                 style={[styles.createOrderButton, dynamicButtonStyles.primary]}
                 onPress={() => {
-                  setDraftOrderIdForModal(null);
-                  setIsCreateOrderModalOpen(true);
+                  openOrderModal(null);
                 }}
               >
                 <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
@@ -2105,17 +2174,20 @@ export default function Dashboard() {
           </Modal>
         )}
 
-        {/* Create Order Modal */}
-        <AddOrderModal
-          isOpen={isCreateOrderModalOpen}
-          onClose={() => {
-            setIsCreateOrderModalOpen(false);
-            setDraftOrderIdForModal(null);
-          }}
-          onOrderCreated={() => {
+        {/* Multi-Tab Order Modal */}
+        <MultiTabOrderModal
+          tabs={orderModalTabs}
+          activeTabId={activeOrderTabId}
+          onTabClose={closeOrderTab}
+          onTabMinimize={minimizeOrderTab}
+          onTabMaximize={maximizeOrderTab}
+          onTabDrag={dragOrderTab}
+          onTabActivate={activateOrderTab}
+          onOrderCreated={(tabId) => {
             fetchOrders();
+            // Optionally close the tab after order creation
+            // closeOrderTab(tabId);
           }}
-          draftOrderId={draftOrderIdForModal}
         />
 
         {/* Filters Modal */}
@@ -2178,16 +2250,14 @@ export default function Dashboard() {
         <FloatingActionButton
           mainIcon="add"
           mainAction={() => {
-            setDraftOrderIdForModal(null);
-            setIsCreateOrderModalOpen(true);
+            openOrderModal(null);
           }}
           actions={[
             {
               icon: 'add-circle-outline',
               label: 'New Order',
               onPress: () => {
-                setDraftOrderIdForModal(null);
-                setIsCreateOrderModalOpen(true);
+                openOrderModal(null);
               },
               color: dynamicColors.primary[500],
             },

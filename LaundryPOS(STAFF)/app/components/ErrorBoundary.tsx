@@ -2,6 +2,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { colors } from '@/app/theme/designSystem';
 
 interface Props {
   children: ReactNode;
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   button: {
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.primary[500],
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

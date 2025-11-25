@@ -124,7 +124,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="modal-overlay" onClick={handleClose}>
+        <div className="modal-overlay">
           <motion.div
             className="modal-large edit-customer-modal"
             initial={{ scale: 0.9, opacity: 0 }}

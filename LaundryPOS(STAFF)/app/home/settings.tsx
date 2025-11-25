@@ -40,8 +40,8 @@ type UserProfile = {
 
 const SAVED_COLOR_STORAGE_KEY = 'staff_saved_palette_swatches';
 const DEFAULT_SAVED_COLORS = [
-  '#2563EB',
   '#F97316',
+  '#2563EB',
   '#059669',
   '#7C3AED',
   '#DC2626',
@@ -102,8 +102,8 @@ export default function Settings() {
   const [selectedPalette, setSelectedPalette] = useState<string>('default');
   const [availablePalettes, setAvailablePalettes] = useState<ColorPalette[]>(colorPalettes);
   const [customPaletteName, setCustomPaletteName] = useState('My Custom Palette');
-  const [primaryColor, setPrimaryColor] = useState('#2563EB');
-  const [accentColor, setAccentColor] = useState('#F97316');
+  const [primaryColor, setPrimaryColor] = useState('#F97316');
+  const [accentColor, setAccentColor] = useState('#2563EB');
   const [colorFocus, setColorFocus] = useState<'primary' | 'accent'>('primary');
   const [activePicker, setActivePicker] = useState<'primary' | 'accent' | null>(null);
   const [savedSwatches, setSavedSwatches] = useState<string[]>(DEFAULT_SAVED_COLORS);
@@ -222,7 +222,7 @@ export default function Settings() {
 
   const handleSaveCustomPalette = async () => {
     if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
-      Alert.alert('Invalid colors', 'Please enter valid HEX colors (e.g. #2563EB).');
+      Alert.alert('Invalid colors', 'Please enter valid HEX colors (e.g. #F97316).');
       return;
     }
     if (!customPaletteName.trim()) {
@@ -274,8 +274,8 @@ export default function Settings() {
   const cancelEditingPalette = () => {
     setEditingPaletteId(null);
     setCustomPaletteName('My Custom Palette');
-    setPrimaryColor('#2563EB');
-    setAccentColor('#F97316');
+    setPrimaryColor('#F97316');
+    setAccentColor('#2563EB');
   };
 
   const deletePaletteById = async (paletteId: string) => {
@@ -1143,7 +1143,7 @@ export default function Settings() {
                             Editing {editingPalette.name}
                           </Text>
                           <TouchableOpacity style={styles.editingBannerCancel} onPress={cancelEditingPalette}>
-                            <Text style={styles.editingBannerCancelText}>Cancel</Text>
+                            <Text style={[styles.editingBannerCancelText, { color: dynamicColors.primary[500] }]}>Cancel</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1165,7 +1165,7 @@ export default function Settings() {
                             value={primaryColor}
                             onFocus={() => setColorFocus('primary')}
                             onChangeText={(value) => handleColorInputChange(value, 'primary')}
-                            placeholder="#2563EB"
+                            placeholder="#F97316"
                             maxLength={7}
                             autoCapitalize="characters"
                           />
@@ -1187,7 +1187,7 @@ export default function Settings() {
                             value={accentColor}
                             onFocus={() => setColorFocus('accent')}
                             onChangeText={(value) => handleColorInputChange(value, 'accent')}
-                            placeholder="#F97316"
+                            placeholder="#2563EB"
                             maxLength={7}
                             autoCapitalize="characters"
                           />
@@ -1214,7 +1214,7 @@ export default function Settings() {
                           onPress={() => handleAddSavedColor(colorFocus === 'primary' ? primaryColor : accentColor)}
                           disabled={!isValidHexColor(colorFocus === 'primary' ? primaryColor : accentColor)}
                         >
-                          <Ionicons name="add-circle-outline" size={18} color="#2563EB" />
+                          <Ionicons name="add-circle-outline" size={18} color={dynamicColors.primary[500]} />
                           <Text style={styles.addSavedColorText}>Add current</Text>
                         </TouchableOpacity>
                       </View>
@@ -1741,7 +1741,6 @@ const styles = StyleSheet.create({
   editingBannerCancelText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2563EB',
   },
   customColorColumn: {
     flex: 1,

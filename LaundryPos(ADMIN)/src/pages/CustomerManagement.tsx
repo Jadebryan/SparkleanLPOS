@@ -710,7 +710,7 @@ const CustomerManagement: React.FC = () => {
                         <span>{customer.phone}</span>
                       </div>
                       {customer.stationId && (
-                        <div className="contact-item" style={{ color: '#2563EB', fontFamily: 'monospace', fontSize: '12px' }}>
+                        <div className="contact-item" style={{ color: 'var(--color-primary-orange)', fontFamily: 'monospace', fontSize: '12px' }}>
                           <span>📍 {customer.stationId}</span>
                         </div>
                       )}
@@ -795,7 +795,7 @@ const CustomerManagement: React.FC = () => {
                           <span className="stat-value" style={{ 
                             fontFamily: 'monospace', 
                             fontSize: '13px',
-                            color: customer.stationId ? '#2563EB' : '#6B7280'
+                            color: customer.stationId ? 'var(--color-primary-orange)' : '#6B7280'
                           }}>
                             {customer.stationId || 'N/A'}
                           </span>
@@ -852,7 +852,7 @@ const CustomerManagement: React.FC = () => {
         {/* Customer Details Modal */}
         <AnimatePresence>
           {isModalOpen && selectedCustomer && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

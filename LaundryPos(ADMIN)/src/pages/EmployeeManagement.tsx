@@ -754,7 +754,7 @@ const EmployeeManagement: React.FC = () => {
                         <span>Hired: {employee.hireDate}</span>
                       </div>
                       {employee.stationId && (
-                        <div className="info-item" style={{ color: '#2563EB', fontFamily: 'monospace', fontSize: '12px' }}>
+                      <div className="info-item" style={{ color: 'var(--color-primary-orange)', fontFamily: 'monospace', fontSize: '12px' }}>
                           <span>📍 {employee.stationId}</span>
                         </div>
                       )}
@@ -850,7 +850,7 @@ const EmployeeManagement: React.FC = () => {
                           <span className="stat-value" style={{ 
                             fontFamily: 'monospace', 
                             fontSize: '13px',
-                            color: employee.stationId ? '#2563EB' : '#6B7280'
+                            color: employee.stationId ? 'var(--color-primary-orange)' : '#6B7280'
                           }}>
                             {employee.stationId || 'N/A'}
                           </span>
@@ -915,7 +915,7 @@ const EmployeeManagement: React.FC = () => {
         {/* Employee Details Modal */}
         <AnimatePresence>
           {isModalOpen && selectedEmployee && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

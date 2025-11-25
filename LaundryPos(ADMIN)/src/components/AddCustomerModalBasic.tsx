@@ -166,11 +166,11 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   if (!isOpen) return null
 
   return (
-    <div className="acm-backdrop" onClick={handleClose}>
+    <div className="acm-backdrop">
       <div className="acm-modal" onClick={(e) => e.stopPropagation()}>
         <div className="acm-header">
           <div className="acm-title-container">
-            <FiUserPlus size={24} color="#2563EB" style={{ flexShrink: 0 }} />
+            <FiUserPlus size={24} color="var(--color-primary-blue)" style={{ flexShrink: 0 }} />
             <div>
               <h3 className="acm-title">{title}</h3>
               {subtitle && <p className="acm-subtitle">{subtitle}</p>}

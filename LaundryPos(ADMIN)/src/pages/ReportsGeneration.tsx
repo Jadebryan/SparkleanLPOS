@@ -1162,7 +1162,7 @@ const ReportsGeneration: React.FC = () => {
         {/* Preview Modal */}
         <AnimatePresence>
           {showPreview && selectedReport && (
-            <div className="modal-overlay" onClick={() => setShowPreview(false)}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-preview"
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -1282,11 +1282,7 @@ const ReportsGeneration: React.FC = () => {
         {/* PDF Preview Modal */}
         <AnimatePresence>
           {showPdfPreview && pdfPreviewUrl && (
-            <div className="modal-overlay pdf-preview-overlay" onClick={() => {
-              setShowPdfPreview(false)
-              URL.revokeObjectURL(pdfPreviewUrl)
-              setPdfPreviewUrl(null)
-            }}>
+            <div className="modal-overlay pdf-preview-overlay">
               <motion.div
                 className="modal-pdf-preview"
                 initial={{ scale: 0.9, opacity: 0, y: -20 }}
@@ -1341,7 +1337,7 @@ const ReportsGeneration: React.FC = () => {
         {/* Excel/CSV Preview Modal */}
         <AnimatePresence>
           {showExcelCsvPreview && (
-            <div className="modal-overlay" onClick={() => setShowExcelCsvPreview(false)}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

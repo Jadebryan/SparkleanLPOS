@@ -756,7 +756,7 @@ const ServicesManagement: React.FC = () => {
         {/* Service Details Modal */}
         <AnimatePresence>
           {isModalOpen && selectedService && (
-            <div className="modal-overlay" onClick={closeModal}>
+            <div className="modal-overlay">
               <motion.div
                 className="modal-large"
                 initial={{ scale: 0.9, opacity: 0 }}

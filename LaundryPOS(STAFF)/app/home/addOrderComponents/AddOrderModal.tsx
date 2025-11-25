@@ -16,18 +16,67 @@ interface AddOrderModalProps {
   onClose: () => void;
   onOrderCreated?: () => void;
   draftOrderId?: string | null;
+  tabId?: string; // When provided, modal is used in tab system
 }
 
 const AddOrderModal: React.FC<AddOrderModalProps> = ({
   isOpen,
   onClose,
   onOrderCreated,
-  draftOrderId = null
+  draftOrderId = null,
+  tabId,
 }) => {
   const dynamicColors = useColors();
   
   if (!isOpen) return null;
 
+  const isTabMode = !!tabId;
+
+  const modalContent = (
+    <View style={[styles.modalContainer, isTabMode && styles.tabModalContainer]}>
+      {!isTabMode && (
+        <View style={styles.modalHeader}>
+          <View style={styles.modalHeaderLeft}>
+            <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
+            <View>
+              <Text style={[styles.modalTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
+              <Text style={styles.modalSubtitle}>Process new customer request</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeButton}
+          >
+            <Ionicons name="close" size={24} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+      )}
+      
+      <View style={styles.modalContent}>
+        <AddOrderForm 
+          isModal={true}
+          onOrderCreated={() => {
+            if (onOrderCreated) {
+              onOrderCreated();
+            }
+          }}
+          onClose={onClose}
+          draftOrderId={draftOrderId}
+        />
+      </View>
+    </View>
+  );
+
+  if (isTabMode) {
+    // In tab mode, render without Modal wrapper and overlay
+    return (
+      <View style={styles.tabModalWrapper}>
+        {modalContent}
+      </View>
+    );
+  }
+
+  // Standard modal mode
   return (
     <Modal
       visible={isOpen}
@@ -36,36 +85,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderLeft}>
-              <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
-              <View>
-                <Text style={[styles.modalTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
-                <Text style={styles.modalSubtitle}>Process new customer request</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.modalContent}>
-            <AddOrderForm 
-              isModal={true}
-              onOrderCreated={() => {
-                if (onOrderCreated) {
-                  onOrderCreated();
-                }
-              }}
-              onClose={onClose}
-              draftOrderId={draftOrderId}
-            />
-          </View>
-        </View>
+        {modalContent}
       </View>
     </Modal>
   );
@@ -78,10 +98,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  tabModalWrapper: {
+    position: 'absolute',
+    top: 70, // Space for tab bar
+    left: '2.5%',
+    right: '2.5%',
+    bottom: '2.5%',
+    zIndex: 10000,
+  },
   modalContainer: {
-    width: '95%',
+    width: '100%',
     maxWidth: 1400,
-    height: '95%',
+    height: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     overflow: 'hidden',
@@ -90,6 +118,20 @@ const styles = StyleSheet.create({
         maxHeight: '95vh',
       },
     }),
+  },
+  tabModalContainer: {
+    width: '100%',
+    height: '100%',
+    maxWidth: '100%',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',

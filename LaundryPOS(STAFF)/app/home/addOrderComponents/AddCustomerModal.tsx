@@ -263,7 +263,7 @@ const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     >
       <Pressable
         style={styles.modalOverlay}
-        onPress={handleClose}
+        onPress={() => {}}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
