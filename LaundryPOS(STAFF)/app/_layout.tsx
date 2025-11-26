@@ -11,6 +11,8 @@ import OfflineIndicator from './components/OfflineIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './context/ToastContext';
 import { ColorPaletteProvider } from './context/ColorPaletteContext';
+import { ModalTabProvider, useModalTabs } from './context/ModalTabContext';
+import ChatHeadBar from '@/components/ui/ChatHeadBar';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -73,14 +75,25 @@ export default function RootLayout() {
       <ErrorBoundary>
         <ToastProvider>
           <ColorPaletteProvider>
-            <View style={{ flex: 1 }}>
-              <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-              <OfflineIndicator />
-              <StatusBar style="auto" />
-            </View>
+            <ModalTabProvider>
+              <AppContent />
+            </ModalTabProvider>
           </ColorPaletteProvider>
         </ToastProvider>
       </ErrorBoundary>
     </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const { tabs } = useModalTabs();
+  
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+      <OfflineIndicator />
+      <ChatHeadBar minimizedModals={tabs} />
+      <StatusBar style="auto" />
+    </View>
   );
 }

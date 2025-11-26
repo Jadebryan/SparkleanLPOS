@@ -1,169 +1,86 @@
-import React from "react";
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet,
-  Modal,
-  Platform,
-} from "react-native";
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef } from "react";
 import AddOrderForm from './addOrderForm';
-import { useColors } from '@/app/theme/useColors';
+import DraggableModal from '@/components/ui/DraggableModal';
+import { useModalTabs } from '@/app/context/ModalTabContext';
 
 interface AddOrderModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  tabId: string;
   onOrderCreated?: () => void;
-  draftOrderId?: string | null;
-  tabId?: string; // When provided, modal is used in tab system
 }
 
 const AddOrderModal: React.FC<AddOrderModalProps> = ({
-  isOpen,
-  onClose,
-  onOrderCreated,
-  draftOrderId = null,
   tabId,
+  onOrderCreated,
 }) => {
-  const dynamicColors = useColors();
+  const { 
+    isTabActive, 
+    isTabMinimized, 
+    minimizeTab, 
+    closeTab, 
+    getTabData,
+    updateTabData 
+  } = useModalTabs();
   
-  if (!isOpen) return null;
+  const isActive = isTabActive(tabId);
+  const isMinimized = isTabMinimized(tabId);
+  const formDataRef = useRef<any>(null);
 
-  const isTabMode = !!tabId;
+  // Get initial data for this tab
+  const tabData = getTabData(tabId);
+  const draftOrderId = tabData?.draftId || null;
+  const formData = tabData?.formData || null;
 
-  const modalContent = (
-    <View style={[styles.modalContainer, isTabMode && styles.tabModalContainer]}>
-      {!isTabMode && (
-        <View style={styles.modalHeader}>
-          <View style={styles.modalHeaderLeft}>
-            <Ionicons name="create-outline" size={28} color={dynamicColors.primary[500]} style={{ marginRight: 12 }} />
-            <View>
-              <Text style={[styles.modalTitle, { color: dynamicColors.primary[500] }]}>Create New Order</Text>
-              <Text style={styles.modalSubtitle}>Process new customer request</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeButton}
-          >
-            <Ionicons name="close" size={24} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      <View style={styles.modalContent}>
-        <AddOrderForm 
-          isModal={true}
-          onOrderCreated={() => {
-            if (onOrderCreated) {
-              onOrderCreated();
-            }
-          }}
-          onClose={onClose}
-          draftOrderId={draftOrderId}
-        />
-      </View>
-    </View>
-  );
+  const handleMinimize = () => {
+    // Save current form state before minimizing
+    if (formDataRef.current) {
+      updateTabData(tabId, formDataRef.current);
+    }
+    minimizeTab(tabId, formDataRef.current || {});
+  };
 
-  if (isTabMode) {
-    // In tab mode, render without Modal wrapper and overlay
-    return (
-      <View style={styles.tabModalWrapper}>
-        {modalContent}
-      </View>
-    );
-  }
+  const handleClose = () => {
+    closeTab(tabId);
+  };
 
-  // Standard modal mode
+  const handleFormDataChange = (data: any) => {
+    formDataRef.current = data;
+    // Auto-save form data to tab state
+    updateTabData(tabId, data);
+  };
+
+  // Keep form mounted even when minimized to preserve state
+  const shouldRenderModal = isActive || isMinimized;
+  
+  if (!shouldRenderModal) return null;
+
   return (
-    <Modal
-      visible={isOpen}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
+    <DraggableModal
+      visible={isActive && !isMinimized}
+      onClose={handleClose}
+      onMinimize={handleMinimize}
+      title="Create New Order"
+      subtitle="Process new customer request"
+      icon="create-outline"
+      minimized={isMinimized}
     >
-      <View style={styles.modalOverlay}>
-        {modalContent}
-      </View>
-    </Modal>
+      <AddOrderForm 
+        key={tabId} // Force remount when tabId changes to ensure clean state
+        isModal={true}
+        tabId={tabId}
+        onOrderCreated={() => {
+          if (onOrderCreated) {
+            onOrderCreated();
+          }
+          handleClose(); // Close tab after order created
+        }}
+        onClose={handleClose}
+        draftOrderId={draftOrderId}
+        onDataChange={handleFormDataChange}
+        initialData={formData}
+      />
+    </DraggableModal>
   );
 };
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabModalWrapper: {
-    position: 'absolute',
-    top: 80, // Space for tab bar
-    left: '2%',
-    right: '2%',
-    bottom: '2%',
-    zIndex: 10000,
-  },
-  modalContainer: {
-    width: '95%',
-    maxWidth: 1100,
-    height: '90%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    overflow: 'hidden',
-    ...Platform.select({
-      web: {
-        maxHeight: '90vh',
-      },
-    }),
-  },
-  tabModalContainer: {
-    width: '100%',
-    height: '100%',
-    maxWidth: '100%',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '400',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalContent: {
-    flex: 1,
-  },
-});
 
 export default AddOrderModal;
 

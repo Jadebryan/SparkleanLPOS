@@ -118,12 +118,12 @@ export const exportToExcel = (orders: Order[], filename: string = 'orders') => {
 
   // Prepare data rows
   const dataRows = orders.map(order => {
-    const itemsArr: any[] = Array.isArray((order as any).items) ? (order as any).items : []
-    const services = itemsArr.map(item => `${item.service} (${item.quantity})`).join('; ')
-    const itemStatuses = itemsArr.map(item => item.status).join('; ')
-    const paidAmount = typeof (order as any).paid === 'number' 
-      ? (order as any).paid 
-      : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
+            const itemsArr: any[] = Array.isArray((order as any).items) ? (order as any).items : []
+            const services = itemsArr.map(item => `${item.service} (${item.quantity})`).join('; ')
+            const itemStatuses = itemsArr.map(item => item.status).join('; ')
+            const paidAmount = typeof (order as any).paid === 'number' 
+              ? (order as any).paid 
+              : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
     
     // Extract numeric values for amount columns
     const totalNum = parseFloat(String(order.total || '₱0').replace(/[₱,]/g, '')) || 0
@@ -143,26 +143,26 @@ export const exportToExcel = (orders: Order[], filename: string = 'orders') => {
     ]
   })
   
-  // Calculate totals
-  let totalAmount = 0
-  let totalPaid = 0
-  let totalBalance = 0
-  
-  orders.forEach(order => {
-    const totalStr = order.total || '₱0'
-    const totalNum = parseFloat(totalStr.replace(/[₱,]/g, '')) || 0
-    totalAmount += totalNum
-    
-    const paidAmount = typeof (order as any).paid === 'number' 
-      ? (order as any).paid 
-      : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
-    totalPaid += paidAmount
-    
-    const balanceStr = order.balance || '₱0'
-    const balanceNum = parseFloat(balanceStr.replace(/[₱,]/g, '')) || 0
-    totalBalance += balanceNum
-  })
-  
+            // Calculate totals
+            let totalAmount = 0
+            let totalPaid = 0
+            let totalBalance = 0
+            
+            orders.forEach(order => {
+              const totalStr = order.total || '₱0'
+              const totalNum = parseFloat(totalStr.replace(/[₱,]/g, '')) || 0
+              totalAmount += totalNum
+              
+              const paidAmount = typeof (order as any).paid === 'number' 
+                ? (order as any).paid 
+                : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
+              totalPaid += paidAmount
+              
+              const balanceStr = order.balance || '₱0'
+              const balanceNum = parseFloat(balanceStr.replace(/[₱,]/g, '')) || 0
+              totalBalance += balanceNum
+            })
+            
   // Add totals row
   dataRows.push([
     'TOTAL',
@@ -443,13 +443,13 @@ export const exportDataToExcel = (data: any[], headers: string[], filename: stri
   // Add totals row if needed
   if (hasTotals) {
     const totalRow = headers.map(header => {
-      const totalInfo = totals[header]
-      if (totalInfo !== undefined) {
-        if (totalInfo.type === 'currency') {
+              const totalInfo = totals[header]
+              if (totalInfo !== undefined) {
+                if (totalInfo.type === 'currency') {
           return totalInfo.value
-        } else if (totalInfo.type === 'count') {
+                } else if (totalInfo.type === 'count') {
           return totalInfo.value
-        } else {
+                } else {
           return totalInfo.value
         }
       }
@@ -571,12 +571,9 @@ export const exportDataToPDF = async (
     const dateRangeLabel = options.dateRange
     
     let currentPage = 1
-    const totalPages = () => doc.internal.pages.length - 1 // jsPDF starts with page 0
     
     // Helper function to draw header on current page
     const drawHeader = () => {
-      const pageNum = doc.internal.getCurrentPageInfo().pageNumber
-      
       // Header background
       doc.setFillColor(37, 99, 235) // Blue background
       doc.rect(0, 0, pageWidth, headerHeight, 'F')
@@ -584,19 +581,20 @@ export const exportDataToPDF = async (
       // Header text - Title
       doc.setTextColor(255, 255, 255) // White text
       doc.setFontSize(16)
-      doc.setFont(undefined, 'bold')
-      doc.text(title.toUpperCase() + ' REPORT', margin, 18)
+      doc.setFont('helvetica', 'bold')
+      const titleText = (title || 'REPORT').toUpperCase() + ' REPORT'
+      doc.text(titleText, margin, 18)
       
       // Header text - Date (right aligned)
       doc.setFontSize(9)
-      doc.setFont(undefined, 'normal')
-      const dateText = generatedDateText
+      doc.setFont('helvetica', 'normal')
+      const dateText = generatedDateText || ''
       const dateWidth = doc.getTextWidth(dateText)
       doc.text(dateText, pageWidth - margin - dateWidth, 18)
       
       // Header text - Company/System name (centered bottom)
       doc.setFontSize(8)
-      doc.setFont(undefined, 'italic')
+      doc.setFont('helvetica', 'italic')
       const companyText = 'Laundry POS Management System'
       const companyWidth = doc.getTextWidth(companyText)
       doc.text(companyText, (pageWidth - companyWidth) / 2, 26)
@@ -605,43 +603,7 @@ export const exportDataToPDF = async (
       doc.setTextColor(0, 0, 0) // Black text
     }
     
-    // Helper function to draw footer on current page
-    const drawFooter = () => {
-      // Get current page number (jsPDF uses 1-based indexing in getCurrentPageInfo)
-      const currentPageInfo = doc.internal.getCurrentPageInfo()
-      const pageNum = currentPageInfo.pageNumber
-      // Total pages (jsPDF internal.pages includes a special first element, so subtract 1)
-      const totalPagesCount = doc.internal.pages.length - 1
-      
-      // Footer line
-      doc.setDrawColor(200, 200, 200)
-      doc.setLineWidth(0.5)
-      doc.line(margin, pageHeight - footerHeight + 5, pageWidth - margin, pageHeight - footerHeight + 5)
-      
-      // Footer text - Page number (centered)
-      doc.setFontSize(9)
-      doc.setFont(undefined, 'normal')
-      doc.setTextColor(100, 100, 100)
-      const pageText = `Page ${pageNum} of ${totalPagesCount}`
-      const pageWidth_text = doc.getTextWidth(pageText)
-      doc.text(pageText, (pageWidth - pageWidth_text) / 2, pageHeight - 10)
-      
-      // Footer text - Tracking (left)
-      doc.setFontSize(8)
-      doc.setFont(undefined, 'italic')
-      doc.text(`Tracking: ${trackingId}`, margin, pageHeight - 10)
-      
-      // Footer text - Generated timestamp (right)
-      const timestamp = generatedTimestamp
-      const timestampWidth = doc.getTextWidth(timestamp)
-      doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10)
-      
-      // Reset text color
-      doc.setTextColor(0, 0, 0)
-    }
-    
     let yPos = contentTop
-    const maxContentHeight = contentBottom - contentTop
     
     // Helper to add new page if needed
     const checkPageBreak = (requiredHeight: number) => {
@@ -673,7 +635,7 @@ export const exportDataToPDF = async (
         
         // Footer text - Page number (centered)
         doc.setFontSize(9)
-        doc.setFont(undefined, 'normal')
+        doc.setFont('helvetica', 'normal')
         doc.setTextColor(100, 100, 100)
         const pageText = `Page ${i} of ${totalPages}`
         const pageWidth_text = doc.getTextWidth(pageText)
@@ -681,11 +643,12 @@ export const exportDataToPDF = async (
         
         // Footer text - Tracking (left)
         doc.setFontSize(8)
-        doc.setFont(undefined, 'italic')
-        doc.text(`Tracking: ${trackingId}`, margin, pageHeight - 10)
+        doc.setFont('helvetica', 'italic')
+        const trackingText = `Tracking: ${trackingId || 'N/A'}`
+        doc.text(trackingText, margin, pageHeight - 10)
         
         // Footer text - Generated timestamp (right)
-        const timestamp = generatedTimestamp
+        const timestamp = generatedTimestamp || ''
         const timestampWidth = doc.getTextWidth(timestamp)
         doc.text(timestamp, pageWidth - margin - timestampWidth, pageHeight - 10)
         
@@ -698,22 +661,25 @@ export const exportDataToPDF = async (
     
     // Title section (on first page only)
     doc.setFontSize(14)
-    doc.setFont(undefined, 'bold')
+    doc.setFont('helvetica', 'bold')
     doc.text('REPORT DETAILS', margin, yPos)
     yPos += 8
     
     // Generation info
     doc.setFontSize(10)
-    doc.setFont(undefined, 'normal')
-    doc.text(`Generated on: ${generatedDateText} at ${generatedTimeText}`, margin, yPos)
+    doc.setFont('helvetica', 'normal')
+    const genInfoText = `Generated on: ${generatedDateText || ''} at ${generatedTimeText || ''}`
+    doc.text(genInfoText, margin, yPos)
     yPos += 6
     if (dateRangeLabel) {
       doc.text(`Date Range: ${dateRangeLabel}`, margin, yPos)
       yPos += 6
     }
-    doc.text(`Tracking ID: ${trackingId}`, margin, yPos)
+    const trackingText = `Tracking ID: ${trackingId || 'N/A'}`
+    doc.text(trackingText, margin, yPos)
     yPos += 6
-    doc.text(`Generated by: ${generatedBy}`, margin, yPos)
+    const generatedByText = `Generated by: ${generatedBy || 'System'}`
+    doc.text(generatedByText, margin, yPos)
     yPos += 12
     
     // Summary section
@@ -725,12 +691,12 @@ export const exportDataToPDF = async (
       doc.roundedRect(margin, yPos - 5, maxWidth, 0, 3, 3, 'F')
       
       doc.setFontSize(14)
-      doc.setFont(undefined, 'bold')
+      doc.setFont('helvetica', 'bold')
       doc.text('SUMMARY', margin, yPos)
       yPos += 8
       
       doc.setFontSize(10)
-      doc.setFont(undefined, 'normal')
+      doc.setFont('helvetica', 'normal')
       Object.entries(summary).forEach(([key, value]) => {
         checkPageBreak(8)
         const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()
@@ -749,8 +715,9 @@ export const exportDataToPDF = async (
     if (data && data.length > 0) {
       checkPageBreak(25)
       doc.setFontSize(14)
-      doc.setFont(undefined, 'bold')
-      doc.text(`DATA (${data.length} record${data.length === 1 ? '' : 's'})`, margin, yPos)
+      doc.setFont('helvetica', 'bold')
+      const dataTitle = `DATA (${data.length} record${data.length === 1 ? '' : 's'})`
+      doc.text(dataTitle, margin, yPos)
       yPos += 10
       
       // Get all unique keys from data for headers
@@ -790,7 +757,7 @@ export const exportDataToPDF = async (
       doc.roundedRect(margin, yPos - 5, maxWidth, 8, 2, 2, 'F')
       
       doc.setFontSize(9)
-      doc.setFont(undefined, 'bold')
+      doc.setFont('helvetica', 'bold')
       
       // Draw table header row with proper alignment matching data columns
       let xPos = margin + 2
@@ -824,7 +791,7 @@ export const exportDataToPDF = async (
       doc.line(margin, yPos - 2, pageWidth - margin, yPos - 2)
       
       // Draw data rows
-      doc.setFont(undefined, 'normal')
+      doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       data.forEach((row, rowIndex) => {
         checkPageBreak(10)
@@ -901,7 +868,7 @@ export const exportDataToPDF = async (
             }
             
             doc.setFontSize(9)
-            doc.setFont(undefined, 'bold')
+            doc.setFont('helvetica', 'bold')
             doc.setTextColor(0, 0, 0)
             
             // Apply same alignment as data rows
@@ -914,7 +881,7 @@ export const exportDataToPDF = async (
           } else if (header === displayHeaders[0]) {
             // First column shows "TOTAL" label (always left-aligned)
             doc.setFontSize(9)
-            doc.setFont(undefined, 'bold')
+            doc.setFont('helvetica', 'bold')
             doc.setTextColor(0, 0, 0)
             doc.text('TOTAL', xPos, yPos)
           }
@@ -933,9 +900,10 @@ export const exportDataToPDF = async (
         checkPageBreak(8)
         yPos += 3
         doc.setFontSize(8)
-        doc.setFont(undefined, 'italic')
+        doc.setFont('helvetica', 'italic')
         doc.setTextColor(150, 150, 150)
-        doc.text(`Note: Showing ${maxColumns} of ${headers.length} columns. Export to Excel/CSV for full data.`, margin, yPos)
+        const noteText = `Note: Showing ${maxColumns} of ${headers.length} columns. Export to Excel/CSV for full data.`
+        doc.text(noteText, margin, yPos, { maxWidth })
         doc.setTextColor(0, 0, 0)
       }
     } else {
@@ -949,21 +917,24 @@ export const exportDataToPDF = async (
     // Digital signature & tracking section
     checkPageBreak(30)
     doc.setFontSize(12)
-    doc.setFont(undefined, 'bold')
+    doc.setFont('helvetica', 'bold')
     doc.text('DIGITAL SIGNATURE', margin, yPos)
     yPos += 6
     doc.setDrawColor(200, 200, 200)
     doc.line(margin, yPos + 4, margin + 70, yPos + 4)
     doc.setFontSize(9)
-    doc.setFont(undefined, 'normal')
-    doc.text(digitalSignature, margin, yPos + 12)
-    doc.text(`Tracking ID: ${trackingId}`, margin, yPos + 20)
+    doc.setFont('helvetica', 'normal')
+    const sigText = digitalSignature || 'Digitally signed'
+    doc.text(sigText, margin, yPos + 12)
+    const trackText = `Tracking ID: ${trackingId || 'N/A'}`
+    doc.text(trackText, margin, yPos + 20)
     if (dateRangeLabel) {
       doc.text(`Report Range: ${dateRangeLabel}`, margin, yPos + 28)
     }
     doc.setFontSize(8)
     doc.setTextColor(130, 130, 130)
-    doc.text('Electronically generated document. Any alteration renders the signature invalid.', margin, yPos + 36, { maxWidth })
+    const disclaimerText = 'Electronically generated document. Any alteration renders the signature invalid.'
+    doc.text(disclaimerText, margin, yPos + 36, { maxWidth })
     doc.setTextColor(0, 0, 0)
     yPos += 44
     
@@ -1238,9 +1209,9 @@ export const exportEmployeesToExcel = (employees: Employee[], filename: string =
 
   // Prepare data rows
   const dataRows = employees.map(employee => {
-    const hireDate = new Date(employee.hireDate)
-    const currentDate = new Date()
-    const tenureMonths = Math.floor((currentDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+            const hireDate = new Date(employee.hireDate)
+            const currentDate = new Date()
+            const tenureMonths = Math.floor((currentDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
     
     return [
       employee.id,

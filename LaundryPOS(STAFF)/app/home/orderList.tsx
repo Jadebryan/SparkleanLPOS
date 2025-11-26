@@ -29,6 +29,7 @@ import SearchFilter from "./orderListComponents/searchFilter";
 import OrderTable from "./orderListComponents/orderTable";
 import ViewTransaction from "./orderListComponents/viewTransaction";
 import AddOrderModal from "./addOrderComponents/AddOrderModal";
+import { useModalTabs } from '@/app/context/ModalTabContext';
 import { API_BASE_URL } from "@/constants/api";
 import { api } from "@/utils/api";
 import { exportToCSV, exportToExcel, exportToPDF, getExportFilename } from "@/utils/exportUtils";
@@ -38,6 +39,7 @@ import { logger } from "@/utils/logger";
 import { useToast } from "@/app/context/ToastContext";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { CommandPalette } from "@/components/ui/CommandPalette";
+import ModalTabBar from "@/components/ui/ModalTabBar";
 import { useRouter } from "expo-router";
 
 // Type for orders
@@ -764,22 +766,24 @@ export default function Dashboard() {
   const [staffName, setStaffName] = useState<string>("");
   const [orderLocks, setOrderLocks] = useState<Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>>({});
   const lockCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // Add Order modal state
-  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
-  const [activeDraftOrderId, setActiveDraftOrderId] = useState<string | null>(null);
+  const { 
+    openTab, 
+    tabs, 
+    activeTabId, 
+    restoreTab, 
+    closeTab,
+    isTabActive,
+    isTabMinimized,
+    getTabData
+  } = useModalTabs();
   const { hasPermission: hasPermissionFor } = usePermissions();
   const router = useRouter();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   const openOrderModal = useCallback((draftOrderId: string | null = null) => {
-    setActiveDraftOrderId(draftOrderId);
-    setIsAddOrderModalOpen(true);
-  }, []);
-
-  const closeOrderModal = useCallback(() => {
-    setIsAddOrderModalOpen(false);
-    setActiveDraftOrderId(null);
-  }, []);
+    // Open a new tab - previous active tab will be auto-saved as draft
+    openTab('create-order', {}, draftOrderId);
+  }, [openTab]);
   
   // Stats state
   const [stats, setStats] = useState({
@@ -2083,16 +2087,29 @@ export default function Dashboard() {
           </Modal>
         )}
 
-        {/* Create Order Modal */}
-        <AddOrderModal
-          isOpen={isAddOrderModalOpen}
-          onClose={closeOrderModal}
-          onOrderCreated={() => {
-            fetchOrders();
-            closeOrderModal();
-          }}
-          draftOrderId={activeDraftOrderId}
-        />
+        {/* Render active tab modal */}
+        {activeTabId && (
+          <AddOrderModal
+            key={activeTabId}
+            tabId={activeTabId}
+            onOrderCreated={() => {
+              fetchOrders();
+            }}
+          />
+        )}
+
+        {/* Render minimized tabs (hidden but mounted to preserve state) */}
+        {tabs
+          .filter(tab => tab.id !== activeTabId) // Don't render active tab again
+          .map(tab => (
+            <AddOrderModal
+              key={tab.id}
+              tabId={tab.id}
+              onOrderCreated={() => {
+                fetchOrders();
+              }}
+            />
+          ))}
 
         {/* Floating Action Button */}
         <FloatingActionButton

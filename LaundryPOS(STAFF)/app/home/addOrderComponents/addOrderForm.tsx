@@ -23,6 +23,7 @@ import designSystem, { colors, typography, spacing, borderRadius, cardStyles, in
 import { useColors } from '@/app/theme/useColors';
 import { useButtonStyles } from '@/app/theme/useButtonStyles';
 import { useToast } from '@/app/context/ToastContext';
+import { useModalTabs } from '@/app/context/ModalTabContext';
 
 // Interface for order data
 export interface OrderData {
@@ -172,17 +173,24 @@ interface AddOrderFormProps {
   onOrderCreated?: () => void;
   onClose?: () => void;
   draftOrderId?: string | null;
+  tabId?: string;
+  onDataChange?: (data: any) => void;
+  initialData?: any;
 }
 
 const AddOrderForm: React.FC<AddOrderFormProps> = ({
   isModal = false,
   onOrderCreated,
   onClose,
-  draftOrderId = null
+  draftOrderId = null,
+  tabId,
+  onDataChange,
+  initialData,
 }) => {
   const { showSuccess, showError, showInfo } = useToast();
   const dynamicColors = useColors();
   const dynamicButtonStyles = useButtonStyles();
+  const { registerDraftSave } = useModalTabs();
   const [userId, setUserId] = useState<string>("");
   const [userStation, setUserStation] = useState<string>("");
   const [services, setServices] = useState<Service[]>([]);
@@ -534,22 +542,42 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   const balanceDue = totalAmount - paid; // Can be negative (overpayment = change due)
   const changeDue = balanceDue < 0 ? Math.abs(balanceDue) : 0;
 
-  // Auto-save draft to localStorage
+  // Auto-save draft to tab context and localStorage
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       // Only auto-save if there's actual data
       if (customerName.trim() || orderServices.length > 0 || paidAmount || notes.trim()) {
-        saveDraftToLocalStorage();
+        const formData = {
+          customerName,
+          customerPhone,
+          orderServices,
+          selectedDiscountId,
+          paidAmount,
+          pickupDate,
+          paymentStatus,
+          notes,
+          savedAt: new Date().toISOString(),
+        };
+        
+        // Save to tab context if tabId is provided
+        if (tabId && onDataChange) {
+          onDataChange({ formData }); // Wrap in formData key
+        }
+        
+        // Only save to localStorage if NOT using tabs (backward compatibility)
+        if (!tabId) {
+          saveDraftToLocalStorage(formData);
+        }
       }
     }, 1000); // Debounce: save 1 second after user stops typing
 
     return () => clearTimeout(timeoutId);
-  }, [customerName, customerPhone, orderServices, selectedDiscountId, paidAmount, pickupDate, notes]);
+  }, [customerName, customerPhone, orderServices, selectedDiscountId, paidAmount, pickupDate, notes, tabId, onDataChange]);
 
   // Save draft to localStorage
-  const saveDraftToLocalStorage = () => {
+  const saveDraftToLocalStorage = (draft?: any) => {
     try {
-      const draft = {
+      const data = draft || {
         customerName,
         customerPhone,
         orderServices,
@@ -560,16 +588,57 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         notes,
         savedAt: new Date().toISOString(),
       };
-      AsyncStorage.setItem('orderDraft', JSON.stringify(draft));
+      AsyncStorage.setItem('orderDraft', JSON.stringify(data));
     } catch (error) {
       console.error('Error saving draft:', error);
     }
   };
 
-  // Restore draft from localStorage on mount
+  // Track if form has been initialized for this tab
+  const formInitializedRef = useRef<Set<string>>(new Set());
+
+  // Restore draft from initialData (tab context) or localStorage on mount
   useEffect(() => {
+    // If form was already initialized for this tab, don't re-initialize
+    if (tabId && formInitializedRef.current.has(tabId)) {
+      return;
+    }
+
     const restoreDraft = async () => {
       try {
+        // First, try to use initialData from tab context
+        if (initialData && Object.keys(initialData).length > 0) {
+          if (initialData.customerName || initialData.orderServices?.length > 0) {
+            setCustomerName(initialData.customerName || '');
+            setCustomerPhone(initialData.customerPhone || '');
+            setOrderServices(initialData.orderServices || []);
+            setSelectedDiscountId(initialData.selectedDiscountId || '');
+            setPaidAmount(initialData.paidAmount || '0');
+            setPickupDate(initialData.pickupDate || '');
+            setPaymentStatus(initialData.paymentStatus || 'Unpaid');
+            setNotes(initialData.notes || '');
+            if (tabId) formInitializedRef.current.add(tabId);
+            return; // Don't load from localStorage if we have tab data
+          }
+        }
+        
+        // For tab-based modals, don't load from localStorage - start fresh
+        // Only load from localStorage if NOT using tabs (backward compatibility)
+        if (tabId) {
+          // New tab - start with empty form
+          setCustomerName('');
+          setCustomerPhone('');
+          setOrderServices([]);
+          setSelectedDiscountId('');
+          setPaidAmount('0');
+          setPickupDate('');
+          setPaymentStatus('Unpaid');
+          setNotes('');
+          formInitializedRef.current.add(tabId);
+          return;
+        }
+        
+        // Fallback to localStorage only for non-tab modals (backward compatibility)
         const savedDraft = await AsyncStorage.getItem('orderDraft');
         if (savedDraft) {
           const draft = JSON.parse(savedDraft);
@@ -592,7 +661,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       }
     };
     restoreDraft();
-  }, []);
+  }, [tabId, initialData]); // Run when tabId or initialData changes
+
+  // handleSaveDraft will be defined later, we'll register it there
 
   // Create order
   const handleCreateOrder = async () => {
@@ -1054,6 +1125,13 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       }
     }
   };
+
+  // Register draft save function with tab context after it's defined
+  useEffect(() => {
+    if (tabId) {
+      registerDraftSave(tabId, handleSaveDraft);
+    }
+  }, [tabId, registerDraftSave]); // Register when tabId changes
 
   const handlePrintSummary = async () => {
     // Fetch station information if userStation is available
