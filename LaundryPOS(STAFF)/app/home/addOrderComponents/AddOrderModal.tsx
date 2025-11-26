@@ -100,22 +100,22 @@ const styles = StyleSheet.create({
   },
   tabModalWrapper: {
     position: 'absolute',
-    top: 70, // Space for tab bar
-    left: '2.5%',
-    right: '2.5%',
-    bottom: '2.5%',
+    top: 80, // Space for tab bar
+    left: '2%',
+    right: '2%',
+    bottom: '2%',
     zIndex: 10000,
   },
   modalContainer: {
-    width: '100%',
-    maxWidth: 1400,
-    height: '100%',
+    width: '95%',
+    maxWidth: 1100,
+    height: '90%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     overflow: 'hidden',
     ...Platform.select({
       web: {
-        maxHeight: '95vh',
+        maxHeight: '90vh',
       },
     }),
   },

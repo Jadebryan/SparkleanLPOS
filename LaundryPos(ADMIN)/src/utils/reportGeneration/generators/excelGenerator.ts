@@ -1,7 +1,9 @@
 /**
  * Excel Export Generator
+ * Uses xlsx library to generate proper Excel files
  */
 
+import * as XLSX from 'xlsx'
 import { BaseGenerator } from './baseGenerator'
 import { ExportGenerator, ReportData, ExportOptions } from '../types'
 
@@ -9,94 +11,137 @@ export class ExcelGenerator extends BaseGenerator implements ExportGenerator {
   async generate(reportData: ReportData, options: ExportOptions): Promise<string | Blob> {
     this.validateReportData(reportData)
     
-    const htmlContent = this.buildExcelHTML(reportData)
-    const filename = this.getFilename(reportData, options, 'xls')
+    const workbook = this.buildWorkbook(reportData)
+    const filename = this.getFilename(reportData, options, 'xlsx')
     
-    // Add UTF-8 BOM
-    const BOM = '\uFEFF'
-    const htmlWithBOM = BOM + htmlContent
+    // Write workbook to buffer
+    const excelBuffer = XLSX.write(workbook, { 
+      type: 'array', 
+      bookType: 'xlsx',
+      cellStyles: true 
+    })
     
-    this.downloadFile(htmlWithBOM, filename, 'application/vnd.ms-excel;charset=utf-8')
+    // Create blob and download
+    const blob = new Blob([excelBuffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    })
     
-    return new Blob([htmlWithBOM], { type: 'application/vnd.ms-excel' })
+    this.downloadFile(blob, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    
+    return blob
   }
 
   async preview(reportData: ReportData, options: ExportOptions): Promise<string> {
-    const htmlContent = this.buildExcelHTML(reportData)
-    return `data:application/vnd.ms-excel;charset=utf-8,${encodeURIComponent(htmlContent)}`
+    const workbook = this.buildWorkbook(reportData)
+    const excelBuffer = XLSX.write(workbook, { 
+      type: 'array', 
+      bookType: 'xlsx' 
+    })
+    const blob = new Blob([excelBuffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    })
+    return URL.createObjectURL(blob)
   }
 
-  private buildExcelHTML(reportData: ReportData): string {
+  private buildWorkbook(reportData: ReportData): XLSX.WorkBook {
     const headers = reportData.headers
     const totals = this.calculateTotals(reportData)
     const hasTotals = Object.keys(totals).length > 0
     
-    const escapeHtml = (value: any): string => {
-      if (value === null || value === undefined) return ''
-      const str = String(value)
-      return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
+    // Prepare data rows
+    const dataRows = reportData.rows.map(row => {
+      return headers.map(header => {
+        const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
+        const value = row[key] || row[header] || ''
+        // Convert to number if it's a numeric value
+        if (this.isAmountColumn(header) && typeof value === 'string') {
+          const numValue = this.extractNumericValue(value)
+          return numValue !== 0 ? numValue : value
+        }
+        return value
+      })
+    })
+    
+    // Add totals row if needed
+    if (hasTotals) {
+      const totalRow = headers.map(header => {
+        if (totals[header] !== undefined) {
+          return totals[header]
+        }
+        return header === headers[0] ? 'TOTAL' : ''
+      })
+      dataRows.push(totalRow)
     }
     
-    const rows = reportData.rows.map(row => {
-      return `
-        <tr>
-          ${headers.map(header => {
-            const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
-            const value = row[key] || row[header] || ''
-            const isAmount = this.isAmountColumn(header)
-            return `<td${isAmount ? ' class="number"' : ''}>${escapeHtml(value)}</td>`
-          }).join('')}
-        </tr>
-      `
-    }).join('')
+    // Create worksheet data with headers
+    const worksheetData = [headers, ...dataRows]
     
-    const totalRow = hasTotals ? `
-      <tr class="total-row">
-        ${headers.map(header => {
-          if (totals[header] !== undefined) {
-            return `<td class="number"><strong>PHP ${totals[header].toFixed(2)}</strong></td>`
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+    
+    // Set column widths
+    const colWidths = headers.map((header, index) => {
+      const maxLength = Math.max(
+        header.length,
+        ...dataRows.map(row => String(row[index] || '').length)
+      )
+      return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
+    })
+    worksheet['!cols'] = colWidths
+    
+    // Style header row (bold)
+    const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+      if (!worksheet[cellAddress]) continue
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F2F2F2' } },
+        alignment: { horizontal: 'left', vertical: 'center' }
+      }
+    }
+    
+    // Style total row if exists
+    if (hasTotals) {
+      const lastRow = dataRows.length
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: lastRow, c: col })
+        if (!worksheet[cellAddress]) continue
+        worksheet[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: 'E8F4F8' } },
+          alignment: { 
+            horizontal: this.isAmountColumn(headers[col]) ? 'right' : 'left', 
+            vertical: 'center' 
           }
-          return header === headers[0] ? `<td><strong>TOTAL</strong></td>` : '<td></td>'
-        }).join('')}
-      </tr>
-    ` : ''
+        }
+      }
+    }
     
-    return `<?xml version="1.0" encoding="UTF-8"?>
-      <?mso-application progid="Excel.Sheet"?>
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-            xmlns:x="urn:schemas-microsoft-com:office:excel" 
-            xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8">
-        <meta name="ProgId" content="Excel.Sheet">
-        <style>
-          table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
-          th { background-color: #f2f2f2; font-weight: bold; border: 1px solid #ddd; padding: 8px; text-align: left; }
-          td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          .number { text-align: right; }
-          .total-row { background-color: #e8f4f8; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <thead>
-            <tr>
-              ${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-            ${totalRow}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `
+    // Style amount columns (right align)
+    headers.forEach((header, colIndex) => {
+      if (this.isAmountColumn(header)) {
+        for (let row = 1; row <= dataRows.length; row++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: colIndex })
+          if (worksheet[cellAddress]) {
+            if (!worksheet[cellAddress].s) {
+              worksheet[cellAddress].s = {}
+            }
+            worksheet[cellAddress].s.alignment = { 
+              horizontal: 'right', 
+              vertical: 'center' 
+            }
+          }
+        }
+      }
+    })
+    
+    // Create workbook
+    const workbook = XLSX.utils.book_new()
+    const sheetName = reportData.metadata.reportTitle.substring(0, 31) || 'Sheet1'
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+    
+    return workbook
   }
 
   private calculateTotals(reportData: ReportData): Record<string, number> {
@@ -136,8 +181,7 @@ export class ExcelGenerator extends BaseGenerator implements ExportGenerator {
     return 0
   }
 
-  private downloadFile(content: string, filename: string, mimeType: string): void {
-    const blob = new Blob([content], { type: mimeType })
+  private downloadFile(blob: Blob, filename: string, mimeType: string): void {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url

@@ -129,6 +129,12 @@ const ReportsGeneration: React.FC = () => {
   }>>([])
   const [activeReportMeta, setActiveReportMeta] = useState<ReportMeta | null>(null)
 
+  const formatStaffName = (staff: any) => {
+    if (!staff) return ''
+    if (typeof staff === 'string') return staff
+    return staff.fullName || staff.name || staff.username || staff.email || ''
+  }
+
   // Load recent reports from localStorage on mount
   useEffect(() => {
     try {
@@ -313,6 +319,8 @@ const ReportsGeneration: React.FC = () => {
           Balance: formatCurrency(o.balance || 0),
           Services: (Array.isArray(o.items) ? o.items : []).map((item: any) => `${item.service} (${item.quantity})`).join('; '),
           Status: (Array.isArray(o.items) ? o.items : []).map((item: any) => item.status).join('; '),
+          'Created By': formatStaffName(o.createdBy || o.createdByName || o.staffName),
+          'Last Updated By': formatStaffName(o.lastEditedBy || o.updatedBy || o.lastUpdatedBy),
           Notes: o.notes || ''
         }))
         
@@ -487,11 +495,13 @@ const ReportsGeneration: React.FC = () => {
             'Balance': formatCurrency(o.balance || 0),
             'Services': (Array.isArray(o.items) ? o.items : []).map((item: any) => `${item.service} (${item.quantity})`).join('; '),
             'Status': (Array.isArray(o.items) ? o.items : []).map((item: any) => item.status).join('; '),
+            'Created By': formatStaffName(o.createdBy || o.createdByName || o.staffName),
+            'Last Updated By': formatStaffName(o.lastEditedBy || o.updatedBy || o.lastUpdatedBy),
             'Notes': o.notes || ''
           }))
           
           return {
-            headers: ['Order ID', 'Date', 'Customer', 'Customer Phone', 'Payment', 'Total', 'Paid', 'Balance', 'Services', 'Status', 'Notes'],
+            headers: ['Order ID', 'Date', 'Customer', 'Customer Phone', 'Payment', 'Total', 'Paid', 'Balance', 'Services', 'Status', 'Created By', 'Last Updated By', 'Notes'],
             data: ordersForPreview
           }
 
@@ -752,6 +762,8 @@ const ReportsGeneration: React.FC = () => {
                 : `PHP ${(parseFloat(String(o.balance || '0').replace(/[₱,]/g, '')) || 0).toFixed(2)}`,
               Services: (Array.isArray(o.items) ? o.items : []).map((item: any) => `${item.service} (${item.quantity})`).join('; '),
               Status: (Array.isArray(o.items) ? o.items : []).map((item: any) => item.status).join('; '),
+              'Created By': formatStaffName(o.createdBy || o.createdByName || o.staffName),
+              'Last Updated By': formatStaffName(o.lastEditedBy || o.updatedBy || o.lastUpdatedBy),
               Notes: o.notes || ''
             }))
             await exportDataToPDF(ordersForPdf, generatedReportData.summary, 'Orders Report', filename, true, pdfMeta)

@@ -732,7 +732,8 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   searchFilterBar: {
     marginBottom: 16,

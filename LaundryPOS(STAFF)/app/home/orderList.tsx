@@ -28,7 +28,7 @@ import Header from "./components/Header";
 import SearchFilter from "./orderListComponents/searchFilter";
 import OrderTable from "./orderListComponents/orderTable";
 import ViewTransaction from "./orderListComponents/viewTransaction";
-import MultiTabOrderModal, { OrderModalTab } from "./addOrderComponents/MultiTabOrderModal";
+import AddOrderModal from "./addOrderComponents/AddOrderModal";
 import { API_BASE_URL } from "@/constants/api";
 import { api } from "@/utils/api";
 import { exportToCSV, exportToExcel, exportToPDF, getExportFilename } from "@/utils/exportUtils";
@@ -36,7 +36,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
 import { logger } from "@/utils/logger";
 import { useToast } from "@/app/context/ToastContext";
-import InlineFilters, { FilterOption } from "@/components/ui/InlineFilters";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { useRouter } from "expo-router";
@@ -759,87 +758,27 @@ export default function Dashboard() {
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [invoiceStationInfo, setInvoiceStationInfo] = useState<any>(null);
   const [showDrafts, setShowDrafts] = useState(false);
-  const [filterPayment, setFilterPayment] = useState("All");
-  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exportButtonLayout, setExportButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const exportButtonRef = useRef<any>(null);
   const [staffName, setStaffName] = useState<string>("");
   const [orderLocks, setOrderLocks] = useState<Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>>({});
   const lockCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // Multi-tab modal state
-  const [orderModalTabs, setOrderModalTabs] = useState<OrderModalTab[]>([]);
-  const [activeOrderTabId, setActiveOrderTabId] = useState<string | null>(null);
-  const nextTabZIndex = useRef(1);
+  // Add Order modal state
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+  const [activeDraftOrderId, setActiveDraftOrderId] = useState<string | null>(null);
   const { hasPermission: hasPermissionFor } = usePermissions();
   const router = useRouter();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
-  // Tab management functions
   const openOrderModal = useCallback((draftOrderId: string | null = null) => {
-    const tabId = `order-tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const tabTitle = draftOrderId ? `Order Draft` : `New Order ${orderModalTabs.length + 1}`;
-    
-    const newTab: OrderModalTab = {
-      id: tabId,
-      title: tabTitle,
-      draftOrderId,
-      position: {
-        x: 20 + (orderModalTabs.length * 10),
-        y: 20 + (orderModalTabs.length * 10),
-      },
-      isMinimized: false,
-      zIndex: nextTabZIndex.current++,
-    };
-
-    setOrderModalTabs(prev => [...prev, newTab]);
-    setActiveOrderTabId(tabId);
-  }, [orderModalTabs.length]);
-
-  const closeOrderTab = useCallback((tabId: string) => {
-    setOrderModalTabs(prev => {
-      const newTabs = prev.filter(tab => tab.id !== tabId);
-      if (activeOrderTabId === tabId) {
-        // If closing active tab, activate the last remaining tab or null
-        setActiveOrderTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
-      }
-      return newTabs;
-    });
-  }, [activeOrderTabId]);
-
-  const minimizeOrderTab = useCallback((tabId: string) => {
-    setOrderModalTabs(prev =>
-      prev.map(tab =>
-        tab.id === tabId ? { ...tab, isMinimized: true } : tab
-      )
-    );
+    setActiveDraftOrderId(draftOrderId);
+    setIsAddOrderModalOpen(true);
   }, []);
 
-  const maximizeOrderTab = useCallback((tabId: string) => {
-    setOrderModalTabs(prev =>
-      prev.map(tab =>
-        tab.id === tabId ? { ...tab, isMinimized: false } : tab
-      )
-    );
-    setActiveOrderTabId(tabId);
-  }, []);
-
-  const dragOrderTab = useCallback((tabId: string, x: number, y: number) => {
-    setOrderModalTabs(prev =>
-      prev.map(tab =>
-        tab.id === tabId ? { ...tab, position: { x, y }, zIndex: nextTabZIndex.current++ } : tab
-      )
-    );
-  }, []);
-
-  const activateOrderTab = useCallback((tabId: string) => {
-    setActiveOrderTabId(tabId);
-    // Bring tab to front
-    setOrderModalTabs(prev =>
-      prev.map(tab =>
-        tab.id === tabId ? { ...tab, zIndex: nextTabZIndex.current++, isMinimized: false } : tab
-      )
-    );
+  const closeOrderModal = useCallback(() => {
+    setIsAddOrderModalOpen(false);
+    setActiveDraftOrderId(null);
   }, []);
   
   // Stats state
@@ -946,7 +885,7 @@ export default function Dashboard() {
   // Fetch orders and calculate stats
   useEffect(() => {
     fetchOrders();
-  }, [showDrafts, filterPayment]);
+  }, [showDrafts]);
 
   // Check lock status for all orders periodically
   useEffect(() => {
@@ -1015,9 +954,6 @@ export default function Dashboard() {
       const queryParams = new URLSearchParams();
       if (showDrafts) {
         queryParams.append('showDrafts', 'true');
-      }
-      if (filterPayment !== 'All') {
-        queryParams.append('payment', filterPayment);
       }
 
       // Fetch orders from API using centralized API utility
@@ -1207,18 +1143,11 @@ export default function Dashboard() {
   const handleExport = async (format: 'CSV' | 'Excel' | 'PDF') => {
     // Get filtered orders based on current filters
     const ordersToExport = orders.filter(order => {
-      // Apply search filter
       const matchesSearch = searchQuery === "" || 
         (order.orderId ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         (order.customerName ?? "").toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Apply payment filter
-      const matchesPayment = filterPayment === "All" || order.feeStatus === filterPayment;
-      
-      // Apply drafts filter
       const matchesDrafts = showDrafts ? (order.__raw?.isDraft === true) : (order.__raw?.isDraft !== true);
-      
-      return matchesSearch && matchesPayment && matchesDrafts;
+      return matchesSearch && matchesDrafts;
     });
 
     if (ordersToExport.length === 0) {
@@ -1838,24 +1767,6 @@ export default function Dashboard() {
               setSearchQuery={setSearchQuery}
               showDrafts={showDrafts}
               onToggleDrafts={() => setShowDrafts(!showDrafts)}
-              onOpenFilters={() => setShowFiltersModal(true)}
-            />
-            
-            {/* Inline Payment Status Filters */}
-            <InlineFilters
-              filters={[
-                { label: 'All', value: 'All', icon: 'list-outline', count: orders.length },
-                { label: 'Paid', value: 'Paid', icon: 'checkmark-circle-outline', count: orders.filter(o => o.feeStatus === 'Paid').length },
-                { label: 'Unpaid', value: 'Unpaid', icon: 'close-circle-outline', count: orders.filter(o => o.feeStatus === 'Unpaid').length },
-                { label: 'Partial', value: 'Partial', icon: 'time-outline', count: orders.filter(o => o.feeStatus === 'Partial').length },
-              ]}
-              activeFilters={filterPayment === 'All' ? [] : [filterPayment]}
-              onFilterToggle={(value) => {
-                setFilterPayment(value === filterPayment ? 'All' : value);
-              }}
-              onClearAll={() => setFilterPayment('All')}
-              title="Payment Status"
-              showClearAll={filterPayment !== 'All'}
             />
             
             <View style={styles.orderCountContainer}>
@@ -1863,9 +1774,8 @@ export default function Dashboard() {
                 {orders.filter(o => {
                   const matchesSearch = (o.orderId ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
                     (o.customerName ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase());
-                  const matchesPayment = filterPayment === "All" || o.feeStatus === filterPayment;
                   const matchesDrafts = showDrafts ? (o.__raw?.isDraft === true) : (o.__raw?.isDraft !== true);
-                  return matchesSearch && matchesPayment && matchesDrafts;
+                  return matchesSearch && matchesDrafts;
                 }).length} Orders Found
               </Text>
             </View>
@@ -2133,7 +2043,6 @@ export default function Dashboard() {
                         (searchQuery === "" || 
                           (o.orderId ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (o.customerName ?? "").toLowerCase().includes(searchQuery.toLowerCase())) &&
-                        (filterPayment === "All" || o.feeStatus === filterPayment) &&
                         (showDrafts ? (o.__raw?.isDraft === true) : (o.__raw?.isDraft !== true))
                       ).length} orders
                     </Text>
@@ -2174,77 +2083,16 @@ export default function Dashboard() {
           </Modal>
         )}
 
-        {/* Multi-Tab Order Modal */}
-        <MultiTabOrderModal
-          tabs={orderModalTabs}
-          activeTabId={activeOrderTabId}
-          onTabClose={closeOrderTab}
-          onTabMinimize={minimizeOrderTab}
-          onTabMaximize={maximizeOrderTab}
-          onTabDrag={dragOrderTab}
-          onTabActivate={activateOrderTab}
-          onOrderCreated={(tabId) => {
+        {/* Create Order Modal */}
+        <AddOrderModal
+          isOpen={isAddOrderModalOpen}
+          onClose={closeOrderModal}
+          onOrderCreated={() => {
             fetchOrders();
-            // Optionally close the tab after order creation
-            // closeOrderTab(tabId);
+            closeOrderModal();
           }}
+          draftOrderId={activeDraftOrderId}
         />
-
-        {/* Filters Modal */}
-        <Modal
-          visible={showFiltersModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowFiltersModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.filtersModal}>
-              <View style={styles.filtersHeader}>
-                <Text style={styles.filtersTitle}>Filters</Text>
-                <TouchableOpacity
-                  onPress={() => setShowFiltersModal(false)}
-                  style={styles.closeFiltersButton}
-                >
-                  <Ionicons name="close" size={24} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.filtersContent}>
-                <Text style={styles.filterLabel}>Payment Status</Text>
-                <View style={styles.filterOptions}>
-                  {['All', 'Paid', 'Unpaid', 'Partial'].map((status) => (
-                    <TouchableOpacity
-                      key={status}
-                      onPress={() => {
-                        setFilterPayment(status);
-                        setShowFiltersModal(false);
-                      }}
-                      style={[
-                        styles.filterOption,
-                        filterPayment === status && styles.filterOptionActive
-                      ]}
-                    >
-                      <Text style={[
-                        styles.filterOptionText,
-                        filterPayment === status && styles.filterOptionTextActive
-                      ]}>
-                        {status}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    setFilterPayment('All');
-                    setShowFiltersModal(false);
-                  }}
-                  style={styles.clearFiltersButton}
-                >
-                  <Text style={styles.clearFiltersText}>Clear Filters</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         {/* Floating Action Button */}
         <FloatingActionButton
@@ -2434,6 +2282,7 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     marginBottom: 16,
+    gap: 12,
   },
   orderCountContainer: {
     marginTop: -20,
@@ -2813,77 +2662,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     fontFamily: 'Poppins_700Bold',
-  },
-  filtersModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    width: '90%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  filtersHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  filtersTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  closeFiltersButton: {
-    padding: 4,
-  },
-  filtersContent: {
-    padding: 20,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  filterOptions: {
-    gap: 8,
-    marginBottom: 20,
-  },
-  filterOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  filterOptionActive: {
-    // backgroundColor: '#2563EB', // Now using dynamic color via inline style
-    // borderColor: '#2563EB', // Now using dynamic color via inline style (handled by InlineFilters component)
-  },
-  filterOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  filterOptionTextActive: {
-    color: '#FFFFFF',
-  },
-  clearFiltersButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  clearFiltersText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
   },
 });

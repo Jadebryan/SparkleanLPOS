@@ -8,7 +8,6 @@ type SearchFilterProps = {
   setSearchQuery: (value: string) => void;
   showDrafts?: boolean;
   onToggleDrafts?: () => void;
-  onOpenFilters?: () => void;
 };
 
 const SearchFilter: React.FC<SearchFilterProps> = ({ 
@@ -16,7 +15,6 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
   setSearchQuery,
   showDrafts = false,
   onToggleDrafts,
-  onOpenFilters,
 }) => {
   const dynamicColors = useColors();
   return (
@@ -37,10 +35,16 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
         />
       </View>
 
-      {/* Filter Buttons */}
+      {/* Drafts toggle */}
       <View style={styles.filterContainer}>
         <TouchableOpacity 
-          style={[styles.filterButton, showDrafts && [styles.filterButtonActive, { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }]]}
+          style={[
+            styles.filterButton, 
+            showDrafts && [
+              styles.filterButtonActive, 
+              { backgroundColor: dynamicColors.primary[50], borderColor: dynamicColors.primary[500] }
+            ]
+          ]}
           onPress={onToggleDrafts}
           accessibilityLabel={showDrafts ? "Show all orders" : "Show draft orders"}
           accessibilityRole="button"
@@ -55,16 +59,6 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
           <Text style={[styles.filterButtonText, showDrafts && { color: dynamicColors.primary[500] }]}>
             {showDrafts ? "All Orders" : "Drafts"}
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={onOpenFilters}
-          accessibilityLabel="Open filters"
-          accessibilityRole="button"
-          accessibilityHint="Opens filter options to refine order search"
-        >
-          <Ionicons name="options-outline" size={16} color="#6B7280" />
-          <Text style={styles.filterButtonText}>Filters</Text>
         </TouchableOpacity>
       </View>
     </View>

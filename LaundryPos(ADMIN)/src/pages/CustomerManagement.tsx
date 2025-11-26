@@ -794,7 +794,7 @@ const CustomerManagement: React.FC = () => {
                         <td>
                           <span className="stat-value" style={{ 
                             fontFamily: 'monospace', 
-                            fontSize: '13px',
+                            fontSize: '11px',
                             color: customer.stationId ? 'var(--color-primary-orange)' : '#6B7280'
                           }}>
                             {customer.stationId || 'N/A'}

@@ -99,7 +99,9 @@ export const exportToCSV = (orders: Order[], filename: string = 'orders') => {
   downloadFile(csvWithBOM, `${filename}.csv`, 'text/csv;charset=utf-8')
 }
 
-// Excel Export Functions (using a simple approach that works in most browsers)
+// Excel Export Functions (using xlsx library for proper Excel files)
+import * as XLSX from 'xlsx'
+
 export const exportToExcel = (orders: Order[], filename: string = 'orders') => {
   const headers = [
     'Order ID',
@@ -114,102 +116,136 @@ export const exportToExcel = (orders: Order[], filename: string = 'orders') => {
     'Notes'
   ]
 
-  // Create HTML table for Excel
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-          xmlns:x="urn:schemas-microsoft-com:office:excel" 
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="utf-8">
-      <meta name="ExcelCreated" content="true">
-      <style>
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        .amount { text-align: right; }
-        .total-row { background-color: #e8f4f8; font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(header => `<th>${header}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${orders.map(order => {
-            const itemsArr: any[] = Array.isArray((order as any).items) ? (order as any).items : []
-            const services = itemsArr.map(item => `${item.service} (${item.quantity})`).join('; ')
-            const itemStatuses = itemsArr.map(item => item.status).join('; ')
-            const paidAmount = typeof (order as any).paid === 'number' 
-              ? (order as any).paid 
-              : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
-            const totalFormatted = formatToPeso(order.total)
-            const balanceFormatted = formatToPeso(order.balance)
-            const paidFormatted = formatToPeso(paidAmount)
-            
-            return `
-              <tr>
-                <td>${order.id}</td>
-                <td>${order.date}</td>
-                <td>${order.customer}</td>
-                <td>${order.payment}</td>
-                <td class="amount">${totalFormatted}</td>
-                <td class="amount">${paidFormatted}</td>
-                <td class="amount">${balanceFormatted}</td>
-                <td>${services}</td>
-                <td>${itemStatuses}</td>
-                <td>${order.notes || ''}</td>
-              </tr>
-            `
-          }).join('')}
-          ${(() => {
-            // Calculate totals
-            let totalAmount = 0
-            let totalPaid = 0
-            let totalBalance = 0
-            
-            orders.forEach(order => {
-              const totalStr = order.total || '₱0'
-              const totalNum = parseFloat(totalStr.replace(/[₱,]/g, '')) || 0
-              totalAmount += totalNum
-              
-              const paidAmount = typeof (order as any).paid === 'number' 
-                ? (order as any).paid 
-                : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
-              totalPaid += paidAmount
-              
-              const balanceStr = order.balance || '₱0'
-              const balanceNum = parseFloat(balanceStr.replace(/[₱,]/g, '')) || 0
-              totalBalance += balanceNum
-            })
-            
-            return `
-              <tr class="total-row">
-                <td><strong>TOTAL</strong></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td class="amount"><strong>${formatToPeso(totalAmount)}</strong></td>
-                <td class="amount"><strong>${formatToPeso(totalPaid)}</strong></td>
-                <td class="amount"><strong>${formatToPeso(totalBalance)}</strong></td>
-                <td></td>
-                <td></td>
-                <td></td>
-              </tr>
-            `
-          })()}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
-
-  // Ensure UTF-8 encoding for peso symbol - add BOM and explicit charset
-  const BOM = '\uFEFF'
-  const htmlWithBOM = BOM + htmlContent
-  downloadFile(htmlWithBOM, `${filename}.xls`, 'application/vnd.ms-excel;charset=utf-8')
+  // Prepare data rows
+  const dataRows = orders.map(order => {
+    const itemsArr: any[] = Array.isArray((order as any).items) ? (order as any).items : []
+    const services = itemsArr.map(item => `${item.service} (${item.quantity})`).join('; ')
+    const itemStatuses = itemsArr.map(item => item.status).join('; ')
+    const paidAmount = typeof (order as any).paid === 'number' 
+      ? (order as any).paid 
+      : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
+    
+    // Extract numeric values for amount columns
+    const totalNum = parseFloat(String(order.total || '₱0').replace(/[₱,]/g, '')) || 0
+    const balanceNum = parseFloat(String(order.balance || '₱0').replace(/[₱,]/g, '')) || 0
+    
+    return [
+      order.id,
+      order.date,
+      order.customer,
+      order.payment,
+      totalNum,
+      paidAmount,
+      balanceNum,
+      services,
+      itemStatuses,
+      order.notes || ''
+    ]
+  })
+  
+  // Calculate totals
+  let totalAmount = 0
+  let totalPaid = 0
+  let totalBalance = 0
+  
+  orders.forEach(order => {
+    const totalStr = order.total || '₱0'
+    const totalNum = parseFloat(totalStr.replace(/[₱,]/g, '')) || 0
+    totalAmount += totalNum
+    
+    const paidAmount = typeof (order as any).paid === 'number' 
+      ? (order as any).paid 
+      : parseFloat(String((order as any).paid || '0').replace(/[^\d.]/g, '')) || 0
+    totalPaid += paidAmount
+    
+    const balanceStr = order.balance || '₱0'
+    const balanceNum = parseFloat(balanceStr.replace(/[₱,]/g, '')) || 0
+    totalBalance += balanceNum
+  })
+  
+  // Add totals row
+  dataRows.push([
+    'TOTAL',
+    '',
+    '',
+    '',
+    totalAmount,
+    totalPaid,
+    totalBalance,
+    '',
+    '',
+    ''
+  ])
+  
+  // Create worksheet
+  const worksheetData = [headers, ...dataRows]
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 12 }, // Order ID
+    { wch: 12 }, // Date
+    { wch: 20 }, // Customer
+    { wch: 15 }, // Payment Status
+    { wch: 15 }, // Total Amount
+    { wch: 15 }, // Paid Amount
+    { wch: 15 }, // Balance
+    { wch: 30 }, // Services
+    { wch: 15 }, // Item Status
+    { wch: 30 }  // Notes
+  ]
+  
+  // Style header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (worksheet[cellAddress]) {
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F2F2F2' } }
+      }
+    }
+  }
+  
+  // Style total row
+  const lastRow = dataRows.length
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: lastRow, c: col })
+    if (worksheet[cellAddress]) {
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'E8F4F8' } },
+        alignment: { 
+          horizontal: (col >= 4 && col <= 6) ? 'right' : 'left', 
+          vertical: 'center' 
+        }
+      }
+    }
+  }
+  
+  // Right align amount columns (Total Amount, Paid Amount, Balance)
+  for (let row = 1; row < lastRow; row++) {
+    for (let col = 4; col <= 6; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
+      if (worksheet[cellAddress]) {
+        if (!worksheet[cellAddress].s) {
+          worksheet[cellAddress].s = {}
+        }
+        worksheet[cellAddress].s.alignment = { horizontal: 'right', vertical: 'center' }
+      }
+    }
+  }
+  
+  // Create workbook
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders')
+  
+  // Write to file
+  const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  })
+  downloadFile(blob, `${filename}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 }
 
 // JSON Export Functions - Generic version that accepts any data
@@ -256,9 +292,9 @@ export const exportToPDF = async (orders: Order[], filename: string = 'orders') 
 }
 
 // Utility function to download files
-const downloadFile = (content: string, filename: string, mimeType: string) => {
+const downloadFile = (content: string | Blob, filename: string, mimeType: string) => {
   try {
-    const blob = new Blob([content], { type: mimeType })
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -375,7 +411,7 @@ export const exportDataToCSV = (data: any[], headers: string[], filename: string
   downloadFile(csvContent, `${filename}.csv`, 'text/csv')
 }
 
-// Generic Excel Export Function
+// Generic Excel Export Function (using xlsx library)
 export const exportDataToExcel = (data: any[], headers: string[], filename: string = 'export') => {
   if (!data || data.length === 0) {
     throw new Error('No data to export')
@@ -385,82 +421,113 @@ export const exportDataToExcel = (data: any[], headers: string[], filename: stri
   const totals = calculateTotals(data, headers)
   const hasTotals = Object.keys(totals).length > 0
 
-  // Helper function to escape HTML and handle currency symbol properly
-  const escapeHtml = (value: any): string => {
-    if (value === null || value === undefined) return ''
-    const str = String(value)
-    // Replace currency symbol properly and escape HTML
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
+  // Prepare data rows
+  const dataRows = data.map(row => {
+    return headers.map(header => {
+      const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
+      let value = row[key] || row[header] || ''
+      
+      // Extract numeric value for amount columns
+      const amountKeywords = ['total', 'amount', 'revenue', 'expenses', 'profit', 'spent', 'cashflow', 'paid', 'balance']
+      const isAmountColumn = amountKeywords.some(keyword => header.toLowerCase().includes(keyword))
+      
+      if (isAmountColumn && typeof value === 'string') {
+        const numValue = parseFloat(value.replace(/[₱PHP,]/g, '').trim()) || 0
+        return numValue !== 0 ? numValue : value
+      }
+      
+      return value
+    })
+  })
+  
+  // Add totals row if needed
+  if (hasTotals) {
+    const totalRow = headers.map(header => {
+      const totalInfo = totals[header]
+      if (totalInfo !== undefined) {
+        if (totalInfo.type === 'currency') {
+          return totalInfo.value
+        } else if (totalInfo.type === 'count') {
+          return totalInfo.value
+        } else {
+          return totalInfo.value
+        }
+      }
+      return header === headers[0] ? 'TOTAL' : ''
+    })
+    dataRows.push(totalRow)
   }
-
-  const htmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-    <?mso-application progid="Excel.Sheet"?>
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-          xmlns:x="urn:schemas-microsoft-com:office:excel" 
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="utf-8">
-      <meta name="ProgId" content="Excel.Sheet">
-      <meta name="Generator" content="Microsoft Excel">
-      <style>
-        <!--
-        table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
-        th { background-color: #f2f2f2; font-weight: bold; border: 1px solid #ddd; padding: 8px; text-align: left; }
-        td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .number { text-align: right; }
-        .total-row { background-color: #e8f4f8; font-weight: bold; }
-        -->
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${data.map(row => {
-            return `
-              <tr>
-                ${headers.map(header => {
-                  const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
-                  const value = row[key] || row[header] || ''
-                  return `<td>${escapeHtml(value)}</td>`
-                }).join('')}
-              </tr>
-            `
-          }).join('')}
-          ${hasTotals ? `
-          <tr class="total-row">
-            ${headers.map(header => {
-              const totalInfo = totals[header]
-              if (totalInfo !== undefined) {
-                if (totalInfo.type === 'currency') {
-                  return `<td class="number"><strong>PHP ${totalInfo.value.toFixed(2)}</strong></td>`
-                } else if (totalInfo.type === 'count') {
-                  return `<td class="number"><strong>${totalInfo.value}</strong></td>`
-                } else {
-                  // Backward compatibility
-                  return `<td class="number"><strong>PHP ${totalInfo.value.toFixed(2)}</strong></td>`
-                }
-              }
-              return header === headers[0] ? `<td><strong>TOTAL</strong></td>` : '<td></td>'
-            }).join('')}
-          </tr>
-          ` : ''}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
-
-  downloadFile(htmlContent, `${filename}.xls`, 'application/vnd.ms-excel')
+  
+  // Create worksheet
+  const worksheetData = [headers, ...dataRows]
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  
+  // Set column widths
+  const colWidths = headers.map((header, index) => {
+    const maxLength = Math.max(
+      header.length,
+      ...dataRows.map(row => String(row[index] || '').length)
+    )
+    return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
+  })
+  worksheet['!cols'] = colWidths
+  
+  // Style header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (worksheet[cellAddress]) {
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F2F2F2' } }
+      }
+    }
+  }
+  
+  // Style total row if exists
+  if (hasTotals) {
+    const lastRow = dataRows.length
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: lastRow, c: col })
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: 'E8F4F8' } },
+          alignment: { 
+            horizontal: totals[headers[col]] ? 'right' : 'left', 
+            vertical: 'center' 
+          }
+        }
+      }
+    }
+  }
+  
+  // Right align amount columns
+  const amountKeywords = ['total', 'amount', 'revenue', 'expenses', 'profit', 'spent', 'cashflow', 'paid', 'balance']
+  headers.forEach((header, colIndex) => {
+    if (amountKeywords.some(keyword => header.toLowerCase().includes(keyword))) {
+      for (let row = 1; row < dataRows.length; row++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: colIndex })
+        if (worksheet[cellAddress]) {
+          if (!worksheet[cellAddress].s) {
+            worksheet[cellAddress].s = {}
+          }
+          worksheet[cellAddress].s.alignment = { horizontal: 'right', vertical: 'center' }
+        }
+      }
+    }
+  })
+  
+  // Create workbook
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
+  
+  // Write to file
+  const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  })
+  downloadFile(blob, `${filename}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 }
 
 export interface ReportPdfOptions {
@@ -1019,53 +1086,72 @@ export const exportCustomersToExcel = (customers: Customer[], filename: string =
     'Average Order Value (₱)'
   ]
 
-  // Create HTML table for Excel
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-          xmlns:x="urn:schemas-microsoft-com:office:excel" 
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="utf-8">
-      <meta name="ExcelCreated" content="true">
-      <style>
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        .number { text-align: right; }
-        .currency { text-align: right; }
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(header => `<th>${header}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${customers.map(customer => {
-            const avgOrderValue = customer.totalOrders > 0 ? (customer.totalSpent / customer.totalOrders).toFixed(2) : '0.00'
-            
-            return `
-              <tr>
-                <td>${customer.id}</td>
-                <td>${customer.name}</td>
-                <td>${customer.email}</td>
-                <td>${customer.phone}</td>
-                <td class="number">${customer.totalOrders}</td>
-                <td class="currency">₱${customer.totalSpent.toLocaleString()}</td>
-                <td>${customer.lastOrder}</td>
-                <td class="currency">₱${avgOrderValue}</td>
-              </tr>
-            `
-          }).join('')}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
-
-  downloadFile(htmlContent, `${filename}.xls`, 'application/vnd.ms-excel')
+  // Prepare data rows
+  const dataRows = customers.map(customer => {
+    const avgOrderValue = customer.totalOrders > 0 ? (customer.totalSpent / customer.totalOrders) : 0
+    return [
+      customer.id,
+      customer.name,
+      customer.email,
+      customer.phone,
+      customer.totalOrders,
+      customer.totalSpent,
+      customer.lastOrder,
+      avgOrderValue
+    ]
+  })
+  
+  // Create worksheet
+  const worksheetData = [headers, ...dataRows]
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 12 }, // Customer ID
+    { wch: 25 }, // Name
+    { wch: 30 }, // Email
+    { wch: 15 }, // Phone
+    { wch: 12 }, // Total Orders
+    { wch: 15 }, // Total Spent
+    { wch: 15 }, // Last Order Date
+    { wch: 18 }  // Average Order Value
+  ]
+  
+  // Style header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (worksheet[cellAddress]) {
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F2F2F2' } }
+      }
+    }
+  }
+  
+  // Right align numeric columns (Total Orders, Total Spent, Average Order Value)
+  for (let row = 1; row <= dataRows.length; row++) {
+    for (let col = 4; col <= 7; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
+      if (worksheet[cellAddress]) {
+        if (!worksheet[cellAddress].s) {
+          worksheet[cellAddress].s = {}
+        }
+        worksheet[cellAddress].s.alignment = { horizontal: 'right', vertical: 'center' }
+      }
+    }
+  }
+  
+  // Create workbook
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers')
+  
+  // Write to file
+  const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  })
+  downloadFile(blob, `${filename}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 }
 
 export const exportCustomersToJSON = (customers: Customer[], filename: string = 'customers') => {
@@ -1150,57 +1236,73 @@ export const exportEmployeesToExcel = (employees: Employee[], filename: string =
     'Tenure (Months)'
   ]
 
-  // Create HTML table for Excel
-  const htmlContent = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-          xmlns:x="urn:schemas-microsoft-com:office:excel" 
-          xmlns="http://www.w3.org/TR/REC-html40">
-    <head>
-      <meta charset="utf-8">
-      <meta name="ExcelCreated" content="true">
-      <style>
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; font-weight: bold; }
-        .number { text-align: right; }
-        .status-active { color: #059669; font-weight: bold; }
-        .status-inactive { color: #DC2626; font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      <table>
-        <thead>
-          <tr>
-            ${headers.map(header => `<th>${header}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${employees.map(employee => {
-            const hireDate = new Date(employee.hireDate)
-            const currentDate = new Date()
-            const tenureMonths = Math.floor((currentDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
-            const statusClass = employee.status === 'Active' ? 'status-active' : 'status-inactive'
-            
-            return `
-              <tr>
-                <td>${employee.id}</td>
-                <td>${employee.name}</td>
-                <td>${employee.employeeId}</td>
-                <td>${employee.position}</td>
-                <td>${employee.department}</td>
-                <td class="${statusClass}">${employee.status}</td>
-                <td>${employee.hireDate}</td>
-                <td class="number">${tenureMonths}</td>
-              </tr>
-            `
-          }).join('')}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `
-
-  downloadFile(htmlContent, `${filename}.xls`, 'application/vnd.ms-excel')
+  // Prepare data rows
+  const dataRows = employees.map(employee => {
+    const hireDate = new Date(employee.hireDate)
+    const currentDate = new Date()
+    const tenureMonths = Math.floor((currentDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+    
+    return [
+      employee.id,
+      employee.name,
+      employee.employeeId,
+      employee.position,
+      employee.department,
+      employee.status,
+      employee.hireDate,
+      tenureMonths
+    ]
+  })
+  
+  // Create worksheet
+  const worksheetData = [headers, ...dataRows]
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  
+  // Set column widths
+  worksheet['!cols'] = [
+    { wch: 12 }, // Employee ID
+    { wch: 25 }, // Name
+    { wch: 15 }, // Employee Number
+    { wch: 20 }, // Position
+    { wch: 15 }, // Department
+    { wch: 12 }, // Status
+    { wch: 12 }, // Hire Date
+    { wch: 15 }  // Tenure
+  ]
+  
+  // Style header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (worksheet[cellAddress]) {
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: 'F2F2F2' } }
+      }
+    }
+  }
+  
+  // Right align tenure column
+  for (let row = 1; row <= dataRows.length; row++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: row, c: 7 })
+    if (worksheet[cellAddress]) {
+      if (!worksheet[cellAddress].s) {
+        worksheet[cellAddress].s = {}
+      }
+      worksheet[cellAddress].s.alignment = { horizontal: 'right', vertical: 'center' }
+    }
+  }
+  
+  // Create workbook
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees')
+  
+  // Write to file
+  const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  })
+  downloadFile(blob, `${filename}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 }
 
 export const exportEmployeesToJSON = (employees: Employee[], filename: string = 'employees') => {

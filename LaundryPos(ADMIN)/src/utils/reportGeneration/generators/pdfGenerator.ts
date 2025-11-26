@@ -162,32 +162,70 @@ export class PDFGenerator extends BaseGenerator implements ExportGenerator {
     yPos += 10
     
     const headers = reportData.headers
-    const maxColumns = Math.min(headers.length, 6)
-    const displayHeaders = headers.slice(0, maxColumns)
+    const chunkSize = 6
+    const totals = this.calculateTotals(reportData)
     
+    for (let start = 0; start < headers.length; start += chunkSize) {
+      const displayHeaders = headers.slice(start, start + chunkSize)
+      if (start > 0) {
+        if (yPos + 10 > contentBottom) {
+          doc.addPage()
+          yPos = 35
+        }
+        doc.setFontSize(10)
+        doc.setFont(undefined, 'bold')
+        doc.text('ADDITIONAL COLUMNS', margin, yPos)
+        yPos += 8
+      }
+      yPos = this.drawTableSegment(
+        doc,
+        reportData,
+        displayHeaders,
+        totals,
+        margin,
+        yPos,
+        maxWidth,
+        contentBottom,
+        pageWidth,
+        pageHeight
+      )
+      yPos += 6
+    }
+    
+    return yPos
+  }
+
+  private drawTableSegment(
+    doc: any,
+    reportData: ReportData,
+    displayHeaders: string[],
+    totals: Record<string, { value: number; type: 'currency' | 'count' }>,
+    margin: number,
+    yPos: number,
+    maxWidth: number,
+    contentBottom: number,
+    pageWidth: number,
+    pageHeight: number
+  ): number {
     // Distribute columns evenly with minimal padding
-    const columnPadding = 1.5 // Minimal padding between columns
+    const columnPadding = 1.5
     const totalPadding = columnPadding * (displayHeaders.length - 1)
     const availableWidth = maxWidth - totalPadding
     const colWidth = availableWidth / displayHeaders.length
     const normalizedWidths = displayHeaders.map(() => colWidth)
     
-    // Determine column alignment based on header/content type (before drawing headers)
     const columnAlignments: ('left' | 'right')[] = displayHeaders.map(header => {
       const headerLower = header.toLowerCase()
-      // Right-align currency and numeric columns
       const isCurrency = headerLower.includes('revenue') || headerLower.includes('expenses') || 
                         headerLower.includes('profit') || headerLower.includes('amount') || 
                         headerLower.includes('price') || headerLower.includes('cost') ||
-                        headerLower.includes('total revenue') || headerLower.includes('total spent') ||
                         headerLower.includes('balance') || headerLower.includes('paid') ||
-                        headerLower.includes('cashflow') || headerLower.includes('net cashflow')
+                        headerLower.includes('cashflow')
       const isNumeric = headerLower.includes('orders') || headerLower.includes('count') || 
                        headerLower.includes('quantity') || headerLower.includes('items')
       return (isCurrency || isNumeric) ? 'right' : 'left'
     })
     
-    // Table header
     doc.setFillColor(240, 242, 245)
     doc.roundedRect(margin, yPos - 5, maxWidth, 8, 2, 2, 'F')
     
@@ -195,36 +233,30 @@ export class PDFGenerator extends BaseGenerator implements ExportGenerator {
     doc.setFont(undefined, 'bold')
     let xPos = margin + 2
     displayHeaders.forEach((header, index) => {
-      const colWidth = normalizedWidths[index]
+      const width = normalizedWidths[index]
       const alignment = columnAlignments[index]
       let headerText = header
-      const maxHeaderWidth = colWidth - 4 // Leave 2mm padding on each side
-      
-      // Truncate header if too long
+      const maxHeaderWidth = width - 4
       if (doc.getTextWidth(headerText) > maxHeaderWidth) {
         while (doc.getTextWidth(headerText + '...') > maxHeaderWidth && headerText.length > 0) {
           headerText = headerText.substring(0, headerText.length - 1)
         }
         headerText = headerText + '...'
       }
-      
-      // Apply same alignment as data columns
       if (alignment === 'right') {
         const textWidth = doc.getTextWidth(headerText)
-        doc.text(headerText, xPos + colWidth - textWidth - 2, yPos)
+        doc.text(headerText, xPos + width - textWidth - 2, yPos)
       } else {
       doc.text(headerText, xPos, yPos)
       }
-      xPos += colWidth + columnPadding
+      xPos += width + columnPadding
     })
     yPos += 8
     
-    // Header line
     doc.setDrawColor(200, 200, 200)
     doc.setLineWidth(0.5)
     doc.line(margin, yPos - 2, pageWidth - margin, yPos - 2)
     
-    // Data rows
     doc.setFont(undefined, 'normal')
     doc.setFontSize(9)
     reportData.rows.forEach((row, rowIndex) => {
@@ -240,13 +272,12 @@ export class PDFGenerator extends BaseGenerator implements ExportGenerator {
       
       xPos = margin + 2
       displayHeaders.forEach((header, index) => {
-        const colWidth = normalizedWidths[index]
+        const width = normalizedWidths[index]
         const alignment = columnAlignments[index]
         const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')
         let value = String(row[key] || row[header] || '')
-        const maxValueWidth = colWidth - 4 // Leave 2mm padding on each side
+        const maxValueWidth = width - 4
         
-        // Truncate value if it exceeds column width
         if (doc.getTextWidth(value) > maxValueWidth) {
           let truncated = value
           while (doc.getTextWidth(truncated + '...') > maxValueWidth && truncated.length > 0) {
@@ -255,21 +286,19 @@ export class PDFGenerator extends BaseGenerator implements ExportGenerator {
           value = truncated + '...'
         }
         
-        // Apply alignment
         if (alignment === 'right') {
           const textWidth = doc.getTextWidth(value)
-          doc.text(value, xPos + colWidth - textWidth - 2, yPos)
+          doc.text(value, xPos + width - textWidth - 2, yPos)
         } else {
         doc.text(value, xPos, yPos)
         }
-        xPos += colWidth + columnPadding
+        xPos += width + columnPadding
       })
       yPos += 7
     })
     
-    // Total row
-    const totals = this.calculateTotals(reportData)
-    if (Object.keys(totals).length > 0) {
+    const displayTotals = Object.keys(totals).some(header => displayHeaders.includes(header))
+    if (displayTotals) {
       if (yPos + 10 > contentBottom) {
         doc.addPage()
         yPos = 35
@@ -286,40 +315,30 @@ export class PDFGenerator extends BaseGenerator implements ExportGenerator {
       
       xPos = margin + 2
       displayHeaders.forEach((header, index) => {
-        const colWidth = normalizedWidths[index]
+        const width = normalizedWidths[index]
         const alignment = columnAlignments[index]
         
         if (totals[header] !== undefined) {
           const totalInfo = totals[header]
-          let totalText: string
-          
-          // Format based on type
-          if (totalInfo.type === 'currency') {
-            totalText = `PHP ${totalInfo.value.toFixed(2)}`
-          } else if (totalInfo.type === 'count') {
-            totalText = totalInfo.value.toString()
-          } else {
-            // Backward compatibility
-            totalText = `PHP ${totalInfo.value.toFixed(2)}`
-          }
+          let totalText = totalInfo.type === 'count'
+            ? totalInfo.value.toString()
+            : `PHP ${totalInfo.value.toFixed(2)}`
           
           doc.setFontSize(9)
           doc.setFont(undefined, 'bold')
           
-          // Apply same alignment as data rows
           if (alignment === 'right') {
           const textWidth = doc.getTextWidth(totalText)
-          doc.text(totalText, xPos + colWidth - textWidth - 2, yPos)
+            doc.text(totalText, xPos + width - textWidth - 2, yPos)
           } else {
             doc.text(totalText, xPos, yPos)
           }
         } else if (header === displayHeaders[0]) {
-          // First column shows "TOTAL" label (always left-aligned)
           doc.setFontSize(9)
           doc.setFont(undefined, 'bold')
           doc.text('TOTAL', xPos, yPos)
         }
-        xPos += colWidth + columnPadding
+        xPos += width + columnPadding
       })
       yPos += 8
       

@@ -10,7 +10,7 @@ export class OrdersFormatter extends BaseFormatter {
     
     return data.map((order: any) => ({
       'Order ID': order.id || order._id || '',
-      Date: order.date || '',
+      Date: order.date || order.createdAt || '',
       Customer: order.customer || order.customerName || '',
       Payment: order.payment || order.paymentStatus || '',
       Total: this.formatCurrencyForExport(order.total),
@@ -18,6 +18,8 @@ export class OrdersFormatter extends BaseFormatter {
       Balance: this.formatCurrencyForExport(order.balance || 0),
       Services: this.formatServices(order.items),
       Status: this.formatItemStatuses(order.items),
+      'Created By': this.formatStaffName(order.createdBy || order.createdByName || order.staffName),
+      'Last Updated By': this.formatStaffName(order.lastEditedBy || order.updatedBy || order.lastUpdatedBy),
       Notes: order.notes || ''
     }))
   }
@@ -33,6 +35,8 @@ export class OrdersFormatter extends BaseFormatter {
       'Balance',
       'Services',
       'Status',
+      'Created By',
+      'Last Updated By',
       'Notes'
     ]
   }
@@ -49,6 +53,12 @@ export class OrdersFormatter extends BaseFormatter {
   private formatItemStatuses(items: any[]): string {
     if (!Array.isArray(items) || items.length === 0) return ''
     return items.map((item: any) => item.status || '').join('; ')
+  }
+
+  private formatStaffName(staff: any): string {
+    if (!staff) return ''
+    if (typeof staff === 'string') return staff
+    return staff.fullName || staff.name || staff.username || staff.email || ''
   }
 }
 
