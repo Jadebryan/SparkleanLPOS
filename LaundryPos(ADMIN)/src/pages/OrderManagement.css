@@ -653,6 +653,24 @@
   cursor: default;
 }
 
+.locked-alert {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: 6px;
+  color: var(--color-warning-text, var(--color-warning));
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.locked-alert svg {
+  color: inherit;
+  flex-shrink: 0;
+}
+
 /* Items Section */
 .items-section {
   margin-top: 24px;

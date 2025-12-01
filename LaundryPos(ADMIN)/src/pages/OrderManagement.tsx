@@ -2102,18 +2102,7 @@ const OrderManagement: React.FC = () => {
                       <option>Partial</option>
                     </select>
                     {((selectedOrder as any)?.isCompleted || selectedOrder.payment === 'Paid') && (
-                      <div style={{ 
-                        marginTop: '8px',
-                        padding: '8px 12px', 
-                        backgroundColor: '#FEF3C7', 
-                        border: '1px solid #F59E0B', 
-                        borderRadius: '6px',
-                        color: '#92400E',
-                        fontSize: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
+                      <div className="locked-alert">
                         <FiLock size={14} />
                         <span>
                           {(selectedOrder as any)?.isCompleted
@@ -2218,18 +2207,7 @@ const OrderManagement: React.FC = () => {
                       <option>Completed</option>
                     </select>
                     {(selectedOrder as any)?.isCompleted && (
-                      <div style={{ 
-                        marginTop: '8px',
-                        padding: '8px 12px', 
-                        backgroundColor: '#FEF3C7', 
-                        border: '1px solid #F59E0B', 
-                        borderRadius: '6px',
-                        color: '#92400E',
-                        fontSize: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
+                      <div className="locked-alert">
                         <FiLock size={14} />
                         <span>This order is completed and locked from editing</span>
                       </div>

@@ -45,4 +45,5 @@ logs/
 
 # Non-POS artifacts
 other-projects/
+.tools/
 

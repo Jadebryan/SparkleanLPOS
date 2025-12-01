@@ -35,6 +35,7 @@
   --color-success-bg: #D1FAE5;
   --color-warning: #D97706;
   --color-warning-bg: #FEF3C7;
+  --color-warning-text: #92400E;
   --color-error: #DC2626;
   --color-error-bg: #FEE2E2;
   
@@ -91,6 +92,7 @@ body {
   /* Override status colors for better contrast in dark mode */
   --color-success-bg: #064E3B;
   --color-warning-bg: #78350F;
+  --color-warning-text: #FDE68A;
   --color-error-bg: #7F1D1D;
   
   /* Override light backgrounds for dark mode - will be overridden by palette if set */
@@ -194,6 +196,7 @@ body {
   /* Override status colors for dim mode */
   --color-success-bg: #22543D;
   --color-warning-bg: #744210;
+  --color-warning-text: #FBD38D;
   --color-error-bg: #742A2A;
   
   /* Override light backgrounds for dim mode - will be overridden by palette if set */
