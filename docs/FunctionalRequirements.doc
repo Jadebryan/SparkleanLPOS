@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Functional Requirements - LaundryPOS</title>
+    <style>
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 24px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      h2 {
+        margin-top: 32px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      th,
+      td {
+        border: 1px solid #222;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background-color: #f0f0f0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Functional Requirements - LaundryPOS</h1>
+
+    <h2>Admin</h2>
+    <table>
+      <tr>
+        <th>Feature</th>
+        <th>Description / User Story</th>
+      </tr>
+      <tr>
+        <td>Secure Login &amp; RBAC</td>
+        <td>As an admin, I want role-aware authentication so I can safely open every management module allowed to me.</td>
+      </tr>
+      <tr>
+        <td>Analytics Dashboard</td>
+        <td>As an admin, I want KPIs (orders, revenue, pending approvals) so I can monitor branch health instantly.</td>
+      </tr>
+      <tr>
+        <td>Global Order Control</td>
+        <td>As an admin, I want to create, edit, archive, and bulk-update orders so branch transactions stay accurate.</td>
+      </tr>
+      <tr>
+        <td>Customer &amp; Station Registry</td>
+        <td>As an admin, I want to manage customer and station records so master data reflects real-world operations.</td>
+      </tr>
+      <tr>
+        <td>Employee Directory</td>
+        <td>As an admin, I want to add, update, or retire employee records so staffing permissions remain current.</td>
+      </tr>
+      <tr>
+        <td>Service &amp; Pricing Catalog</td>
+        <td>As an admin, I want to configure services, categories, and pricing so branches always quote updated rates.</td>
+      </tr>
+      <tr>
+        <td>Discount Lifecycle</td>
+        <td>As an admin, I want to launch, pause, or retire discount codes so promos stay compliant.</td>
+      </tr>
+      <tr>
+        <td>Expense Governance</td>
+        <td>As an admin, I want to review, approve, reject, or archive expenses so cash outflows are justified.</td>
+      </tr>
+      <tr>
+        <td>Report Generation &amp; Export</td>
+        <td>As an admin, I want to filter and export order, revenue, expense, customer, and service reports so finance can audit.</td>
+      </tr>
+      <tr>
+        <td>Audit Logs &amp; Notifications</td>
+        <td>As an admin, I want to inspect audit trails and receive alerts so I can trace activity and act on issues quickly.</td>
+      </tr>
+      <tr>
+        <td>Backup &amp; System Settings</td>
+        <td>As an admin, I want to run backups and tune system/email/SMS settings so the platform remains reliable.</td>
+      </tr>
+      <tr>
+        <td>User &amp; Access Management</td>
+        <td>As an admin, I want to activate/deactivate users and assign roles so only authorized people operate the system.</td>
+      </tr>
+    </table>
+
+    <h2>Staff</h2>
+    <table>
+      <tr>
+        <th>Feature</th>
+        <th>Description / User Story</th>
+      </tr>
+      <tr>
+        <td>Secure Login</td>
+        <td>As a staff member, I want to log in with my branch credentials so I can access only my assigned tools.</td>
+      </tr>
+      <tr>
+        <td>Guided Order Entry</td>
+        <td>As a staff member, I want to draft and finalize customer orders with services, discounts, and payments so sales are captured accurately.</td>
+      </tr>
+      <tr>
+        <td>Order Progress Updates</td>
+        <td>As a staff member, I want to update statuses, payments, and notes on my orders so customers stay informed.</td>
+      </tr>
+      <tr>
+        <td>Customer Maintenance</td>
+        <td>As a staff member, I want to add or edit customer profiles so contact information stays current while serving them.</td>
+      </tr>
+      <tr>
+        <td>Mobile-Optimized Workflow</td>
+        <td>As a staff member, I want a touch-friendly interface with offline queueing so I can continue working with poor connectivity.</td>
+      </tr>
+      <tr>
+        <td>Expense Submission &amp; Tracking</td>
+        <td>As a staff member, I want to file expenses with receipts, edit pending entries, and monitor approvals so reimbursements are transparent.</td>
+      </tr>
+      <tr>
+        <td>Notification Center</td>
+        <td>As a staff member, I want real-time alerts about order changes and expense decisions so I can respond immediately.</td>
+      </tr>
+      <tr>
+        <td>Personal Metrics</td>
+        <td>As a staff member, I want to view my order counts and sales totals so I can measure performance against branch goals.</td>
+      </tr>
+    </table>
+  </body>
+</html>
+
