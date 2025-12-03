@@ -6,6 +6,13 @@
   "scripts": {
     "organize-docs": "node scripts/organize-markdown.js",
     "setup-git-hooks": "node scripts/setup-git-hooks.js"
+  },
+  "devDependencies": {
+    "docx": "^9.5.1",
+    "markdown-pdf": "^11.0.0",
+    "marked": "^17.0.1",
+    "md-to-docx": "^1.6.1",
+    "md-to-pdf": "^5.2.5",
+    "puppeteer": "^24.31.0"
   }
 }
-

@@ -53,7 +53,15 @@ class EmployeeController {
   static async getEmployee(req, res) {
     try {
       const { id } = req.params;
-      const employee = await Employee.findById(id).populate('userId', 'username email role isActive');
+
+      let employee;
+
+      // Support both MongoDB _id and business employeeId
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        employee = await Employee.findById(id).populate('userId', 'username email role isActive');
+      } else {
+        employee = await Employee.findOne({ employeeId: id }).populate('userId', 'username email role isActive');
+      }
 
       if (!employee) {
         return res.status(404).json({
@@ -181,7 +189,13 @@ class EmployeeController {
       const { id } = req.params;
       const { isActive } = req.body;
 
-      const employee = await Employee.findById(id).populate('userId');
+      // Support both MongoDB _id and business employeeId
+      let employee;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        employee = await Employee.findById(id).populate('userId');
+      } else {
+        employee = await Employee.findOne({ employeeId: id }).populate('userId');
+      }
 
       if (!employee) {
         return res.status(404).json({
@@ -241,7 +255,13 @@ class EmployeeController {
       const { id } = req.params;
       const { name, employeeId, position, department, hireDate, email, phone, status, notes, stationId } = req.body;
 
-      const employee = await Employee.findById(id);
+      // Support both MongoDB _id and business employeeId
+      let employee;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        employee = await Employee.findById(id);
+      } else {
+        employee = await Employee.findOne({ employeeId: id });
+      }
 
       if (!employee) {
         return res.status(404).json({
@@ -253,7 +273,7 @@ class EmployeeController {
       if (name) employee.name = name;
       if (employeeId && employeeId !== employee.employeeId) {
         // Check if new ID is taken
-        const existing = await Employee.findOne({ employeeId, _id: { $ne: id } });
+        const existing = await Employee.findOne({ employeeId, _id: { $ne: employee._id } });
         if (existing) {
           return res.status(409).json({
             success: false,
@@ -325,11 +345,20 @@ class EmployeeController {
     try {
       const { id } = req.params;
 
-      const employee = await Employee.findByIdAndUpdate(
-        id,
-        { isArchived: true },
-        { new: true }
-      );
+      let employee;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        employee = await Employee.findByIdAndUpdate(
+          id,
+          { isArchived: true },
+          { new: true }
+        );
+      } else {
+        employee = await Employee.findOneAndUpdate(
+          { employeeId: id },
+          { isArchived: true },
+          { new: true }
+        );
+      }
 
       if (!employee) {
         return res.status(404).json({
@@ -449,11 +478,20 @@ class EmployeeController {
     try {
       const { id } = req.params;
 
-      const employee = await Employee.findByIdAndUpdate(
-        id,
-        { isArchived: false },
-        { new: true }
-      );
+      let employee;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        employee = await Employee.findByIdAndUpdate(
+          id,
+          { isArchived: false },
+          { new: true }
+        );
+      } else {
+        employee = await Employee.findOneAndUpdate(
+          { employeeId: id },
+          { isArchived: false },
+          { new: true }
+        );
+      }
 
       if (!employee) {
         return res.status(404).json({

@@ -1167,6 +1167,40 @@ class OrderController {
       });
     } catch (error) {
       console.error('Update order error:', error);
+      
+      // Handle specific error messages with appropriate status codes
+      const errorMessage = error.message || error.toString();
+      
+      if (errorMessage.includes('Order not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+      
+      if (errorMessage.includes('Access denied')) {
+        return res.status(403).json({
+          success: false,
+          message: errorMessage
+        });
+      }
+      
+      if (errorMessage.includes('cannot be edited') || errorMessage.includes('completed')) {
+        return res.status(400).json({
+          success: false,
+          message: errorMessage
+        });
+      }
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError' || error.name === 'CastError') {
+        return res.status(400).json({
+          success: false,
+          message: error.message || 'Invalid input data'
+        });
+      }
+      
+      // Default to 500 for unexpected errors
       res.status(500).json({
         success: false,
         message: 'Internal server error'
@@ -1742,6 +1776,16 @@ class OrderController {
       const decodedId = decodeURIComponent(id);
       const userId = req.user._id;
 
+      // First, verify that the order exists
+      const order = await Order.findOne({ id: decodedId });
+      
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
       // Release all locks for this order by this user
       const result = await Lock.updateMany(
         {
@@ -1776,6 +1820,16 @@ class OrderController {
       const { id } = req.params;
       const decodedId = decodeURIComponent(id);
       const userId = req.user._id;
+
+      // First, verify that the order exists
+      const order = await Order.findOne({ id: decodedId });
+      
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
 
       // Find active lock for this order
       const lock = await Lock.findOne({
