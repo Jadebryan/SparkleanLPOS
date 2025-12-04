@@ -141,6 +141,16 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: null
+  },
+  pointsEarned: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  pointsUsed: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true

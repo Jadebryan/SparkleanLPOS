@@ -25,6 +25,11 @@ const customerSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  points: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   lastOrder: {
     type: Date,
     default: null

@@ -13,6 +13,14 @@ const DEFAULT_INACTIVITY_SETTINGS = {
   },
 };
 
+// Default configuration for loyalty points
+// enabled: whether customers can earn new points
+// pesoToPointMultiplier: how many points are earned per ₱1 paid (e.g. 0.01 = 0.01 pts per ₱1)
+const DEFAULT_POINTS_SETTINGS = {
+  enabled: true,
+  pesoToPointMultiplier: 0.01,
+};
+
 class SystemSettingController {
   static mergeWithDefaults(role, value = {}) {
     const defaults = DEFAULT_INACTIVITY_SETTINGS[role] || DEFAULT_INACTIVITY_SETTINGS.admin;
@@ -117,6 +125,99 @@ class SystemSettingController {
       return res.status(500).json({
         success: false,
         message: 'Failed to update inactivity setting',
+      });
+    }
+  }
+
+  /**
+   * Get global points (loyalty) settings.
+   * Response shape:
+   * {
+   *   enabled: boolean,
+   *   pesoToPointMultiplier: number  // e.g. 0.01 means 0.01 points per ₱1
+   * }
+   */
+  static async getPointsSettings(req, res) {
+    try {
+      const setting = await SystemSetting.findOne({ key: 'points.global' });
+
+      const value = setting?.value || {};
+
+      const response = {
+        enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_POINTS_SETTINGS.enabled,
+        pesoToPointMultiplier: typeof value.pesoToPointMultiplier === 'number'
+          ? value.pesoToPointMultiplier
+          : DEFAULT_POINTS_SETTINGS.pesoToPointMultiplier,
+      };
+
+      return res.status(200).json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      console.error('Error fetching points settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to load points settings',
+      });
+    }
+  }
+
+  /**
+   * Update global points (loyalty) settings.
+   * Accepts:
+   * - enabled: boolean (toggle earning on/off)
+   * - pesoToPointMultiplier: number (points earned per ₱1, must be >= 0 and <= 1)
+   */
+  static async updatePointsSettings(req, res) {
+    try {
+      const { enabled, pesoToPointMultiplier } = req.body;
+
+      let multiplier = Number(pesoToPointMultiplier);
+      if (Number.isNaN(multiplier) || multiplier < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'pesoToPointMultiplier must be a non-negative number',
+        });
+      }
+
+      // Put a sensible upper bound to avoid accidentally huge multipliers
+      if (multiplier > 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'pesoToPointMultiplier cannot be greater than 1 (1 point per ₱1)',
+        });
+      }
+
+      const finalValue = {
+        enabled: typeof enabled === 'boolean' ? enabled : DEFAULT_POINTS_SETTINGS.enabled,
+        pesoToPointMultiplier: multiplier,
+      };
+
+      await SystemSetting.findOneAndUpdate(
+        { key: 'points.global' },
+        {
+          key: 'points.global',
+          value: finalValue,
+          updatedBy: req.user?._id || null,
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: finalValue,
+        message: 'Points settings updated successfully',
+      });
+    } catch (error) {
+      console.error('Error updating points settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update points settings',
       });
     }
   }

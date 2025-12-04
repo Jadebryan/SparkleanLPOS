@@ -40,6 +40,8 @@ export interface Order {
   scheduledDeleteAt?: string | null
   convertedOrderId?: string | null
   stationId?: string
+  pointsEarned?: number
+  pointsUsed?: number
   lastEditedBy?: {
     _id?: string
     username?: string
@@ -58,6 +60,8 @@ export interface Customer {
   totalOrders: number
   totalSpent: number
   lastOrder: string
+  points?: number
+  isArchived?: boolean
   avatar?: string
   stationId?: string
 }

@@ -35,6 +35,13 @@ const DEFAULT_SESSION_SETTINGS = {
   warningSeconds: 60,
 }
 
+// Default loyalty points configuration (admin can override in System settings)
+const DEFAULT_POINTS_SETTINGS = {
+  enabled: true,
+  // Points earned per ₱1 paid (e.g. 0.01 = 0.01 points per ₱1)
+  pesoToPointMultiplier: 0.01,
+}
+
 const SAVED_COLOR_STORAGE_KEY = 'admin_saved_palette_colors'
 const DEFAULT_SAVED_COLORS = [
   '#F97316',
@@ -66,6 +73,14 @@ const Settings: React.FC = () => {
   const [sessionSettings, setSessionSettings] = useState(() => ({ ...DEFAULT_SESSION_SETTINGS }))
   const [isSessionLoading, setIsSessionLoading] = useState(false)
   const [isSessionSaving, setIsSessionSaving] = useState(false)
+
+  // Points (loyalty) settings – admin configurable
+  const [pointsSettings, setPointsSettings] = useState(() => ({ ...DEFAULT_POINTS_SETTINGS }))
+  const [isPointsLoading, setIsPointsLoading] = useState(false)
+  const [isPointsSaving, setIsPointsSaving] = useState(false)
+  const [pointsPreviewAmount, setPointsPreviewAmount] = useState<number>(100) // ₱100 default preview
+  const [lastSavedPointsSettings, setLastSavedPointsSettings] = useState(() => ({ ...DEFAULT_POINTS_SETTINGS }))
+  const [isPointsConfirmOpen, setIsPointsConfirmOpen] = useState(false)
 
   // Debug: Log user data
   console.log('Settings component rendered, user:', user)
@@ -114,6 +129,34 @@ const Settings: React.FC = () => {
     }
 
     fetchSessionSettings()
+  }, [user])
+
+  // Load global points settings (admin only)
+  useEffect(() => {
+    const fetchPointsSettings = async () => {
+      if (!user || user.role !== 'admin') return
+      try {
+        setIsPointsLoading(true)
+        const response = await settingsAPI.getPointsSettings()
+        const data = response?.data || response
+        const normalized = {
+          enabled: data?.enabled ?? DEFAULT_POINTS_SETTINGS.enabled,
+          pesoToPointMultiplier: typeof data?.pesoToPointMultiplier === 'number'
+            ? data.pesoToPointMultiplier
+            : DEFAULT_POINTS_SETTINGS.pesoToPointMultiplier,
+        }
+        setPointsSettings(normalized)
+        setLastSavedPointsSettings(normalized)
+      } catch (error) {
+        console.error('Failed to load points settings:', error)
+        toast.error('Failed to load points settings')
+        setPointsSettings({ ...DEFAULT_POINTS_SETTINGS })
+      } finally {
+        setIsPointsLoading(false)
+      }
+    }
+
+    fetchPointsSettings()
   }, [user])
 
   const [passwordForm, setPasswordForm] = useState({
@@ -577,6 +620,53 @@ const Settings: React.FC = () => {
 
   const handleSessionReset = () => {
     setSessionSettings({ ...DEFAULT_SESSION_SETTINGS })
+  }
+
+  const handlePointsSettingsSave = async () => {
+    if (!user || user.role !== 'admin') return
+
+    const multiplier = Number(pointsSettings.pesoToPointMultiplier)
+    if (Number.isNaN(multiplier) || multiplier < 0) {
+      toast.error('Conversion must be a non-negative number (e.g. 0.01)')
+      return
+    }
+    if (multiplier > 1) {
+      toast.error('Conversion cannot be greater than 1 (max 1 point per ₱1)')
+      return
+    }
+
+    // If nothing changed, just save silently
+    const changed =
+      pointsSettings.enabled !== lastSavedPointsSettings.enabled ||
+      multiplier !== lastSavedPointsSettings.pesoToPointMultiplier
+
+    // Open confirmation modal when changing the conversion or enable toggle
+    if (changed) {
+      setIsPointsConfirmOpen(true)
+      return
+    }
+
+    try {
+      setIsPointsSaving(true)
+      await settingsAPI.updatePointsSettings({
+        enabled: pointsSettings.enabled,
+        pesoToPointMultiplier: multiplier,
+      })
+      setLastSavedPointsSettings({
+        enabled: pointsSettings.enabled,
+        pesoToPointMultiplier: multiplier,
+      })
+      toast.success('Points settings updated')
+    } catch (error: any) {
+      console.error('Points settings update error:', error)
+      toast.error(error?.message || 'Failed to update points settings')
+    } finally {
+      setIsPointsSaving(false)
+    }
+  }
+
+  const handlePointsReset = () => {
+    setPointsSettings({ ...DEFAULT_POINTS_SETTINGS })
   }
 
   // Early return if user is not available
@@ -1349,11 +1439,177 @@ const Settings: React.FC = () => {
                         <p>✅ Logging: Active</p>
                       </div>
                     </div>
+
+                    {/* Loyalty / Points Settings */}
+                    <div className="system-info" style={{ marginTop: '24px' }}>
+                      <div className="info-card">
+                        <h3>Loyalty Points Settings</h3>
+                        <p>
+                          Configure how customers earn points from their payments.
+                          These settings apply globally across all branches.
+                        </p>
+
+                        {isPointsLoading ? (
+                          <p className="form-description">Loading points settings...</p>
+                        ) : (
+                          <div className="session-settings-grid">
+                            <div className="session-toggle-row">
+                              <div>
+                                <h4>Enable points earning</h4>
+                                <p>Turn off to temporarily stop customers from earning new points.</p>
+                              </div>
+                              <label className="settings-switch">
+                                <input
+                                  type="checkbox"
+                                  checked={pointsSettings.enabled}
+                                  onChange={(e) =>
+                                    setPointsSettings(prev => ({ ...prev, enabled: e.target.checked }))
+                                  }
+                                />
+                                <span className="slider round"></span>
+                              </label>
+                            </div>
+
+                            <div className="session-input-row">
+                              <label>Peso to points conversion</label>
+                              <input
+                                type="number"
+                                min={0}
+                                max={1}
+                                step={0.001}
+                                value={pointsSettings.pesoToPointMultiplier}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value)
+                                  setPointsSettings(prev => ({
+                                    ...prev,
+                                    pesoToPointMultiplier: value,
+                                  }))
+                                }}
+                              />
+                              <small>
+                                {(() => {
+                                  const rate = Math.max(0, Number(pointsSettings.pesoToPointMultiplier) || 0)
+                                  const perPeso = rate.toFixed(3)
+                                  const sample100 = (100 * rate).toFixed(2)
+                                  return (
+                                    <>
+                                      Points earned per ₱1 paid. Current rate:&nbsp;
+                                      <strong>{perPeso} pts per ₱1</strong>
+                                      {` (₱100 => ${sample100} pts).`}
+                                    </>
+                                  )
+                                })()}
+                              </small>
+                            </div>
+
+                            {/* Real-time preview */}
+                            <div className="session-input-row">
+                              <label>Preview</label>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <span>For payment of</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  value={pointsPreviewAmount}
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value)
+                                    setPointsPreviewAmount(Number.isNaN(value) || value < 0 ? 0 : value)
+                                  }}
+                                  style={{ width: '100px' }}
+                                />
+                                <span>₱, customer earns</span>
+                                <strong>
+                                  {Math.max(0, Number((pointsPreviewAmount * (pointsSettings.pesoToPointMultiplier || 0)).toFixed(2)))} pts
+                                </strong>
+                              </div>
+                              <small>
+                                This preview updates in real time as you change the conversion rate or sample amount.
+                              </small>
+                            </div>
+
+                            <div className="form-actions session-actions">
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={handlePointsReset}
+                                disabled={isPointsSaving}
+                              >
+                                Reset to Default
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={handlePointsSettingsSave}
+                                disabled={isPointsSaving || isPointsLoading}
+                              >
+                                {isPointsSaving ? (
+                                  <>
+                                    <div className="spinner"></div>
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiSave />
+                                    Save Points Settings
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
             )}
           </motion.div>
+          {/* Confirm changing points conversion */}
+          <ConfirmDialog
+            isOpen={isPointsConfirmOpen}
+            title="Update Loyalty Points Settings"
+            message={
+              <span>
+                You are about to change how customers earn points.
+                <br />
+                New orders marked as <strong>Paid</strong> will immediately use this new conversion rate.
+                Existing points and past orders will not be recalculated.
+                <br />
+                <br />
+                Are you sure you want to apply this change?
+              </span>
+            }
+            confirmLabel="Yes, apply change"
+            cancelLabel="Cancel"
+            type="warning"
+            onCancel={() => setIsPointsConfirmOpen(false)}
+            onConfirm={async () => {
+              if (!user || user.role !== 'admin') {
+                setIsPointsConfirmOpen(false)
+                return
+              }
+              const multiplier = Number(pointsSettings.pesoToPointMultiplier)
+              try {
+                setIsPointsSaving(true)
+                await settingsAPI.updatePointsSettings({
+                  enabled: pointsSettings.enabled,
+                  pesoToPointMultiplier: multiplier,
+                })
+                setLastSavedPointsSettings({
+                  enabled: pointsSettings.enabled,
+                  pesoToPointMultiplier: multiplier,
+                })
+                toast.success('Points settings updated')
+              } catch (error: any) {
+                console.error('Points settings update error:', error)
+                toast.error(error?.message || 'Failed to update points settings')
+              } finally {
+                setIsPointsSaving(false)
+                setIsPointsConfirmOpen(false)
+              }
+            }}
+          />
         </div>
 
         {palettePendingDelete && (

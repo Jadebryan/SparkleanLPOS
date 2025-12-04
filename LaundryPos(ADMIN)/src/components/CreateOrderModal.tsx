@@ -52,6 +52,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [selectedDiscountId, setSelectedDiscountId] = useState('')
+  const [pointsUsed, setPointsUsed] = useState(0)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [paidAmount, setPaidAmount] = useState('')
   const [pickupDate, setPickupDate] = useState('')
   const [paymentStatus, setPaymentStatus] = useState('Unpaid')
@@ -102,6 +104,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       setSelectedServiceId('')
       setQuantity(1)
       setSelectedDiscountId('')
+      setPointsUsed(0)
+      setSelectedCustomer(null)
       setPaidAmount('')
       setPickupDate('')
       setPaymentStatus('Unpaid')
@@ -168,7 +172,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           phone: c.phone,
           totalOrders: c.totalOrders || 0,
           totalSpent: c.totalSpent || 0,
-          lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet'
+          lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
+          points: c.points || 0
         }))
 
         // Map services - only include active and non-archived services
@@ -414,13 +419,40 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       }
     }
 
-    const total = Math.max(0, amt - discountValue)
+    // Calculate points discount (1 point = ₱1)
+    const pointsDiscount = pointsUsed || 0
+    const total = Math.max(0, amt - discountValue - pointsDiscount)
     setTotalDue(total)
 
     const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0
     const bal = total - paid
     setBalance(bal)
-  }, [orderServices, selectedDiscountId, paidAmount, availableServices, availableDiscounts])
+  }, [orderServices, selectedDiscountId, pointsUsed, paidAmount, availableServices, availableDiscounts])
+
+  // Update selectedCustomer when customer name/phone matches
+  useEffect(() => {
+    if (customerName && customerPhone) {
+      const foundCustomer = customers.find(c => 
+        c.name.toLowerCase() === customerName.toLowerCase() && c.phone === customerPhone
+      )
+      if (foundCustomer) {
+        setSelectedCustomer(foundCustomer)
+      } else if (customerName && !customerPhone) {
+        const foundByName = customers.find(c => 
+          c.name.toLowerCase() === customerName.toLowerCase()
+        )
+        if (foundByName) {
+          setSelectedCustomer(foundByName)
+        } else {
+          setSelectedCustomer(null)
+        }
+      } else {
+        setSelectedCustomer(null)
+      }
+    } else {
+      setSelectedCustomer(null)
+    }
+  }, [customerName, customerPhone, customers])
 
   // Filter customers for autocomplete
   const filteredCustomerSuggestions = customerName.trim()
@@ -442,6 +474,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const handleCustomerSelect = (customer: Customer) => {
     setCustomerName(customer.name)
     setCustomerPhone(customer.phone)
+    setSelectedCustomer(customer)
+    setPointsUsed(0) // Reset points when customer changes
     setShowCustomerSuggestions(false)
     setSelectedSuggestionIndex(0)
   }
@@ -645,6 +679,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         customerPhone: customerPhone.trim(),
         items: items,
         discountId: selectedDiscountId && selectedDiscountId.trim() !== '' ? selectedDiscountId : null,
+        pointsUsed: pointsUsed > 0 ? pointsUsed : 0,
         paid: actualPaid,
         pickupDate: pickupDate && pickupDate.trim() !== '' ? pickupDate : null,
         notes: notes || '',
@@ -1481,10 +1516,25 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                         {customerName && (
                           <div className="customer-status">
                             {isExistingCustomer(customerName, customerPhone) ? (
-                              <div className="status-indicator existing">
-                                <FiUser size={16} />
-                                <span>Existing customer</span>
-                              </div>
+                              <>
+                                <div className="status-indicator existing">
+                                  <FiUser size={16} />
+                                  <span>Existing customer</span>
+                                </div>
+                                {selectedCustomer && selectedCustomer.points !== undefined && (
+                                  <div style={{ 
+                                    marginTop: '8px', 
+                                    padding: '8px 12px', 
+                                    backgroundColor: '#F0F9FF', 
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    color: '#0369A1',
+                                    fontWeight: '500'
+                                  }}>
+                                    ⭐ Available Points: {selectedCustomer.points} (1 point = ₱1 discount)
+                                  </div>
+                                )}
+                              </>
                             ) : (
                               <div className="status-indicator new">
                                 <FiUserPlus size={16} />
@@ -1661,6 +1711,60 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                                 })}
                             </select>
                           </div>
+                          {selectedCustomer && selectedCustomer.points !== undefined && selectedCustomer.points > 0 && (
+                            <div className="form-group">
+                              <label>
+                                Use Points 
+                                <span style={{ fontSize: '12px', color: '#6B7280', marginLeft: '4px' }}>
+                                  (Available: {selectedCustomer.points}, 1 point = ₱1)
+                                </span>
+                              </label>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={selectedCustomer.points}
+                                  value={pointsUsed}
+                                  onChange={(e) => {
+                                    const inputValue = e.target.value;
+                                    // Allow empty string for better UX
+                                    if (inputValue === '') {
+                                      setPointsUsed(0);
+                                      return;
+                                    }
+                                    const value = parseInt(inputValue) || 0;
+                                    const maxPoints = selectedCustomer?.points || 0;
+                                    if (isNaN(value) || value < 0) {
+                                      setPointsUsed(0);
+                                    } else if (value > maxPoints) {
+                                      toast.error(`Cannot use more than ${maxPoints} points`, { duration: 2000 });
+                                      setPointsUsed(maxPoints);
+                                    } else {
+                                      setPointsUsed(value);
+                                    }
+                                  }}
+                                  placeholder="0"
+                                  style={{ flex: 1 }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{ whiteSpace: 'nowrap' }}
+                                  onClick={() => {
+                                    const maxPoints = selectedCustomer?.points || 0;
+                                    setPointsUsed(maxPoints);
+                                  }}
+                                >
+                                  Use all points
+                                </button>
+                              </div>
+                              {pointsUsed > 0 && (
+                                <small style={{ color: '#059669', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                                  Points discount: -₱{pointsUsed.toFixed(2)}
+                                </small>
+                              )}
+                            </div>
+                          )}
                           <div className="form-group">
                             <label>Paid Amount</label>
                             <input
@@ -1756,10 +1860,20 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           </div>
                           
                           {(amount - totalDue) > 0 && (
-                            <div className="summary-item">
-                              <span className="summary-label">Discount</span>
-                              <span className="summary-value discount">-₱{(amount - totalDue).toFixed(2)}</span>
-                            </div>
+                            <>
+                              {pointsUsed > 0 && (
+                                <div className="summary-item">
+                                  <span className="summary-label">Points Discount</span>
+                                  <span className="summary-value discount">-₱{pointsUsed.toFixed(2)}</span>
+                                </div>
+                              )}
+                              {(amount - totalDue - pointsUsed) > 0 && (
+                                <div className="summary-item">
+                                  <span className="summary-label">Discount</span>
+                                  <span className="summary-value discount">-₱{(amount - totalDue - pointsUsed).toFixed(2)}</span>
+                                </div>
+                              )}
+                            </>
                           )}
                           
                           <div className="summary-divider"></div>

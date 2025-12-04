@@ -8,5 +8,9 @@ router.use(authenticate);
 router.get('/inactivity', SystemSettingController.getInactivitySettings);
 router.put('/inactivity', SystemSettingController.updateInactivitySetting);
 
+// Loyalty points / rewards configuration
+router.get('/points', SystemSettingController.getPointsSettings);
+router.put('/points', SystemSettingController.updatePointsSettings);
+
 module.exports = router;
 

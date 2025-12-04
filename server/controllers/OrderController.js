@@ -12,6 +12,32 @@ const TransactionWrapper = require('../utils/transactionWrapper');
 const auditLogger = require('../utils/auditLogger');
 const LockManager = require('../utils/lockManager');
 const Lock = require('../models/LockModel');
+const SystemSetting = require('../models/SystemSettingModel');
+
+// Default points configuration used when no system setting is stored.
+// enabled: whether customers can earn new points
+// pesoToPointMultiplier: points earned per ₱1 paid (e.g. 0.01 = 0.01 pts per ₱1)
+const DEFAULT_POINTS_CONFIG = {
+  enabled: true,
+  pesoToPointMultiplier: 0.01,
+};
+
+async function getPointsConfig() {
+  try {
+    const setting = await SystemSetting.findOne({ key: 'points.global' });
+    const value = setting?.value || {};
+    return {
+      enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_POINTS_CONFIG.enabled,
+      pesoToPointMultiplier:
+        typeof value.pesoToPointMultiplier === 'number'
+          ? value.pesoToPointMultiplier
+          : DEFAULT_POINTS_CONFIG.pesoToPointMultiplier,
+    };
+  } catch (error) {
+    console.error('Error loading points configuration, using defaults:', error);
+    return { ...DEFAULT_POINTS_CONFIG };
+  }
+}
 
 class OrderController {
   // Get all orders with role-based filtering
@@ -156,7 +182,8 @@ class OrderController {
         payment,
         draftId,
         stationId: stationIdFromBody,
-        skipCustomerCreation = false
+        skipCustomerCreation = false,
+        pointsUsed = 0
       } = req.body;
 
       // Prepare resources for 2PL locking
@@ -320,6 +347,37 @@ class OrderController {
             totalAmount += item.amount || 0;
           });
 
+          // Load points system configuration from system settings
+          const pointsConfig = await getPointsConfig();
+
+          // Points system configuration
+          // 1 point = ₱1 discount when redeeming
+          const POINTS_TO_PESO_RATE = 1;
+          // Earning rule: for every ₱1 paid, earn (pesoToPointMultiplier) points
+          // Example (default): ₱100 paid, multiplier 0.01 => 1.00 point
+          const PESO_TO_POINT_MULTIPLIER = pointsConfig.pesoToPointMultiplier ?? DEFAULT_POINTS_CONFIG.pesoToPointMultiplier;
+
+          // Validate and process points usage
+          let pointsDiscountAmount = 0;
+          let actualPointsUsed = 0;
+          if (pointsUsed && pointsUsed > 0 && customerDoc) {
+            // Ensure pointsUsed is a valid number
+            const pointsToUse = parseInt(String(pointsUsed)) || 0;
+            if (pointsToUse <= 0) {
+              throw new Error('Points to use must be a positive number.');
+            }
+            
+            // Ensure customer has enough points
+            const customerPoints = customerDoc.points || 0;
+            if (customerPoints < pointsToUse) {
+              throw new Error(`Insufficient points. Customer has ${customerPoints} points, but trying to use ${pointsToUse} points.`);
+            }
+            
+            // Calculate discount from points (1 point = ₱1)
+            pointsDiscountAmount = pointsToUse * POINTS_TO_PESO_RATE;
+            actualPointsUsed = pointsToUse;
+          }
+
           // Apply discount if provided
           let discountAmount = 0;
           let discountCode = '0%';
@@ -359,11 +417,28 @@ class OrderController {
             appliedDiscount = discount;
           }
 
-          const finalTotal = totalAmount - discountAmount;
+          // Update discount code to include points if used
+          if (actualPointsUsed > 0) {
+            if (discountCode && discountCode !== '0%') {
+              discountCode = `${discountCode} + ${actualPointsUsed} pts`;
+            } else {
+              discountCode = `${actualPointsUsed} pts`;
+            }
+          }
+
+          // Calculate final total: subtotal - discount - points discount
+          const finalTotal = Math.max(0, totalAmount - discountAmount - pointsDiscountAmount);
           const paidAmount = paid || 0;
           const balanceAmount = finalTotal - paidAmount;
           const changeAmount = paidAmount > finalTotal ? paidAmount - finalTotal : 0;
           const paymentStatus = balanceAmount <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
+
+          // Calculate points earned based on amount paid (only if order is paid)
+          // Earn points according to configured multiplier (may be disabled)
+          let pointsEarned = 0;
+          if (pointsConfig.enabled && paymentStatus === 'Paid' && paidAmount > 0) {
+            pointsEarned = parseFloat((paidAmount * PESO_TO_POINT_MULTIPLIER).toFixed(2));
+          }
 
           const newOrder = new Order({
             id: orderId,
@@ -382,7 +457,9 @@ class OrderController {
             pickupDate: pickupDate ? new Date(pickupDate) : null,
             notes: notes || '',
             createdBy: req.user._id,
-            stationId: stationIdFromBody || req.user.stationId || null
+            stationId: stationIdFromBody || req.user.stationId || null,
+            pointsEarned: pointsEarned,
+            pointsUsed: actualPointsUsed
           });
           
           await newOrder.save();
@@ -407,6 +484,22 @@ class OrderController {
             customerDoc.totalOrders += 1;
             customerDoc.totalSpent += finalTotal;
             customerDoc.lastOrder = new Date();
+            
+            // Update customer points: deduct points used, add points earned
+            const currentPoints = customerDoc.points || 0;
+            let newPoints = currentPoints;
+            
+            // Deduct points used
+            if (actualPointsUsed > 0) {
+              newPoints = Math.max(0, newPoints - actualPointsUsed);
+            }
+            
+            // Add points earned (only if order is paid)
+            if (pointsEarned > 0) {
+              newPoints = newPoints + pointsEarned;
+            }
+            
+            customerDoc.points = newPoints;
             await customerDoc.save();
           }
 
@@ -735,20 +828,40 @@ class OrderController {
           }
           
           const discountAmount = order.discountAmount || 0;
+          // Apply points discount if points were used (1 point = ₱1)
+          const POINTS_TO_PESO_RATE = 1;
+          const pointsDiscountAmount = (order.pointsUsed || 0) * POINTS_TO_PESO_RATE;
+          
           order.subtotal = subtotal;
-          order.total = subtotal - discountAmount;
+          const finalTotal = Math.max(0, subtotal - discountAmount - pointsDiscountAmount);
+          order.total = `₱${finalTotal.toFixed(2)}`;
           
           // Update balance
-          order.balance = order.total - (order.paid || 0);
+          const paidAmount = order.paid || 0;
+          const balanceAmount = finalTotal - paidAmount;
+          order.balance = `₱${Math.max(0, balanceAmount).toFixed(2)}`;
         } else {
           // Recalculate balance if payment changed
-          order.balance = order.total - (order.paid || 0);
+          const currentTotal = parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0;
+          const paidAmount = order.paid || 0;
+          const balanceAmount = currentTotal - paidAmount;
+          order.balance = `₱${Math.max(0, balanceAmount).toFixed(2)}`;
         }
 
         // Update change if payment is Paid
         if (order.payment === 'Paid') {
-          order.change = (order.paid || 0) - order.total;
-          if (order.change < 0) order.change = 0;
+          const paidAmountForChange = order.paid || 0;
+          // order.total is stored as a formatted string like "₱123.45" – parse it safely
+          const numericTotalForChange =
+            typeof order.total === 'string'
+              ? parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0
+              : order.total || 0;
+
+          let changeValue = paidAmountForChange - numericTotalForChange;
+          if (!Number.isFinite(changeValue) || changeValue < 0) {
+            changeValue = 0;
+          }
+          order.change = changeValue;
         } else {
           order.change = 0;
         }
@@ -766,6 +879,33 @@ class OrderController {
         // Update last edited tracking
         order.lastEditedBy = userId;
         order.lastEditedAt = new Date();
+
+        // Handle points when payment status changes to Paid
+        // Earn points according to configured multiplier (may be disabled)
+        if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
+          // Only grant points if they haven't been granted yet
+          if (!order.pointsEarned || order.pointsEarned === 0) {
+            const paidAmount = order.paid || 0;
+            const pointsConfig = await getPointsConfig();
+            const multiplier = pointsConfig.pesoToPointMultiplier ?? DEFAULT_POINTS_CONFIG.pesoToPointMultiplier;
+            const pointsEarned = (pointsConfig.enabled && paidAmount > 0)
+              ? parseFloat((paidAmount * multiplier).toFixed(2))
+              : 0;
+            
+            if (pointsEarned > 0) {
+              order.pointsEarned = pointsEarned;
+              
+              // Update customer points if customer exists
+              if (order.customerId) {
+                const customer = await Customer.findById(order.customerId);
+                if (customer) {
+                  customer.points = (customer.points || 0) + pointsEarned;
+                  await customer.save();
+                }
+              }
+            }
+          }
+        }
 
         // Save the order
         await order.save();
@@ -980,8 +1120,12 @@ class OrderController {
                 totalAmount += item.amount || 0;
               });
             } else {
-              // Use existing total
-              totalAmount = parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0;
+              // Use existing total (handle both string and number formats)
+              if (typeof order.total === 'string') {
+                totalAmount = parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0;
+              } else {
+                totalAmount = order.total || 0;
+              }
             }
 
             // Apply discount if exists
@@ -997,7 +1141,11 @@ class OrderController {
               }
             }
 
-            const finalTotal = totalAmount - discountAmount;
+            // Apply points discount if points were used (1 point = ₱1)
+            const POINTS_TO_PESO_RATE = 1;
+            const pointsDiscountAmount = (order.pointsUsed || 0) * POINTS_TO_PESO_RATE;
+
+            const finalTotal = Math.max(0, totalAmount - discountAmount - pointsDiscountAmount);
             const paidAmount = paid !== undefined ? paid : (order.paid || 0);
             const balanceAmount = finalTotal - paidAmount;
             const changeAmount = paidAmount > finalTotal ? paidAmount - finalTotal : 0;
@@ -1018,6 +1166,38 @@ class OrderController {
             if (hasCompletedItem) {
               order.isCompleted = true;
               console.log(`🔒 Order ${order.id} marked as completed and locked from further edits.`);
+            }
+          }
+
+        // Handle points when payment status changes to Paid
+        // Earn points according to configured multiplier (may be disabled)
+          if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
+            // Only grant points if they haven't been granted yet
+            if (!order.pointsEarned || order.pointsEarned === 0) {
+              const paidAmount = order.paid || 0;
+            const pointsConfig = await getPointsConfig();
+            const multiplier = pointsConfig.pesoToPointMultiplier ?? DEFAULT_POINTS_CONFIG.pesoToPointMultiplier;
+            const pointsEarned = (pointsConfig.enabled && paidAmount > 0)
+              ? parseFloat((paidAmount * multiplier).toFixed(2))
+              : 0;
+              
+              if (pointsEarned > 0) {
+                order.pointsEarned = pointsEarned;
+                
+                // Update customer points if customer exists
+                if (order.customerId) {
+                  try {
+                    const customer = await Customer.findById(order.customerId);
+                    if (customer) {
+                      customer.points = (customer.points || 0) + pointsEarned;
+                      await customer.save();
+                    }
+                  } catch (error) {
+                    console.error('Error updating customer points:', error);
+                    // Don't fail the order update if points update fails
+                  }
+                }
+              }
             }
           }
 

@@ -208,6 +208,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   
   const [pickupDate, setPickupDate] = useState("");
   const [selectedDiscountId, setSelectedDiscountId] = useState("");
+  const [pointsUsed, setPointsUsed] = useState(0);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ _id: string; customerName: string; phoneNumber: string; points?: number } | null>(null);
   const [paidAmount, setPaidAmount] = useState("0");
   const [paymentStatus, setPaymentStatus] = useState<"Paid" | "Partial" | "Unpaid">("Unpaid");
   const [notes, setNotes] = useState("");
@@ -312,6 +314,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             customerName: c.name || c.customerName || '',
             phoneNumber: c.phone || c.phoneNumber || '',
             email: c.email || '',
+            points: c.points || 0,
           }));
         setCustomers(customersData);
 
@@ -389,10 +392,38 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         .slice(0, 5)
     : [];
 
+  // Update selectedCustomer when customer name/phone matches
+  useEffect(() => {
+    if (customerName && customerPhone) {
+      const foundCustomer = customers.find(c => 
+        c.customerName?.toLowerCase() === customerName.toLowerCase() && 
+        c.phoneNumber === customerPhone
+      );
+      if (foundCustomer) {
+        setSelectedCustomer(foundCustomer);
+      } else if (customerName && !customerPhone) {
+        const foundByName = customers.find(c => 
+          c.customerName?.toLowerCase() === customerName.toLowerCase()
+        );
+        if (foundByName) {
+          setSelectedCustomer(foundByName);
+        } else {
+          setSelectedCustomer(null);
+        }
+      } else {
+        setSelectedCustomer(null);
+      }
+    } else {
+      setSelectedCustomer(null);
+    }
+  }, [customerName, customerPhone, customers]);
+
   // Handle customer selection
-  const handleCustomerSelect = (customer: { customerName: string; phoneNumber: string }) => {
+  const handleCustomerSelect = (customer: { _id: string; customerName: string; phoneNumber: string; points?: number }) => {
     setCustomerName(customer.customerName);
     setCustomerPhone(customer.phoneNumber);
+    setSelectedCustomer(customer);
+    setPointsUsed(0); // Reset points when customer changes
     setShowCustomerSuggestions(false);
     setSelectedSuggestionIndex(0);
   };
@@ -506,7 +537,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         }
       }
       
-      const total = Math.max(0, subtotal - discountValue);
+      // Calculate points discount (1 point = ₱1)
+      const pointsDiscount = pointsUsed || 0;
+      const total = Math.max(0, subtotal - discountValue - pointsDiscount);
       const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
       const balance = total - paid; // Can be negative (overpayment)
       
@@ -524,7 +557,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
     };
     
     calculateTotals();
-  }, [orderServices, selectedDiscountId, paidAmount, discountOptions]);
+  }, [orderServices, selectedDiscountId, pointsUsed, paidAmount, discountOptions]);
 
   // Calculate totals for display
   const subtotal = orderServices.reduce((sum, item) => sum + item.amount, 0);
@@ -537,7 +570,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       discountAmount = selectedDiscount.value;
     }
   }
-  const totalAmount = Math.max(0, subtotal - discountAmount);
+  // Calculate points discount (1 point = ₱1)
+  const pointsDiscount = pointsUsed || 0;
+  const totalAmount = Math.max(0, subtotal - discountAmount - pointsDiscount);
   const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
   const balanceDue = totalAmount - paid; // Can be negative (overpayment = change due)
   const changeDue = balanceDue < 0 ? Math.abs(balanceDue) : 0;
@@ -790,6 +825,11 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
       // Backend expects 'customer' not 'customerName', and handles orderId, date, createdBy, stationId automatically
       // Backend calculates payment status automatically, so we don't need to send it
+      // Find customer to get customerId
+      const customer = customers.find(c => 
+        c.customerName === customerName.trim() && c.phoneNumber === customerPhone.trim()
+      );
+
       const orderData: any = {
         customer: customerName.trim(),
         items,
@@ -803,6 +843,10 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       
       if (selectedDiscountId && selectedDiscountId.trim() !== '') {
         orderData.discountId = selectedDiscountId.trim();
+      }
+      
+      if (pointsUsed > 0) {
+        orderData.pointsUsed = pointsUsed;
       }
       
       if (pickupDate && pickupDate.trim() !== '') {
@@ -1034,7 +1078,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             }
           }
 
-          const finalTotal = totalAmount - discountAmount;
+          // Calculate points discount (1 point = ₱1)
+          const pointsDiscount = pointsUsed || 0;
+          const finalTotal = Math.max(0, totalAmount - discountAmount - pointsDiscount);
           const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
           const balanceAmount = finalTotal - paid;
 
@@ -1967,10 +2013,28 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
               {customerName.trim() && (
                 <View style={styles.customerStatus}>
                   {isExistingCustomer(customerName, customerPhone) ? (
-                    <View style={[styles.statusIndicator, styles.statusIndicatorExisting]}>
-                      <Ionicons name="person" size={16} color="#059669" />
-                      <Text style={styles.statusIndicatorText}>Existing customer</Text>
-                    </View>
+                    <>
+                      <View style={[styles.statusIndicator, styles.statusIndicatorExisting]}>
+                        <Ionicons name="person" size={16} color="#059669" />
+                        <Text style={styles.statusIndicatorText}>Existing customer</Text>
+                      </View>
+                      {selectedCustomer && selectedCustomer.points !== undefined && (
+                        <View style={{ 
+                          marginTop: 8, 
+                          padding: 8, 
+                          backgroundColor: '#F0F9FF', 
+                          borderRadius: 6,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6
+                        }}>
+                          <Ionicons name="star" size={16} color="#0369A1" />
+                          <Text style={{ fontSize: 13, color: '#0369A1', fontWeight: '500' }}>
+                            Available Points: {selectedCustomer.points} (1 point = ₱1 discount)
+                          </Text>
+                        </View>
+                      )}
+                    </>
                   ) : (
                     <View style={[styles.statusIndicator, styles.statusIndicatorNew, { backgroundColor: dynamicColors.primary[50] }]}>
                       <Ionicons name="person-add" size={16} color={dynamicColors.primary[500]} />
@@ -2150,8 +2214,63 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     value={selectedDiscountId}
                     onChange={(item) => setSelectedDiscountId(item.value)}
             />
+            </View>
           </View>
-          </View>
+              {selectedCustomer && selectedCustomer.points !== undefined && selectedCustomer.points > 0 && (
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>
+                    Use Points 
+                    <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: 'normal' }}>
+                      {' '}(Available: {selectedCustomer.points}, 1 point = ₱1)
+                    </Text>
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      style={[styles.textInput, { flex: 1 }]}
+                      keyboardType="numeric"
+                      value={pointsUsed > 0 ? pointsUsed.toString() : ''}
+                      onChangeText={(text) => {
+                        // Allow empty string for better UX
+                        if (text === '' || text === null || text === undefined) {
+                          setPointsUsed(0);
+                          return;
+                        }
+                        // Only allow numeric input
+                        const numericText = text.replace(/[^0-9]/g, '');
+                        if (numericText === '') {
+                          setPointsUsed(0);
+                          return;
+                        }
+                        const value = parseInt(numericText) || 0;
+                        const maxPoints = selectedCustomer?.points || 0;
+                        if (isNaN(value) || value < 0) {
+                          setPointsUsed(0);
+                        } else if (value > maxPoints) {
+                          showError(`Cannot use more than ${maxPoints} points`);
+                          setPointsUsed(maxPoints);
+                        } else {
+                          setPointsUsed(value);
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                    <TouchableOpacity
+                      style={[styles.todayButton, { paddingHorizontal: 12 }]}
+                      onPress={() => {
+                        const maxPoints = selectedCustomer?.points || 0;
+                        setPointsUsed(maxPoints);
+                      }}
+                    >
+                      <Text style={styles.todayButtonText}>Use all points</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {pointsUsed > 0 && (
+                    <Text style={{ fontSize: 12, color: '#059669', marginTop: 4 }}>
+                      Points discount: -₱{pointsUsed.toFixed(2)}
+                    </Text>
+                  )}
+                </View>
+              )}
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Paid Amount</Text>
                 <TextInput
@@ -2291,6 +2410,12 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                   <Text style={styles.summaryLabel}>SUBTOTAL</Text>
                   <Text style={styles.summaryValue}>₱{subtotal.toFixed(2)}</Text>
             </View>
+                {pointsUsed > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>POINTS DISCOUNT</Text>
+                    <Text style={styles.summaryValue}>-₱{pointsUsed.toFixed(2)}</Text>
+                  </View>
+                )}
                 {discountAmount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>DISCOUNT</Text>

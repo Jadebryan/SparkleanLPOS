@@ -244,12 +244,14 @@ const Dashboard: React.FC = () => {
     }))
   }
 
-  const handleDragStart = (e: React.DragEvent, statId: string) => {
+  // Drag handlers are used by both native HTML drag events and Framer Motion,
+  // so we keep the event type broad to avoid type incompatibilities.
+  const handleDragStart = (e: any, statId: string) => {
     setIsDragging(statId)
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDragOver = (e: React.DragEvent, statId: string) => {
+  const handleDragOver = (e: any, statId: string) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOver(statId)
@@ -259,7 +261,7 @@ const Dashboard: React.FC = () => {
     setDragOver(null)
   }
 
-  const handleDrop = (e: React.DragEvent, targetStatId: string) => {
+  const handleDrop = (e: any, targetStatId: string) => {
     e.preventDefault()
     if (!isDragging || isDragging === targetStatId) {
       setIsDragging(null)

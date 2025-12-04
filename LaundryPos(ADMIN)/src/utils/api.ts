@@ -1082,6 +1082,23 @@ export const settingsAPI = {
     })
     return response.data
   },
+
+  // Loyalty / points settings
+  getPointsSettings: async () => {
+    const response = await apiRequest('/system-settings/points')
+    return response.data
+  },
+
+  updatePointsSettings: async (settings: {
+    enabled: boolean
+    pesoToPointMultiplier: number
+  }) => {
+    const response = await apiRequest('/system-settings/points', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+    return response.data
+  },
 }
 
 // Backup API

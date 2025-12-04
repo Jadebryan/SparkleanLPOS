@@ -58,6 +58,145 @@ Data within the LaundryPOS system flows along clear pathways between the present
 
 For read-heavy operations like dashboards, reports, and order tracking, the Admin portal and Staff app issue filtered GET requests that retrieve aggregated or detailed data, which is then displayed in tables, charts, or status views. Communication mechanisms include standard HTTP methods (GET, POST, PUT, PATCH, DELETE), token-based authentication headers, and occasional multipart upload requests for files. Internally, backend modules communicate through function calls and shared models, while external communication with email, SMS, and payment providers uses their respective APIs wrapped by utility services. Throughout these flows, data is transmitted, received, and processed in a way that minimizes duplication, maintains integrity, and ensures that every change made by one component is reliably reflected across the entire system.
 
+4.1 System Architecture
+
+The LaundryPOS system uses a three-tier architecture that connects a Node.js/Express backend with two client applications: a React web Admin portal and a React Native (Expo) Staff mobile application. The backend exposes a secure RESTful API that both clients consume, ensuring consistent business rules, centralized data management, and real-time synchronization between administrative and operational workflows.
+
+Backend Technologies
+
+- Node.js with Express for building the REST API and handling HTTP requests.
+- MongoDB as the primary NoSQL database for storing users, customers, orders, services, discounts, and logs.
+- Mongoose for defining schemas, validating data, and simplifying interactions with MongoDB.
+- JSON Web Tokens (JWT) for stateless authentication and secure communication between clients and the server.
+
+Frontend Technologies
+
+- React (LaundryPos(ADMIN)) for the web-based Admin portal, providing dashboards, configuration pages, and reporting interfaces.
+- React Native with Expo (LaundryPOS(STAFF)) for the Staff mobile application, optimized for fast order creation, status updates, and customer handling in the laundry shop.
+
+Core Features
+
+1. User and Access Management
+   - Role-based access control, where each user is assigned a role (for example, admin, manager, staff) with specific permissions over resources such as orders, customers, reports, backups, and system settings.
+   - JWT-secured authentication, with passwords hashed using bcrypt and additional protections such as rate limiting, emergency admin recovery, and validation of environment configuration.
+
+2. Laundry POS Features
+   - Creation and management of laundry orders with multiple services (wash, dry, fold, iron, and other configured options).
+   - Support for weight-based, item-based, and service-based pricing, configurable from the Admin portal.
+   - Application of discounts and promotions defined by administrators, including percentage-based and fixed-amount discounts.
+   - Full order lifecycle tracking with statuses such as Received, Washing, Drying, Folding, Ready for Pickup, and Delivered.
+
+System Environment Setup
+
+The system operates on the following requirements:
+
+Server Requirements
+
+- Node.js version 18 or higher.
+- A running MongoDB database instance (local or hosted, such as MongoDB Atlas).
+- MongoDB Database Tools (mongodump and mongorestore) installed on the server for automated backups and restores.
+
+Client Requirements
+
+- For the Admin portal: a modern web browser with JavaScript enabled and a minimum screen resolution of 1024×768.
+- For the Staff application: an Android device or emulator capable of running an Expo-based React Native app and connecting to the backend API.
+
+Installation and Setup
+
+Server Setup
+
+1. Install dependencies:
+   - Open a terminal.
+   - Navigate to the server directory:
+     cd server
+   - Install required packages:
+     npm install
+
+2. Configure environment variables in server/.env (based on the templates in docs/project-wide/ENV_TEMPLATES.md). Important variables include:
+   - MONGODB_URI – connection string to the MongoDB database.
+   - JWT_SECRET and JWT_EXPIRE – secret key and expiry for JWT authentication.
+   - PORT and HTTPS_PORT – ports for HTTP and HTTPS servers.
+   - ENABLE_HTTPS, SSL_CERT_PATH, SSL_KEY_PATH – HTTPS configuration for production.
+   - GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_FROM – email notification settings, if email is enabled.
+   - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER – SMS settings, if SMS is enabled.
+   - ALLOWED_ORIGINS – list of allowed frontend origins for CORS.
+
+3. Start the backend server in development mode:
+   npm run dev
+
+Admin Client Setup (LaundryPos(ADMIN))
+
+1. Install dependencies:
+   - Open a terminal.
+   - Navigate to the Admin app directory:
+     cd "LaundryPos(ADMIN)"
+   - Install required packages:
+     npm install
+
+2. Configure the Admin environment (for example in .env or .env.local):
+   - VITE_API_URL – base URL of the backend API (for example, http://localhost:5000/api in development).
+   - VITE_ENV – environment name (development, production).
+   - VITE_RECAPTCHA_SITE_KEY – reCAPTCHA site key, if enabled.
+
+3. Start the Admin development server:
+   npm run dev
+
+Staff Client Setup (LaundryPOS(STAFF))
+
+1. Install dependencies:
+   - Open a terminal.
+   - Navigate to the Staff app directory:
+     cd "LaundryPOS(STAFF)"
+   - Install required packages:
+     npm install
+
+2. Configure the Staff environment (for example in .env or app config):
+   - EXPO_PUBLIC_API_URL – base URL of the backend API (for example, http://localhost:5000/api in development).
+   - EXPO_PUBLIC_ENV – environment name (development, production).
+
+3. Start the Expo development server for the Staff app:
+   npm start
+
+Security Features
+
+- JWT-based authentication to secure API access and identify users across requests.
+- Password hashing using bcrypt before storing credentials in MongoDB.
+- Role-based access control (RBAC) enforcing fine-grained permissions for each role over different system resources.
+- Rate limiting middleware to protect against brute-force attacks and abusive traffic, with stricter limits on authentication and sensitive endpoints.
+- HTTPS support, reCAPTCHA integration for public forms, and detailed error handling and logging to avoid information leakage and improve incident response.
+- Automated database backup and recovery mechanisms with configurable retention and restore procedures.
+
+Running the System
+
+Accessing the System
+
+1. Ensure the backend server is running (for example, on http://localhost:5000 in development).
+2. Start the Admin web app (for example, on http://localhost:5173) and, if needed, the Staff mobile app via Expo.
+3. Open a modern web browser for the Admin portal or use the Expo client or built mobile app for the Staff application.
+4. Log in using assigned credentials; after successful authentication, the client stores the JWT and uses it for subsequent API requests.
+
+Executing Commands
+
+Admins:
+
+- Manage the inventory of laundry services, pricing rules, and discount configurations.
+- Oversee all laundry orders, branches, and staff activities through dashboards and detailed views.
+- Generate daily, weekly, and monthly sales and performance reports using the reporting module.
+- Manage users, roles, permissions, notifications, backups, and other system settings.
+
+Staff:
+
+- Create and manage laundry orders for customers, selecting services and recording items or weight.
+- Update order status throughout the workflow (Received, Washing, Drying, Folding, Ready for Pickup, Delivered).
+- Handle payments, record payment methods, and trigger receipt printing or digital receipts.
+- Track customer information and view order histories to support repeat customers and resolve issues.
+
+Terminating the Program
+
+- Users terminate their session by logging out from the Admin portal or Staff app, which clears the stored JWT token on the client side and reduces the risk of unauthorized access, especially on shared devices.
+
+This comprehensive setup ensures that the LaundryPOS system operates securely and efficiently, supporting both staff operations on the shop floor and administrative management tasks, while remaining scalable and maintainable for future enhancements.
+
 4.5 Business Continuity Plan
 
 The LaundryPOS system implements a comprehensive business continuity plan designed to minimize downtime, protect critical data, and ensure rapid recovery from incidents or disasters. This plan encompasses automated backup mechanisms, incident detection and response procedures, and disaster recovery protocols that enable the system to maintain operations or restore service quickly when disruptions occur.

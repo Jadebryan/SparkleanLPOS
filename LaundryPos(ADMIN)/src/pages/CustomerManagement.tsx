@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiUserPlus, FiEdit2, FiArchive, FiEye, FiMail, FiPhone, FiShoppingBag, FiX, FiDownload, FiEyeOff, FiRotateCcw, FiChevronDown, FiFileText, FiFolder, FiRotateCw, FiUsers } from 'react-icons/fi'
+import { FiSearch, FiUserPlus, FiEdit2, FiArchive, FiEye, FiMail, FiPhone, FiShoppingBag, FiX, FiDownload, FiEyeOff, FiChevronDown, FiFileText, FiFolder, FiRotateCw, FiUsers } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import Layout from '../components/Layout'
 import Button from '../components/Button'
@@ -111,6 +111,7 @@ const CustomerManagement: React.FC = () => {
           phone: c.phone,
           totalOrders: c.totalOrders || 0,
           totalSpent: c.totalSpent || 0,
+          points: c.points || 0,
           lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
           stationId: c.stationId || '',
           isArchived: c.isArchived || false
@@ -151,12 +152,6 @@ const CustomerManagement: React.FC = () => {
     }))
   }
 
-  const resetAllSections = () => {
-    setHiddenSections({
-      stats: false
-    })
-  }
-
   const handleRefresh = async () => {
     setIsLoading(true)
     try {
@@ -169,6 +164,7 @@ const CustomerManagement: React.FC = () => {
         phone: c.phone,
         totalOrders: c.totalOrders || 0,
         totalSpent: c.totalSpent || 0,
+        points: c.points || 0,
         lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
         stationId: c.stationId || '',
         isArchived: c.isArchived || false
@@ -253,6 +249,7 @@ const CustomerManagement: React.FC = () => {
           phone: c.phone,
           totalOrders: c.totalOrders || 0,
           totalSpent: c.totalSpent || 0,
+          points: c.points || 0,
           lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
           stationId: c.stationId || '',
           isArchived: c.isArchived || false
@@ -898,6 +895,13 @@ const CustomerManagement: React.FC = () => {
                     <div className="detail-card">
                       <label>Total Spent</label>
                       <div className="detail-value highlight-orange">₱{selectedCustomer.totalSpent.toLocaleString()}</div>
+                    </div>
+                    <div className="detail-card">
+                      <label>Points Accumulated</label>
+                      <div className="detail-value highlight-blue" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{selectedCustomer.points || 0} points</span>
+                        <span style={{ fontSize: '12px', color: '#6B7280', marginLeft: '4px' }}>(1 point = ₱1 discount)</span>
+                      </div>
                     </div>
                     <div className="detail-card">
                       <label>Last Order</label>

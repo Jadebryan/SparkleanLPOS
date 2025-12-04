@@ -35,6 +35,7 @@ type Customer = {
   totalOrders?: number;
   totalSpent?: number;
   lastOrder?: string;
+  points?: number;
   isArchived?: boolean;
 };
 
@@ -138,6 +139,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       totalOrders: c.totalOrders || 0,
       totalSpent: c.totalSpent || 0,
       lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
+      points: c.points || 0,
       isArchived: archivedFlag || c.isArchived || false,
     }));
   };
@@ -537,6 +539,18 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                     <Text style={[styles.detailValueText, styles.detailValueHighlightOrange, { color: dynamicColors.accent[500] }]}>
                       ₱{(selectedCustomer.totalSpent || 0).toLocaleString()}
                     </Text>
+                  </View>
+                  
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailLabel}>POINTS ACCUMULATED</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.detailValueText, styles.detailValueHighlightBlue, { color: dynamicColors.primary[500] }]}>
+                        {selectedCustomer.points || 0} points
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#6B7280', marginLeft: 4 }}>
+                        (1 point = ₱1 discount)
+                      </Text>
+                    </View>
                   </View>
                   
                   <View style={styles.detailCard}>
