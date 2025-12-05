@@ -43,17 +43,29 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
         onPress={onPress}
         activeOpacity={0.7}
       >
-        <View style={[
-          styles.navIconContainer, 
-          isActive && [styles.navIconContainerActive, { backgroundColor: dynamicColors.primary[500] }], 
-          hovered && !isActive && styles.navIconContainerHovered
-        ]}>
+        <View
+          style={[
+            styles.navIconContainer,
+            isActive && [styles.navIconContainerActive, { backgroundColor: dynamicColors.primary[500] }],
+            hovered && !isActive && styles.navIconContainerHovered,
+          ]}
+        >
           <Ionicons
             name={isActive && item.iconActive ? item.iconActive : item.icon}
             size={20}
             color={isActive ? '#FFFFFF' : isLogout ? '#DC2626' : '#4B5563'}
           />
         </View>
+        <Text
+          style={[
+            styles.navLabel,
+            isActive && styles.navLabelActive,
+            isLogout && styles.navLabelLogout,
+          ]}
+          numberOfLines={1}
+        >
+          {item.label}
+        </Text>
       </TouchableOpacity>
       
       {/* Hover Tooltip */}
@@ -262,6 +274,20 @@ const styles = StyleSheet.create({
   navIconContainerHovered: {
     backgroundColor: '#F9FAFB',
     borderRadius: 18,
+  },
+  navLabel: {
+    marginTop: 4,
+    fontSize: 10,
+    color: '#4B5563',
+    textAlign: 'center',
+  },
+  navLabelActive: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  navLabelLogout: {
+    color: '#DC2626',
+    fontWeight: '600',
   },
   tooltip: {
     position: 'absolute',

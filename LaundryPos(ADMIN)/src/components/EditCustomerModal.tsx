@@ -57,15 +57,6 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({
       return
     }
 
-    // Check if email already exists (excluding current customer)
-    const emailExists = existingCustomers.some(c => 
-      c.email.toLowerCase() === editedCustomer.email.toLowerCase() && c.id !== customer.id
-    )
-    if (emailExists) {
-      toast.error('A customer with this email already exists')
-      return
-    }
-
     setIsLoading(true)
     
     try {

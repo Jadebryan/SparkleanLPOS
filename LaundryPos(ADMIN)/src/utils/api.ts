@@ -375,6 +375,15 @@ export const customerAPI = {
     }
   },
 
+  // Global customer search across all branches (used for cross-branch tracking)
+  globalSearch: async (search: string) => {
+    const query = new URLSearchParams()
+    if (search) query.append('search', search)
+    const endpoint = `/customers/global/search?${query.toString()}`
+    const response = await apiRequest(endpoint)
+    return response.data ?? response
+  },
+
   getById: async (id: string) => {
     const response = await apiRequest(`/customers/${id}`)
     return response.data

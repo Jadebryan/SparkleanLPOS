@@ -76,6 +76,80 @@ class CustomerController {
     }
   }
 
+  /**
+   * Global customer search across all branches.
+   * Used by staff app to look up customers from any station.
+   * Does NOT filter by stationId.
+   */
+  static async globalSearch(req, res) {
+    try {
+      const { search = '', sortBy = 'name-asc', limit = 50 } = req.query;
+
+      const trimmed = String(search).trim();
+      if (!trimmed) {
+        return res.status(200).json({
+          success: true,
+          data: [],
+          count: 0,
+        });
+      }
+
+      const query = {
+        $or: [
+          { name: { $regex: trimmed, $options: 'i' } },
+          { email: { $regex: trimmed, $options: 'i' } },
+          { phone: { $regex: trimmed, $options: 'i' } },
+        ],
+      };
+
+      // Exclude archived customers from global search by default
+      query.isArchived = false;
+
+      // Sort options (reuse same shape as getAllCustomers)
+      let sort = {};
+      switch (sortBy) {
+        case 'name-asc':
+          sort = { name: 1 };
+          break;
+        case 'name-desc':
+          sort = { name: -1 };
+          break;
+        case 'orders-asc':
+          sort = { totalOrders: 1 };
+          break;
+        case 'orders-desc':
+          sort = { totalOrders: -1 };
+          break;
+        case 'spent-asc':
+          sort = { totalSpent: 1 };
+          break;
+        case 'spent-desc':
+          sort = { totalSpent: -1 };
+          break;
+        default:
+          sort = { name: 1 };
+      }
+
+      const numericLimit = Math.min(Number(limit) || 50, 200);
+
+      const customers = await Customer.find(query)
+        .sort(sort)
+        .limit(numericLimit);
+
+      res.status(200).json({
+        success: true,
+        data: customers,
+        count: customers.length,
+      });
+    } catch (error) {
+      console.error('Global customer search error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+      });
+    }
+  }
+
   // Get single customer
   static async getCustomer(req, res) {
     try {
@@ -246,12 +320,40 @@ class CustomerController {
         }
       }
 
+      // Store original phone before update (for syncing to other branch records)
+      const originalPhone = customer.phone;
+      const isPhoneChanging = phone && phone !== originalPhone;
+
       if (name) customer.name = name;
       if (email) customer.email = email.toLowerCase();
       if (phone) customer.phone = phone;
       if (notes !== undefined) customer.notes = notes;
 
       await customer.save();
+
+      // Sync name, email, and phone to all other branch records with the same phone number
+      // Use original phone (before update) to find all records representing the same real-world customer
+      const phoneToSync = originalPhone || customer.phone;
+      if (phoneToSync) {
+        const updateFields = {};
+        if (name) updateFields.name = name;
+        if (email) updateFields.email = email.toLowerCase();
+        // If phone is being changed, sync the new phone to all records with the old phone
+        if (isPhoneChanging && phone) {
+          updateFields.phone = phone;
+        }
+        
+        // Only sync if there are fields to update
+        if (Object.keys(updateFields).length > 0) {
+          await Customer.updateMany(
+            {
+              phone: phoneToSync,
+              _id: { $ne: customer._id }, // Exclude the current record (already updated)
+            },
+            { $set: updateFields }
+          );
+        }
+      }
 
       // Notify admins about customer update
       try {
@@ -302,6 +404,156 @@ class CustomerController {
       res.status(500).json({
         success: false,
         message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Assign a customer to a specific station (branch).
+   *
+   * If the customer already belongs to another branch, we DO NOT transfer them.
+   * Instead, we:
+   * - Check if a customer with the same phone already exists in the target branch.
+   *   - If yes, return that existing customer (no changes).
+   * - If not, CREATE a new customer record for the target branch, copying core fields
+   *   (name, email, phone, notes) but resetting branch-specific stats (orders, totals, points).
+   *
+   * This allows the same real-world customer to exist in multiple branches without
+   * losing history from their original branch.
+   *
+   * Permissions:
+   * - Staff: can assign to their own station only.
+   * - Admin: can assign to any provided stationId, or their own if omitted.
+   */
+  static async assignCustomerToStation(req, res) {
+    try {
+      const { id } = req.params;
+      const { stationId: stationIdFromBody } = req.body || {};
+
+      const customer = await Customer.findById(id);
+
+      if (!customer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Customer not found',
+        });
+      }
+
+      let targetStationId = null;
+
+      if (req.user.role === 'admin') {
+        targetStationId = stationIdFromBody || req.user.stationId || null;
+      } else if (req.user.role === 'staff') {
+        if (!req.user.stationId) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. No station assigned to your account.',
+          });
+        }
+        targetStationId = req.user.stationId;
+      }
+
+      if (!targetStationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Target station could not be determined.',
+        });
+      }
+
+      // If a customer with same phone already exists in target station, just return it
+      if (customer.phone) {
+        const existingInTarget = await Customer.findOne({
+          phone: customer.phone,
+          stationId: targetStationId,
+        });
+
+        if (existingInTarget) {
+          // Ensure points are synced with source record (shared points)
+          if (typeof customer.points === 'number') {
+            existingInTarget.points = customer.points;
+            await existingInTarget.save();
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: 'Customer already exists in this station; using existing record.',
+            data: existingInTarget,
+          });
+        }
+      }
+
+      let resultCustomer;
+
+      if (customer.stationId && customer.stationId !== targetStationId) {
+        // Customer belongs to another branch – create a new record for this branch
+        const newCustomer = new Customer({
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          notes: customer.notes || '',
+          stationId: targetStationId,
+          // Reset branch-specific stats for the new branch
+          totalOrders: 0,
+          totalSpent: 0,
+          lastOrder: null,
+          // Points are shared across branches for the same real-world customer
+          points: customer.points || 0,
+        });
+
+        await newCustomer.save();
+        resultCustomer = newCustomer;
+
+        // Log creation for this branch
+        await auditLogger
+          .logDataModification('create', req.user._id, 'customer', newCustomer._id.toString(), {
+            method: req.method,
+            endpoint: req.originalUrl || req.url,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('user-agent'),
+            userEmail: req.user.email,
+            userRole: req.user.role,
+            status: 'success',
+            changes: {
+              name: newCustomer.name,
+              phone: newCustomer.phone,
+              email: newCustomer.email,
+              stationId: targetStationId,
+              sourceCustomerId: customer._id.toString(),
+            },
+          })
+          .catch((err) => console.error('Audit logging error (assignCustomerToStation:create):', err));
+      } else {
+        // Customer has no station yet or is already in this station – just ensure stationId is set
+        customer.stationId = targetStationId;
+        await customer.save();
+        resultCustomer = customer;
+
+        await auditLogger
+          .logDataModification('update', req.user._id, 'customer', customer._id.toString(), {
+            method: req.method,
+            endpoint: req.originalUrl || req.url,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('user-agent'),
+            userEmail: req.user.email,
+            userRole: req.user.role,
+            status: 'success',
+            changes: {
+              stationId: targetStationId,
+            },
+          })
+          .catch((err) => console.error('Audit logging error (assignCustomerToStation:update):', err));
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Customer is now available in this station.',
+        data: resultCustomer,
+      });
+    } catch (error) {
+      console.error('Assign customer to station error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
       });
     }
   }

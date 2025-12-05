@@ -11,6 +11,9 @@ router.use(authenticate);
 // Get all customers
 router.get('/', requirePermission('customers', 'read'), CustomerController.getAllCustomers);
 
+// Global customer search across all stations
+router.get('/global/search', requirePermission('customers', 'read'), CustomerController.globalSearch);
+
 // Get single customer
 router.get('/:id', requirePermission('customers', 'read'), CustomerController.getCustomer);
 
@@ -19,6 +22,9 @@ router.post('/', requirePermission('customers', 'create'), CustomerController.cr
 
 // Update customer
 router.put('/:id', requirePermission('customers', 'update'), CustomerController.updateCustomer);
+
+// Assign / move customer to a specific station (branch)
+router.put('/:id/assign-station', requirePermission('customers', 'update'), CustomerController.assignCustomerToStation);
 
 // Archive customer
 router.put('/:id/archive', requirePermission('customers', 'archive'), CustomerController.archiveCustomer);

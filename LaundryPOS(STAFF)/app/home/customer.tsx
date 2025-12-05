@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated, Dimensions } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Text, RefreshControl, Modal, Animated, Dimensions, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GlobalStyles from "../styles/GlobalStyle";
 import { colors, spacing, borderRadius, cardStyles, buttonStyles, badgeStyles } from '@/app/theme/designSystem';
@@ -35,6 +35,7 @@ type Customer = {
   totalSpent?: number;
   lastOrder?: string;
   isArchived?: boolean;
+  stationId?: string;
 };
 
 export default function Customer() {
@@ -58,6 +59,12 @@ export default function Customer() {
   const { hasPermission: hasPermissionFor } = usePermissions();
   const canArchiveCustomers = hasPermissionFor('customers', 'archive');
   const canUnarchiveCustomers = hasPermissionFor('customers', 'unarchive');
+
+  // Global customer search (across all branches)
+  const [globalSearchTerm, setGlobalSearchTerm] = useState("");
+  const [globalResults, setGlobalResults] = useState<Customer[]>([]);
+  const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
+  const [isGlobalModalVisible, setIsGlobalModalVisible] = useState(false);
 
   // Calculate stats
   const totalCustomers = customers.length;
@@ -177,6 +184,78 @@ export default function Customer() {
     
     // Show success toast
     showSuccess(`Customer "${newCustomer.customerName}" added successfully!`);
+  };
+
+  // Global customer search handler
+  const handleGlobalSearch = async () => {
+    const term = globalSearchTerm.trim();
+    if (term.length < 2) {
+      showError('Please enter at least 2 characters to search globally.');
+      return;
+    }
+
+    try {
+      setIsGlobalSearchLoading(true);
+      const token =
+        (await AsyncStorage.getItem('token')) || (await AsyncStorage.getItem('userToken'));
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await axios.get(
+        `${API_BASE_URL}/customers/global/search?search=${encodeURIComponent(term)}`,
+        { headers }
+      );
+      const payload = Array.isArray(res.data?.data) ? res.data.data : res.data || [];
+      const rows: any[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload.customers)
+        ? payload.customers
+        : [];
+
+      const mapped: Customer[] = rows.map((c: any) => ({
+        _id: c._id || c.id,
+        customerName: c.name || c.customerName || '',
+        phoneNumber: c.phone || c.phoneNumber || '',
+        email: c.email || '',
+        totalOrders: c.totalOrders || 0,
+        totalSpent: c.totalSpent || 0,
+        lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
+        isArchived: c.isArchived || false,
+        stationId: c.stationId || '',
+      }));
+
+      setGlobalResults(mapped);
+      setIsGlobalModalVisible(true);
+    } catch (error: any) {
+      console.error('Global customer search error:', error);
+      showError(error?.message || 'Failed to search customers globally.');
+      setGlobalResults([]);
+    } finally {
+      setIsGlobalSearchLoading(false);
+    }
+  };
+
+  // Attach an existing customer from another branch to this branch
+  const handleAttachCustomerToBranch = async (customer: Customer) => {
+    try {
+      const token =
+        (await AsyncStorage.getItem('token')) || (await AsyncStorage.getItem('userToken'));
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      await axios.put(`${API_BASE_URL}/customers/${customer._id}/assign-station`, {}, { headers });
+
+      showSuccess(
+        `Customer "${customer.customerName}" has been assigned to this branch.`
+      );
+
+      // Refresh local customers list so the newly assigned customer shows up
+      setRefreshTrigger((prev) => prev + 1);
+      setIsGlobalModalVisible(false);
+    } catch (error: any) {
+      console.error('Attach customer to branch error:', error);
+      showError(error?.response?.data?.message || error?.message || 'Failed to assign customer.');
+    }
   };
 
   return (
@@ -300,6 +379,37 @@ export default function Customer() {
           </View>
         </View>
 
+          {/* Global Customer Search (across all branches) */}
+          <View style={styles.globalSearchCard}>
+            <Text style={styles.globalSearchTitle}>Global Customer Search</Text>
+            <Text style={styles.globalSearchSubtitle}>
+              Search all branches for an existing customer, then attach them to this branch.
+            </Text>
+            <View style={styles.globalSearchRow}>
+              <TextInput
+                style={styles.globalSearchInput}
+                placeholder="Search by name, email, or phone across all branches..."
+                value={globalSearchTerm}
+                onChangeText={setGlobalSearchTerm}
+              />
+              <TouchableOpacity
+                style={[styles.globalSearchButton, dynamicButtonStyles.primary]}
+                onPress={handleGlobalSearch}
+                disabled={isGlobalSearchLoading}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={16}
+                  color="#FFFFFF"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.globalSearchButtonText, dynamicButtonStyles.primaryText]}>
+                  {isGlobalSearchLoading ? 'Searching...' : 'Search'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Search and Filter Bar - scroll disabled to allow parent ScrollView to handle scrolling */}
           <CustomerTable 
             key={`${searchTerm}-${sortBy}-${refreshTrigger}`} 
@@ -397,6 +507,81 @@ export default function Customer() {
             </TouchableOpacity>
           </Modal>
         )}
+
+        {/* Global Search Results Modal */}
+        <Modal
+          visible={isGlobalModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsGlobalModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.exportDropdownOverlay}
+            activeOpacity={1}
+            onPress={() => setIsGlobalModalVisible(false)}
+          >
+            <View
+              style={[
+                styles.exportDropdownWrapper,
+                {
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
+              <View style={styles.globalModalCard}>
+                <View style={styles.globalModalHeaderRow}>
+                  <Text style={styles.globalModalTitle}>Global Search Results</Text>
+                  <TouchableOpacity onPress={() => setIsGlobalModalVisible(false)}>
+                    <Ionicons name="close" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.globalModalSubtitle}>
+                  Tap &ldquo;Add to this branch&rdquo; to assign a customer to the current branch.
+                </Text>
+                {isGlobalSearchLoading ? (
+                  <Text style={{ textAlign: 'center', marginTop: 12 }}>
+                    Searching customers...
+                  </Text>
+                ) : globalResults.length === 0 ? (
+                  <Text style={{ textAlign: 'center', marginTop: 12 }}>
+                    No customers found for &quot;{globalSearchTerm}&quot;.
+                  </Text>
+                ) : (
+                  <ScrollView style={{ maxHeight: 300, marginTop: 8 }}>
+                    {globalResults.map((c) => (
+                      <View key={c._id} style={styles.globalResultRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.globalResultName}>{c.customerName}</Text>
+                          <Text style={styles.globalResultMeta}>
+                            {c.phoneNumber || 'No phone'} • {c.email || 'No email'}
+                          </Text>
+                          <Text style={styles.globalResultMeta}>
+                            Branch: {c.stationId || 'Unassigned'}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.globalAttachButton, dynamicButtonStyles.primary]}
+                          onPress={() => handleAttachCustomerToBranch(c)}
+                        >
+                          <Text
+                            style={[
+                              styles.globalAttachButtonText,
+                              dynamicButtonStyles.primaryText,
+                            ]}
+                          >
+                            Add to this branch
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* Floating Action Button */}
         <FloatingActionButton
@@ -605,5 +790,115 @@ const styles = StyleSheet.create({
   },
   successBannerClose: {
     padding: 4,
+  },
+  globalSearchCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  globalSearchTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+    fontFamily: 'Poppins_700Bold',
+  },
+  globalSearchSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 12,
+    fontFamily: 'Poppins_400Regular',
+  },
+  globalSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  globalSearchInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  globalSearchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  globalSearchButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  globalModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    width: '90%',
+    maxWidth: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  globalModalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  globalModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    fontFamily: 'Poppins_700Bold',
+    marginBottom: 4,
+  },
+  globalModalSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+    marginBottom: 8,
+  },
+  globalResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    gap: 12,
+  },
+  globalResultName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  globalResultMeta: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Poppins_400Regular',
+  },
+  globalAttachButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  globalAttachButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
 });

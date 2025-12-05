@@ -48,6 +48,10 @@ const CustomerManagement: React.FC = () => {
   const canUnarchiveCustomers = hasPermission('customers', 'unarchive')
   const exportDropdownRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [customerBranches, setCustomerBranches] = useState<string[]>([])
+  const [branchProfiles, setBranchProfiles] = useState<
+    { stationId: string; totalOrders: number; totalSpent: number; lastOrder: string }[]
+  >([])
   
   // Keyboard shortcuts
   useKeyboardShortcut([
@@ -192,6 +196,31 @@ const CustomerManagement: React.FC = () => {
     setSelectedCustomer(customer)
     setIsModalOpen(true)
     fetchRecentOrders(customer).catch(() => setRecentOrders([]))
+    fetchCustomerBranches(customer).catch(() => setCustomerBranches([]))
+
+    // Build per-branch profiles from the raw customer records we have in state.
+    // This lets Admin see how this logical customer behaves in each branch.
+    try {
+      const normalizedPhone = (customer.phone || '').replace(/\D/g, '')
+      const matchingRecords = customers.filter((c) => {
+        const phoneMatch = (c.phone || '').replace(/\D/g, '') === normalizedPhone
+        const nameMatch =
+          (c.name || '').toLowerCase().trim() === (customer.name || '').toLowerCase().trim()
+        return phoneMatch || nameMatch
+      })
+
+      const profiles = matchingRecords.map((c) => ({
+        stationId: c.stationId || 'Unassigned',
+        totalOrders: c.totalOrders || 0,
+        totalSpent: c.totalSpent || 0,
+        lastOrder: c.lastOrder || 'No orders yet'
+      }))
+
+      setBranchProfiles(profiles)
+    } catch (err) {
+      console.error('Failed to build per-branch profiles for customer:', err)
+      setBranchProfiles([])
+    }
   }
 
   const closeModal = () => {
@@ -224,6 +253,37 @@ const CustomerManagement: React.FC = () => {
     } catch (e) {
       console.error('Failed to load recent orders:', e)
       setRecentOrders([])
+    }
+  }
+
+  const fetchCustomerBranches = async (customer: Customer) => {
+    try {
+      const searchKey = customer.phone || customer.name
+      if (!searchKey) {
+        setCustomerBranches([])
+        return
+      }
+      const data = await customerAPI.globalSearch(searchKey)
+      const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : data?.customers || []
+
+      const branches = Array.from(
+        new Set(
+          rows
+            .filter((c: any) => {
+              const phoneMatch =
+                (c.phone || '').replace(/\D/g, '') === (customer.phone || '').replace(/\D/g, '')
+              const nameMatch =
+                (c.name || '').toLowerCase().trim() === (customer.name || '').toLowerCase().trim()
+              return phoneMatch || nameMatch
+            })
+            .map((c: any) => String(c.stationId || ''))
+            .filter((s: string) => !!s)
+        )
+      ) as string[]
+      setCustomerBranches(branches)
+    } catch (e) {
+      console.error('Failed to load customer branches:', e)
+      setCustomerBranches([])
     }
   }
 
@@ -316,21 +376,98 @@ const CustomerManagement: React.FC = () => {
     }
   }
 
-  const filteredCustomers = customers.filter(customer => {
+  /**
+   * OPTION B: Group customers by phone so Admin sees one logical customer
+   * per real-world person, with branch-specific profiles merged.
+   *
+   * - We still fetch one record per branch from the backend.
+   * - Here we:
+   *   1) Apply search + station filters on the raw records.
+   *   2) Group matching records by normalized phone number.
+   *   3) Aggregate totals (orders, spent, lastOrder) across branches.
+   *   4) Keep shared fields like points and contact info from the first record.
+   */
+  const filteredRecords = customers.filter(customer => {
     // Filter by search term
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           customer.phone.includes(searchTerm)
-    
-    // Filter by station
-    const matchesStation = filterStation === 'All' || 
-           customer.stationId === filterStation ||
-           (filterStation && (customer.stationId || '') === filterStation)
-    
+    const matchesSearch =
+      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone.includes(searchTerm)
+
+    // Filter by station (record-level)
+    const matchesStation =
+      filterStation === 'All' ||
+      customer.stationId === filterStation ||
+      (filterStation && (customer.stationId || '') === filterStation)
+
     return matchesSearch && matchesStation
   })
 
-  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+  // Group filtered records by phone number (normalized) to form logical customers
+  const groupedCustomers: Customer[] = (() => {
+    const map = new Map<string, Customer & { _branches: Customer[] }>()
+
+    filteredRecords.forEach((record) => {
+      const normalizedPhone = (record.phone || '').replace(/\D/g, '') || record.id
+      const existing = map.get(normalizedPhone)
+
+      if (!existing) {
+        // Initialize with this branch record
+        map.set(normalizedPhone, {
+          ...(record as Customer),
+          _branches: [record]
+        })
+      } else {
+        // Merge this branch record into the existing logical customer
+        const branches = existing._branches || []
+        branches.push(record)
+
+        // Aggregate totals
+        const totalOrders = branches.reduce((sum, b) => sum + (b.totalOrders || 0), 0)
+        const totalSpent = branches.reduce((sum, b) => sum + (b.totalSpent || 0), 0)
+
+        // Determine latest lastOrder across branches
+        const latestOrderDate = branches.reduce<Date | null>((latest, b) => {
+          if (!b.lastOrder || b.lastOrder === 'No orders yet') return latest
+          const date = new Date(b.lastOrder)
+          if (!latest || date > latest) return date
+          return latest
+        }, null)
+
+        // Determine station/branch label:
+        // - 0 distinct stations: 'N/A'
+        // - 1 distinct station: that stationId
+        // - >1: "{n} branches"
+        const distinctStations = Array.from(
+          new Set(
+            branches
+              .map((b) => b.stationId)
+              .filter((s): s is string => !!s)
+          )
+        )
+        let stationLabel = ''
+        if (distinctStations.length === 0) {
+          stationLabel = ''
+        } else if (distinctStations.length === 1) {
+          stationLabel = distinctStations[0]
+        } else {
+          stationLabel = `${distinctStations.length} branches`
+        }
+
+        Object.assign(existing, {
+          totalOrders,
+          totalSpent,
+          lastOrder: latestOrderDate ? latestOrderDate.toLocaleDateString() : 'No orders yet',
+          stationId: stationLabel,
+          _branches: branches
+        })
+      }
+    })
+
+    return Array.from(map.values())
+  })()
+
+  const sortedCustomers = [...groupedCustomers].sort((a, b) => {
     switch (sortBy) {
       case 'name-asc':
         return a.name.localeCompare(b.name)
@@ -389,11 +526,12 @@ const CustomerManagement: React.FC = () => {
     }
   }
 
-  // Calculate stats
-  const totalCustomers = customers.length
+  // Calculate stats based on grouped logical customers
+  const totalCustomers = groupedCustomers.length
   const newThisMonth = 24 // Mock data
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0)
-  const avgOrderValue = totalRevenue / customers.reduce((sum, c) => sum + c.totalOrders, 0)
+  const totalRevenue = groupedCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0)
+  const totalOrdersForAvg = groupedCustomers.reduce((sum, c) => sum + (c.totalOrders || 0), 0)
+  const avgOrderValue = totalOrdersForAvg > 0 ? totalRevenue / totalOrdersForAvg : 0
 
   return (
     <Layout>
@@ -919,6 +1057,29 @@ const CustomerManagement: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {customerBranches.length > 0 && (
+                      <div className="detail-card">
+                        <label>Also Added To Branches</label>
+                        <div className="detail-value" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {customerBranches.map((b) => (
+                            <span
+                              key={b}
+                              style={{
+                                fontFamily: 'monospace',
+                                fontSize: '12px',
+                                padding: '2px 6px',
+                                borderRadius: '999px',
+                                backgroundColor: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                              }}
+                            >
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="recent-activity">
@@ -941,6 +1102,59 @@ const CustomerManagement: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* Per-branch breakdown for this logical customer */}
+                  {branchProfiles.length > 0 && (
+                    <div className="recent-activity" style={{ marginTop: '24px' }}>
+                      <h4>Per-Branch Profiles</h4>
+                      <div className="activity-list">
+                        <div className="activity-item" style={{ fontWeight: 600, opacity: 0.8 }}>
+                          <div
+                            className="activity-details"
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
+                              gap: '8px'
+                            }}
+                          >
+                            <span>Branch</span>
+                            <span>Orders</span>
+                            <span>Total Spent</span>
+                            <span>Last Order</span>
+                          </div>
+                        </div>
+                        {branchProfiles.map((bp, idx) => (
+                          <div className="activity-item" key={`${bp.stationId}-${idx}`}>
+                            <div
+                              className="activity-details"
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
+                                gap: '8px',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '12px',
+                                  color:
+                                    bp.stationId && bp.stationId !== 'Unassigned'
+                                      ? '#F97316'
+                                      : '#6B7280'
+                                }}
+                              >
+                                {bp.stationId || 'Unassigned'}
+                              </span>
+                              <span>{bp.totalOrders}</span>
+                              <span>₱{bp.totalSpent.toLocaleString()}</span>
+                              <span>{bp.lastOrder}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="modal-footer">

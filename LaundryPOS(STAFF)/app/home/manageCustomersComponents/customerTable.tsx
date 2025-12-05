@@ -37,6 +37,7 @@ type Customer = {
   lastOrder?: string;
   points?: number;
   isArchived?: boolean;
+  stationId?: string;
 };
 
 type CustomerTableProps = {
@@ -73,6 +74,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [customerBranches, setCustomerBranches] = useState<string[]>([]);
   const [processingCustomerId, setProcessingCustomerId] = useState<string | null>(null);
   
   // Animation values for edit modal (matching Admin app style)
@@ -140,6 +142,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       totalSpent: c.totalSpent || 0,
       lastOrder: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString() : 'No orders yet',
       points: c.points || 0,
+      stationId: c.stationId || '',
       isArchived: archivedFlag || c.isArchived || false,
     }));
   };
@@ -215,6 +218,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
     setSelectedCustomer(customer);
     setViewModalVisible(true);
     fetchRecentOrders(customer).catch(() => setRecentOrders([]));
+    fetchCustomerBranches(customer).catch(() => setCustomerBranches([]));
   };
 
   const fetchRecentOrders = async (customer: Customer) => {
@@ -250,6 +254,42 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
     } catch (e) {
       console.error('Failed to load recent orders:', e);
       setRecentOrders([]);
+    }
+  };
+
+  const fetchCustomerBranches = async (customer: Customer) => {
+    try {
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const searchKey = encodeURIComponent(customer.phoneNumber || customer.customerName || '');
+      const res = await axios.get(`${API_URL}/global/search?search=${searchKey}`, { headers });
+      const payload = res.data?.data || res.data || [];
+      const rows: any[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload.customers)
+        ? payload.customers
+        : [];
+
+      const branches = Array.from(
+        new Set(
+          rows
+            .filter((c: any) => {
+              const phoneMatch =
+                (c.phone || '').replace(/\D/g, '') === (customer.phoneNumber || '').replace(/\D/g, '');
+              const nameMatch =
+                (c.name || '').toLowerCase().trim() === (customer.customerName || '').toLowerCase().trim();
+              return phoneMatch || nameMatch;
+            })
+            .map((c: any) => c.stationId)
+            .filter((s: any) => !!s)
+        )
+      );
+      setCustomerBranches(branches);
+    } catch (e) {
+      console.error('Failed to load customer branches (staff):', e);
+      setCustomerBranches([]);
     }
   };
 
@@ -564,6 +604,36 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                     <Text style={styles.detailLabel}>CUSTOMER SINCE</Text>
                     <Text style={styles.detailValueText}>Jan 15, 2024</Text>
                   </View>
+                  {customerBranches.length > 0 && (
+                    <View style={styles.detailCard}>
+                      <Text style={styles.detailLabel}>ALSO ADDED TO BRANCHES</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {customerBranches.map((b) => (
+                          <View
+                            key={b}
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 999,
+                              backgroundColor: '#EFF6FF',
+                              borderWidth: 1,
+                              borderColor: '#BFDBFE',
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: dynamicColors.primary[600] || '#1D4ED8',
+                                fontFamily: 'Poppins_500Medium',
+                              }}
+                            >
+                              {b}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
 
                 {/* Recent Order History */}
