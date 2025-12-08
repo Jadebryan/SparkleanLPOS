@@ -45,8 +45,8 @@ const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, isActive, isL
       >
         <View
           style={[
-            styles.navIconContainer,
-            isActive && [styles.navIconContainerActive, { backgroundColor: dynamicColors.primary[500] }],
+          styles.navIconContainer, 
+          isActive && [styles.navIconContainerActive, { backgroundColor: dynamicColors.primary[500] }], 
             hovered && !isActive && styles.navIconContainerHovered,
           ]}
         >

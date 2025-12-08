@@ -406,9 +406,9 @@ export default function Customer() {
                 <Text style={[styles.globalSearchButtonText, dynamicButtonStyles.primaryText]}>
                   {isGlobalSearchLoading ? 'Searching...' : 'Search'}
                 </Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </View>
+        </View>
 
           {/* Search and Filter Bar - scroll disabled to allow parent ScrollView to handle scrolling */}
           <CustomerTable 

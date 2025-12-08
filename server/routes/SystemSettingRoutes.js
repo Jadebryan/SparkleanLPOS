@@ -12,5 +12,13 @@ router.put('/inactivity', SystemSettingController.updateInactivitySetting);
 router.get('/points', SystemSettingController.getPointsSettings);
 router.put('/points', SystemSettingController.updatePointsSettings);
 
+// Branch-specific point rules
+router.get('/points/branch', SystemSettingController.getBranchPointRules);
+router.put('/points/branch', SystemSettingController.updateBranchPointRules);
+
+// Voucher system configuration
+router.get('/vouchers', SystemSettingController.getVoucherSettings);
+router.put('/vouchers', SystemSettingController.updateVoucherSettings);
+
 module.exports = router;
 

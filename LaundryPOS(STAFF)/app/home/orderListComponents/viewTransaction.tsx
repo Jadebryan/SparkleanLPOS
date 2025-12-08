@@ -607,6 +607,79 @@ const ViewTransaction: React.FC<ViewTransactionProps> = ({
                     highlight
                   />
                 )}
+                {/* Discount / Voucher / Points */}
+                {(() => {
+                  const discount = orderData.discount || (orderData as any).discountCode;
+                  const discountId = (orderData as any).discountId;
+                  const pointsUsed = orderData.pointsUsed || (orderData as any).pointsUsed || 0;
+                  const voucherAmount = (orderData as any).voucherAmountApplied || 0;
+                  const voucherCode = (orderData as any).voucherCode || ((orderData as any).voucherId && (orderData as any).voucherId.code) || '';
+                  const voucherName = (orderData as any).voucherName || ((orderData as any).voucherId && (orderData as any).voucherId.name) || '';
+
+                  const hasDiscount = discount && discount !== '0%' && discount !== '0';
+                  const hasPoints = pointsUsed > 0;
+                  const hasVoucher = voucherAmount > 0 || voucherCode || voucherName;
+
+                  if (!hasDiscount && !hasPoints && !hasVoucher) {
+                    return null;
+                  }
+
+                  return (
+                    <>
+                      {hasDiscount && (
+                        <View style={styles.detailCard}>
+                          <Text style={styles.detailLabel}>DISCOUNT</Text>
+                          <View style={{ marginTop: 4 }}>
+                            {discountId && typeof discountId === 'object' && discountId.name ? (
+                              <View>
+                                <Text style={{ fontWeight: '600', color: dynamicColors.primary[500], fontSize: 14 }}>
+                                  {discountId.name} {discountId.code && `(${discountId.code})`}
+                                </Text>
+                                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                                  {discount}
+                                </Text>
+                              </View>
+                            ) : (
+                              <Text style={{ fontWeight: '600', color: dynamicColors.primary[500], fontSize: 14 }}>
+                                {discount}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                      {hasVoucher && (
+                        <View style={styles.detailCard}>
+                          <Text style={styles.detailLabel}>VOUCHER</Text>
+                          <View style={{ marginTop: 4 }}>
+                            <Text style={{ fontWeight: '600', color: dynamicColors.primary[500], fontSize: 14 }}>
+                              {voucherName || 'Voucher'} {voucherCode ? `(${voucherCode})` : ''}
+                            </Text>
+                            {voucherAmount > 0 && (
+                              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                                -₱{voucherAmount.toFixed(2)}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                      {hasPoints && (
+                        <View style={styles.detailCard}>
+                          <Text style={styles.detailLabel}>POINTS USED</Text>
+                          <View style={{ marginTop: 4 }}>
+                            <Text style={{ fontWeight: '600', color: dynamicColors.primary[500], fontSize: 14 }}>
+                              {pointsUsed} pts
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                              (₱{pointsUsed.toFixed(2)} discount)
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
             </View>
 
               {/* Right Column */}

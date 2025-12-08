@@ -10,6 +10,7 @@ import EmployeeManagement from './pages/EmployeeManagement'
 import StationManagement from './pages/StationManagement'
 import ServicesManagement from './pages/ServicesManagement'
 import DiscountsManagement from './pages/DiscountsManagement'
+import VouchersManagement from './pages/VouchersManagement'
 import ExpenseManagement from './pages/ExpenseManagement'
 import ReportsGeneration from './pages/ReportsGeneration'
 import Settings from './pages/Settings'
@@ -79,6 +80,14 @@ function App() {
           element={
             <ProtectedRoute resource="discounts" action="read">
               <DiscountsManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/vouchers" 
+          element={
+            <ProtectedRoute resource="discounts" action="read">
+              <VouchersManagement />
             </ProtectedRoute>
           } 
         />

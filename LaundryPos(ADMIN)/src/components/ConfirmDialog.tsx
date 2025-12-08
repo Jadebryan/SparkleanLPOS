@@ -32,6 +32,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          onClick={onCancel}
         >
           <motion.div
             className="confirm-dialog"
@@ -39,6 +40,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
+            style={{ position: 'relative', zIndex: 1 }}
           >
             <div className={`confirm-dialog-icon ${type}`}>
               {type === 'danger' && '⚠️'}

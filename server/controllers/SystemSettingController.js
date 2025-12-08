@@ -17,8 +17,13 @@ const DEFAULT_INACTIVITY_SETTINGS = {
 // enabled: whether customers can earn new points
 // pesoToPointMultiplier: how many points are earned per ₱1 paid (e.g. 0.01 = 0.01 pts per ₱1)
 const DEFAULT_POINTS_SETTINGS = {
-  enabled: true,
-  pesoToPointMultiplier: 0.01,
+  enabled: process.env.ENABLE_POINTS_SYSTEM !== 'false', // Default to true unless explicitly disabled
+  pesoToPointMultiplier: parseFloat(process.env.POINTS_MULTIPLIER) || 0.01,
+};
+
+// Default configuration for vouchers
+const DEFAULT_VOUCHER_SETTINGS = {
+  enabled: process.env.ENABLE_VOUCHER_SYSTEM !== 'false', // Default to true unless explicitly disabled
 };
 
 class SystemSettingController {
@@ -143,11 +148,17 @@ class SystemSettingController {
 
       const value = setting?.value || {};
 
+      // Check environment variable first, then database, then default
+      const envEnabled = process.env.ENABLE_POINTS_SYSTEM !== 'false';
+      const envMultiplier = process.env.POINTS_MULTIPLIER ? parseFloat(process.env.POINTS_MULTIPLIER) : null;
+
       const response = {
-        enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_POINTS_SETTINGS.enabled,
+        enabled: typeof value.enabled === 'boolean' 
+          ? value.enabled 
+          : (envEnabled !== undefined ? envEnabled : DEFAULT_POINTS_SETTINGS.enabled),
         pesoToPointMultiplier: typeof value.pesoToPointMultiplier === 'number'
           ? value.pesoToPointMultiplier
-          : DEFAULT_POINTS_SETTINGS.pesoToPointMultiplier,
+          : (envMultiplier !== null ? envMultiplier : DEFAULT_POINTS_SETTINGS.pesoToPointMultiplier),
       };
 
       return res.status(200).json({
@@ -218,6 +229,215 @@ class SystemSettingController {
       return res.status(500).json({
         success: false,
         message: 'Failed to update points settings',
+      });
+    }
+  }
+
+  /**
+   * Get voucher system settings.
+   * Response shape:
+   * {
+   *   enabled: boolean
+   * }
+   */
+  static async getVoucherSettings(req, res) {
+    try {
+      const setting = await SystemSetting.findOne({ key: 'vouchers.enabled' });
+
+      const value = setting?.value;
+
+      const response = {
+        enabled: typeof value === 'boolean' ? value : DEFAULT_VOUCHER_SETTINGS.enabled,
+      };
+
+      return res.status(200).json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      console.error('Error fetching voucher settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to load voucher settings',
+      });
+    }
+  }
+
+  /**
+   * Update voucher system settings.
+   * Accepts:
+   * - enabled: boolean (toggle voucher system on/off)
+   */
+  static async updateVoucherSettings(req, res) {
+    try {
+      const { enabled } = req.body;
+
+      const finalValue = {
+        enabled: typeof enabled === 'boolean' ? enabled : DEFAULT_VOUCHER_SETTINGS.enabled,
+      };
+
+      await SystemSetting.findOneAndUpdate(
+        { key: 'vouchers.enabled' },
+        {
+          key: 'vouchers.enabled',
+          value: finalValue.enabled,
+          updatedBy: req.user?._id || null,
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: finalValue,
+        message: 'Voucher settings updated successfully',
+      });
+    } catch (error) {
+      console.error('Error updating voucher settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update voucher settings',
+      });
+    }
+  }
+
+  /**
+   * Get branch-specific point rules.
+   * Response shape:
+   * {
+   *   [stationId]: {
+   *     enabled: boolean,
+   *     pesoToPointMultiplier: number
+   *   }
+   * }
+   */
+  static async getBranchPointRules(req, res) {
+    try {
+      const { stationId } = req.query;
+
+      if (stationId) {
+        // Get specific branch rule
+        const setting = await SystemSetting.findOne({ key: `points.branch.${stationId}` });
+        const value = setting?.value || {};
+
+        const response = {
+          stationId,
+          enabled: typeof value.enabled === 'boolean' ? value.enabled : null, // null means use global
+          pesoToPointMultiplier: typeof value.pesoToPointMultiplier === 'number' 
+            ? value.pesoToPointMultiplier 
+            : null, // null means use global
+        };
+
+        return res.status(200).json({
+          success: true,
+          data: response,
+        });
+      } else {
+        // Get all branch rules
+        const settings = await SystemSetting.find({
+          key: { $regex: /^points\.branch\./ }
+        });
+
+        const branchRules = {};
+        settings.forEach(setting => {
+          const stationId = setting.key.replace('points.branch.', '');
+          branchRules[stationId] = {
+            enabled: typeof setting.value.enabled === 'boolean' ? setting.value.enabled : null,
+            pesoToPointMultiplier: typeof setting.value.pesoToPointMultiplier === 'number' 
+              ? setting.value.pesoToPointMultiplier 
+              : null,
+          };
+        });
+
+        return res.status(200).json({
+          success: true,
+          data: branchRules,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching branch point rules:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to load branch point rules',
+      });
+    }
+  }
+
+  /**
+   * Update branch-specific point rules.
+   * Accepts:
+   * - stationId: string (required)
+   * - enabled: boolean (optional, null to use global)
+   * - pesoToPointMultiplier: number (optional, null to use global)
+   */
+  static async updateBranchPointRules(req, res) {
+    try {
+      const { stationId, enabled, pesoToPointMultiplier } = req.body;
+
+      if (!stationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Station ID is required',
+        });
+      }
+
+      const updateValue = {};
+
+      if (enabled !== undefined) {
+        updateValue.enabled = enabled === null ? null : (typeof enabled === 'boolean' ? enabled : null);
+      }
+
+      if (pesoToPointMultiplier !== undefined) {
+        if (pesoToPointMultiplier !== null) {
+          const multiplier = Number(pesoToPointMultiplier);
+          if (Number.isNaN(multiplier) || multiplier < 0) {
+            return res.status(400).json({
+              success: false,
+              message: 'pesoToPointMultiplier must be a non-negative number or null',
+            });
+          }
+          if (multiplier > 1) {
+            return res.status(400).json({
+              success: false,
+              message: 'pesoToPointMultiplier cannot be greater than 1',
+            });
+          }
+          updateValue.pesoToPointMultiplier = multiplier;
+        } else {
+          updateValue.pesoToPointMultiplier = null;
+        }
+      }
+
+      await SystemSetting.findOneAndUpdate(
+        { key: `points.branch.${stationId}` },
+        {
+          key: `points.branch.${stationId}`,
+          value: updateValue,
+          updatedBy: req.user?._id || null,
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          stationId,
+          ...updateValue,
+        },
+        message: 'Branch point rules updated successfully',
+      });
+    } catch (error) {
+      console.error('Error updating branch point rules:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update branch point rules',
       });
     }
   }

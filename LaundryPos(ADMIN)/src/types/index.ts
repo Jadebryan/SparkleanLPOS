@@ -42,6 +42,12 @@ export interface Order {
   stationId?: string
   pointsEarned?: number
   pointsUsed?: number
+  voucherId?: any
+  voucherCode?: string
+  voucherName?: string
+  voucherType?: 'percentage' | 'fixed' | ''
+  voucherAmountApplied?: number
+  voucherMinPurchase?: number
   lastEditedBy?: {
     _id?: string
     username?: string

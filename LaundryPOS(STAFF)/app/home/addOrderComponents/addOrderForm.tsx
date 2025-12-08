@@ -70,6 +70,25 @@ interface Discount {
   validUntil?: string;
 }
 
+interface Voucher {
+  _id: string;
+  code: string;
+  name: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  minPurchase?: number;
+  isMonthly?: boolean;
+  monthlyLimitPerCustomer?: number;
+  pointsRequired?: number;
+  applicableBranches?: string[];
+  isActive?: boolean;
+  isArchived?: boolean;
+  usageCount?: number;
+  maxUsage?: number;
+  validFrom?: string;
+  validUntil?: string;
+}
+
 interface ServiceItem {
   id: string;
   serviceId: string;
@@ -208,6 +227,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   
   const [pickupDate, setPickupDate] = useState("");
   const [selectedDiscountId, setSelectedDiscountId] = useState("");
+  const [selectedVoucherId, setSelectedVoucherId] = useState("");
   const [pointsUsed, setPointsUsed] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState<{ _id: string; customerName: string; phoneNumber: string; points?: number } | null>(null);
   const [paidAmount, setPaidAmount] = useState("0");
@@ -215,7 +235,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   const [notes, setNotes] = useState("");
 
   const [discountOptions, setDiscountOptions] = useState<Discount[]>([]);
+  const [availableVouchers, setAvailableVouchers] = useState<Voucher[]>([]);
   const [loadingDiscounts, setLoadingDiscounts] = useState(true);
+  const [pointsSettings, setPointsSettings] = useState<{ enabled: boolean; pesoToPointMultiplier: number }>({ enabled: true, pesoToPointMultiplier: 0.01 });
   
   // Modal states
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
@@ -233,6 +255,38 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
   const [showOverpaymentModal, setShowOverpaymentModal] = useState(false);
   const [overpaymentData, setOverpaymentData] = useState<{paidValue: number, totalAmount: number, changeDue: number} | null>(null);
   const [pendingOrderCreation, setPendingOrderCreation] = useState(false);
+
+  // Voucher availability
+  const checkAvailableVouchers = async (customerId?: string) => {
+    try {
+      const targetCustomerId = customerId || selectedCustomer?._id;
+      if (!targetCustomerId) {
+        setAvailableVouchers([]);
+        setSelectedVoucherId("");
+        return;
+      }
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await axios.get(`${API_BASE_URL}/vouchers/customer/${targetCustomerId}/available`, { headers });
+      const data = res.data?.data || res.data || {};
+      const vouchers = data.vouchers || [];
+      setAvailableVouchers(vouchers);
+
+      // Clear selection if no longer available
+      if (selectedVoucherId && !vouchers.some((v: any) => (v._id || v.id) === selectedVoucherId)) {
+        setSelectedVoucherId("");
+      }
+      // Auto-select if only one and none selected
+      if (!selectedVoucherId && vouchers.length === 1) {
+        const vid = vouchers[0]._id || vouchers[0].id;
+        if (vid) setSelectedVoucherId(vid);
+      }
+    } catch (error) {
+      console.error("Error fetching vouchers:", error);
+      setAvailableVouchers([]);
+    }
+  };
 
   // Reset form when modal closes (track previous isModal value)
   const prevIsModalRef = useRef(isModal);
@@ -255,6 +309,11 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
     prevIsModalRef.current = isModal;
   }, [isModal]);
 
+  // Refresh points settings when form/modal opens or tab changes to ensure latest Admin settings
+  useEffect(() => {
+    fetchPointsSettings();
+  }, [isModal, tabId]);
+
   // Fetch logged-in user
   useEffect(() => {
     const fetchUser = async () => {
@@ -272,6 +331,68 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
     fetchUser();
   }, []);
 
+  // Fetch points settings function (reusable)
+  const fetchPointsSettings = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      console.log('🔍 Fetching points settings from:', `${API_BASE_URL}/system-settings/points`);
+      const pointsRes = await axios.get(`${API_BASE_URL}/system-settings/points`, { headers });
+      console.log('📥 Points settings raw response:', JSON.stringify(pointsRes.data, null, 2));
+      
+      if (pointsRes.data) {
+        // Handle response format: { success: true, data: { enabled, pesoToPointMultiplier } }
+        let pointsData = null;
+        if (pointsRes.data.success === true && pointsRes.data.data) {
+          pointsData = pointsRes.data.data;
+        } else if (pointsRes.data.enabled !== undefined || pointsRes.data.pesoToPointMultiplier !== undefined) {
+          // Direct format: { enabled, pesoToPointMultiplier }
+          pointsData = pointsRes.data;
+        }
+        
+        if (pointsData) {
+          // Some backends return multiplier as string; coerce safely
+          const multiplierRaw = (pointsData as any).pesoToPointMultiplier;
+          const multiplierNum = typeof multiplierRaw === 'number'
+            ? multiplierRaw
+            : parseFloat(multiplierRaw);
+
+          // Normalize multiplier:
+          // - If >= 1, assume it's a percent (e.g., 1 => 1%) so divide by 100
+          // - If between 0.05 and 1, assume one decimal too high (e.g., 0.1 => 0.01) so divide by 10
+          let finalMultiplier = Number.isFinite(multiplierNum) ? multiplierNum : 0.01;
+          if (finalMultiplier >= 1) {
+            finalMultiplier = finalMultiplier / 100;
+          } else if (finalMultiplier > 0.05) {
+            finalMultiplier = finalMultiplier / 10;
+          }
+
+          const newSettings = {
+            enabled: typeof pointsData.enabled === 'boolean' ? pointsData.enabled : true,
+            pesoToPointMultiplier: finalMultiplier
+          };
+          console.log('✅ Setting points settings to:', newSettings);
+          setPointsSettings(newSettings);
+          return newSettings;
+        } else {
+          console.warn('⚠️ Points settings data not found in response:', pointsRes.data);
+        }
+      } else {
+        console.warn('⚠️ Empty points settings response');
+      }
+    } catch (pointsError: any) {
+      console.error('❌ Failed to load points settings:', pointsError);
+      console.error('Error response:', pointsError.response?.data);
+      console.error('Error status:', pointsError.response?.status);
+      console.error('Error message:', pointsError.message);
+      // Keep using defaults (already set in useState)
+      console.warn('⚠️ Using default points settings:', { enabled: true, pesoToPointMultiplier: 0.01 });
+    }
+    return null;
+  };
+
   // Fetch services, customers, and discounts
   useEffect(() => {
     const fetchData = async () => {
@@ -279,6 +400,9 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
         const headers: any = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
+
+        // Fetch points settings FIRST to ensure it's loaded
+        await fetchPointsSettings();
 
         // Fetch services
         const servicesRes = await axios.get(`${API_BASE_URL}/services`, { headers });
@@ -376,8 +500,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
   // Filter customers for autocomplete
   const filteredCustomerSuggestions = customerName.trim()
-    ? customers
-        .filter(customer => {
+    ? (() => {
+        const matches = customers.filter(customer => {
           if (!customer) return false;
           const custName = customer.customerName || '';
           const custPhone = customer.phoneNumber || '';
@@ -388,8 +512,19 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
             custPhone.includes(customerName) ||
             (customerPhone.trim() && custPhone.includes(customerPhone))
           );
-        })
-        .slice(0, 5)
+        });
+        // Deduplicate by phone (fallback to lowercased name) and limit to 5
+        const seen = new Set<string>();
+        const unique: typeof customers = [];
+        for (const c of matches) {
+          const key = c.phoneNumber || c.customerName.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          unique.push(c);
+          if (unique.length >= 5) break;
+        }
+        return unique;
+      })()
     : [];
 
   // Update selectedCustomer when customer name/phone matches
@@ -401,20 +536,28 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       );
       if (foundCustomer) {
         setSelectedCustomer(foundCustomer);
+        checkAvailableVouchers(foundCustomer._id);
       } else if (customerName && !customerPhone) {
         const foundByName = customers.find(c => 
           c.customerName?.toLowerCase() === customerName.toLowerCase()
         );
         if (foundByName) {
           setSelectedCustomer(foundByName);
+          checkAvailableVouchers(foundByName._id);
         } else {
           setSelectedCustomer(null);
+          setAvailableVouchers([]);
+          setSelectedVoucherId("");
         }
       } else {
         setSelectedCustomer(null);
+        setAvailableVouchers([]);
+        setSelectedVoucherId("");
       }
     } else {
       setSelectedCustomer(null);
+      setAvailableVouchers([]);
+      setSelectedVoucherId("");
     }
   }, [customerName, customerPhone, customers]);
 
@@ -423,6 +566,8 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
     setCustomerName(customer.customerName);
     setCustomerPhone(customer.phoneNumber);
     setSelectedCustomer(customer);
+    setSelectedVoucherId("");
+    checkAvailableVouchers(customer._id);
     setPointsUsed(0); // Reset points when customer changes
     setShowCustomerSuggestions(false);
     setSelectedSuggestionIndex(0);
@@ -536,28 +681,52 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
           }
         }
       }
+
+      // Voucher discount
+      let voucherDiscount = 0;
+      if (selectedVoucherId && subtotal > 0) {
+        const voucher = availableVouchers.find(v => (v._id || (v as any).id) === selectedVoucherId);
+        if (voucher && (voucher.isActive !== false) && !voucher.isArchived) {
+          const meetsMin = subtotal >= (voucher.minPurchase || 0);
+          if (meetsMin) {
+            if (voucher.type === 'percentage') {
+              voucherDiscount = subtotal * (voucher.value / 100);
+            } else {
+              voucherDiscount = voucher.value;
+            }
+          } else if (voucher.minPurchase && voucher.minPurchase > 0) {
+            setSelectedVoucherId("");
+            voucherDiscount = 0;
+          }
+        }
+      }
       
       // Calculate points discount (1 point = ₱1)
       const pointsDiscount = pointsUsed || 0;
-      const total = Math.max(0, subtotal - discountValue - pointsDiscount);
+      const total = Math.max(0, subtotal - discountValue - voucherDiscount - pointsDiscount);
       const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
       const balance = total - paid; // Can be negative (overpayment)
       
-      // Update payment status based on balance and paid amount
-      if (paid >= total && total > 0) {
-        // Fully paid (or overpaid)
-        setPaymentStatus("Paid");
-      } else if (paid > 0 && paid < total) {
-        // Partial payment
-        setPaymentStatus("Partial");
+      // Automatically update payment status based on paid amount
+      if (total > 0) {
+        if (paid >= total) {
+          // Fully paid (or overpaid)
+          setPaymentStatus("Paid");
+        } else if (paid > 0) {
+          // Partial payment
+          setPaymentStatus("Partial");
+        } else {
+          // Unpaid
+          setPaymentStatus("Unpaid");
+        }
       } else {
-        // Unpaid
+        // No order total yet, default to Unpaid
         setPaymentStatus("Unpaid");
       }
     };
     
     calculateTotals();
-  }, [orderServices, selectedDiscountId, pointsUsed, paidAmount, discountOptions]);
+  }, [orderServices, selectedDiscountId, selectedVoucherId, pointsUsed, paidAmount, discountOptions, availableVouchers]);
 
   // Calculate totals for display
   const subtotal = orderServices.reduce((sum, item) => sum + item.amount, 0);
@@ -570,12 +739,27 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       discountAmount = selectedDiscount.value;
     }
   }
+  // Voucher amount
+  const selectedVoucher = availableVouchers.find(v => (v._id || (v as any).id) === selectedVoucherId);
+  let voucherAmount = 0;
+  if (selectedVoucher && subtotal >= (selectedVoucher.minPurchase || 0)) {
+    if (selectedVoucher.type === 'percentage') {
+      voucherAmount = subtotal * (selectedVoucher.value / 100);
+    } else {
+      voucherAmount = selectedVoucher.value;
+    }
+  }
   // Calculate points discount (1 point = ₱1)
   const pointsDiscount = pointsUsed || 0;
-  const totalAmount = Math.max(0, subtotal - discountAmount - pointsDiscount);
+  const totalAmount = Math.max(0, subtotal - discountAmount - voucherAmount - pointsDiscount);
   const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0;
   const balanceDue = totalAmount - paid; // Can be negative (overpayment = change due)
   const changeDue = balanceDue < 0 ? Math.abs(balanceDue) : 0;
+
+  // Points to earn (respect admin multiplier)
+  const pointsToEarn = (pointsSettings.enabled && totalAmount > 0)
+    ? parseFloat((totalAmount * pointsSettings.pesoToPointMultiplier).toFixed(2))
+    : 0;
 
   // Auto-save draft to tab context and localStorage
   useEffect(() => {
@@ -843,6 +1027,10 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       
       if (selectedDiscountId && selectedDiscountId.trim() !== '') {
         orderData.discountId = selectedDiscountId.trim();
+      }
+
+      if (selectedVoucherId && selectedVoucherId.trim() !== '') {
+        orderData.voucherId = selectedVoucherId.trim();
       }
       
       if (pointsUsed > 0) {
@@ -1424,6 +1612,18 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                   <span>-₱${discountAmount.toFixed(2)}</span>
                 </div>
               ` : ''}
+            ${voucherAmount > 0 ? `
+              <div class="payment-row">
+                <span>Voucher${selectedVoucher ? ` (${selectedVoucher.code || selectedVoucher.name})` : ''}:</span>
+                <span>-₱${voucherAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${pointsUsed > 0 ? `
+              <div class="payment-row">
+                <span>Points Used (${pointsUsed} pts):</span>
+                <span>-₱${pointsUsed.toFixed(2)}</span>
+              </div>
+            ` : ''}
               <div class="payment-row total">
                 <span>Total:</span>
                 <span>₱${totalAmount.toFixed(2)}</span>
@@ -1879,6 +2079,12 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       if (discountAmount > 0) {
         receipt += `Discount: -₱${discountAmount.toFixed(2)}\n`;
       }
+      if (voucherAmount > 0) {
+        receipt += `Voucher: -₱${voucherAmount.toFixed(2)}\n`;
+      }
+      if (pointsUsed > 0) {
+        receipt += `Points Used (${pointsUsed} pts): -₱${pointsUsed.toFixed(2)}\n`;
+      }
       receipt += `Total: ₱${totalAmount.toFixed(2)}\n`;
       receipt += `Paid: ₱${paid.toFixed(2)}\n`;
       if (changeDue > 0) {
@@ -2215,13 +2421,47 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     onChange={(item) => setSelectedDiscountId(item.value)}
             />
             </View>
+                <View style={[styles.inputContainer, { width: '100%', marginTop: spacing.sm }]}>
+                  <Text style={styles.label}>Voucher</Text>
+                  <Dropdown
+                    style={styles.dropdown}
+                    containerStyle={styles.dropdownContainer}
+                    data={(() => {
+                      const currentSubtotal = orderServices.reduce((sum, item) => sum + item.amount, 0);
+                      const applicableVouchers = availableVouchers
+                        .filter(v => v.isActive !== false && !v.isArchived)
+                        .filter(v => {
+                          if (v.minPurchase && v.minPurchase > 0) {
+                            return currentSubtotal >= v.minPurchase;
+                          }
+                          return true;
+                        })
+                        .map(v => {
+                          const voucherText = v.type === 'percentage'
+                            ? `${v.code || v.name} - ${v.name} (${v.value}%)`
+                            : `${v.code || v.name} - ${v.name} (₱${v.value})`;
+                          const minPurchaseText = v.minPurchase && v.minPurchase > 0 ? ` (Min: ₱${v.minPurchase})` : '';
+                          return {
+                            label: voucherText + minPurchaseText,
+                            value: v._id || (v as any).id
+                          };
+                        });
+                      return [{ label: "No Voucher", value: "" }, ...applicableVouchers];
+                    })()}
+                    labelField="label"
+                    valueField="value"
+                    placeholder={availableVouchers.length === 0 ? "No Voucher" : "Select Voucher"}
+                    value={selectedVoucherId}
+                    onChange={(item) => setSelectedVoucherId(item.value)}
+                  />
+                </View>
           </View>
               {selectedCustomer && selectedCustomer.points !== undefined && selectedCustomer.points > 0 && (
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>
                     Use Points 
                     <Text style={{ fontSize: 12, color: '#6B7280', fontWeight: 'normal' }}>
-                      {' '}(Available: {selectedCustomer.points}, 1 point = ₱1)
+                      {' '}(Available: {selectedCustomer.points}, 1 point = ₱1, Earn: {pointsToEarn} pts)
                     </Text>
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2257,11 +2497,25 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     <TouchableOpacity
                       style={[styles.todayButton, { paddingHorizontal: 12 }]}
                       onPress={() => {
-                        const maxPoints = selectedCustomer?.points || 0;
-                        setPointsUsed(maxPoints);
+                        const customerPoints = selectedCustomer?.points || 0;
+                        // Calculate order total before points discount
+                        const subtotal = orderServices.reduce((sum, item) => sum + item.amount, 0);
+                        const selectedDiscount = discountOptions.find(d => d._id === selectedDiscountId);
+                        let discountAmount = 0;
+                        if (selectedDiscount && subtotal >= (selectedDiscount.minPurchase || 0)) {
+                          if (selectedDiscount.type === 'percentage') {
+                            discountAmount = subtotal * (selectedDiscount.value / 100);
+                          } else {
+                            discountAmount = selectedDiscount.value;
+                          }
+                        }
+                        const orderTotal = Math.max(0, subtotal - discountAmount);
+                        // Use only enough points to cover the order total
+                        const pointsToUse = Math.min(customerPoints, orderTotal);
+                        setPointsUsed(pointsToUse);
                       }}
                     >
-                      <Text style={styles.todayButtonText}>Use all points</Text>
+                      <Text style={styles.todayButtonText}>Use Points to pay</Text>
                     </TouchableOpacity>
                   </View>
                   {pointsUsed > 0 && (
@@ -2416,6 +2670,12 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     <Text style={styles.summaryValue}>-₱{pointsUsed.toFixed(2)}</Text>
                   </View>
                 )}
+                {voucherAmount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>VOUCHER</Text>
+                    <Text style={styles.summaryValue}>-₱{voucherAmount.toFixed(2)}</Text>
+                  </View>
+                )}
                 {discountAmount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>DISCOUNT</Text>
@@ -2442,6 +2702,33 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     <Text style={[styles.summaryValue, { color: '#DC2626' }]}>₱{balanceDue.toFixed(2)}</Text>
                   </View>
                 )}
+                
+                {/* Points to be earned - shown as soon as services are added */}
+                {(() => {
+                  // Points earned based on order total, not paid amount
+                  // Show preview as soon as there's an order total
+                  console.log('💰 Calculating points - enabled:', pointsSettings.enabled, 'multiplier:', pointsSettings.pesoToPointMultiplier, 'totalAmount:', totalAmount);
+                  const pointsToEarn = (pointsSettings.enabled && totalAmount > 0)
+                    ? parseFloat((totalAmount * pointsSettings.pesoToPointMultiplier).toFixed(2))
+                    : 0;
+                  console.log('💰 Points to earn calculated:', pointsToEarn);
+                  
+                  if (pointsToEarn > 0) {
+                    return (
+                      <View style={[styles.summaryRow, { backgroundColor: '#EFF6FF', padding: 12, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#BFDBFE' }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.summaryLabel, { color: '#1D4ED8', fontWeight: '600' }]}>
+                            POINTS TO EARN {paymentStatus !== 'Paid' && <Text style={{ fontSize: 10, fontWeight: '400', opacity: 0.7 }}>(when paid)</Text>}
+                          </Text>
+                        </View>
+                        <Text style={[styles.summaryValue, { color: '#1D4ED8', fontWeight: '700', fontSize: 16 }]}>
+                          {pointsToEarn.toFixed(2)} pts
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
               </View>
 
               {/* Payment Status */}
@@ -2698,6 +2985,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    flexWrap: 'wrap',
     marginBottom: spacing.md,
     alignItems: 'flex-start',
     overflow: 'visible',

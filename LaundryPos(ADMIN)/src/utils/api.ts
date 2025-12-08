@@ -738,6 +738,86 @@ export const discountAPI = {
   },
 }
 
+// Voucher API functions
+export const voucherAPI = {
+  getAll: async (params?: { search?: string; isActive?: boolean; isMonthly?: boolean; showArchived?: boolean }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
+    if (params?.isMonthly !== undefined) queryParams.append('isMonthly', params.isMonthly.toString())
+    if (params?.showArchived !== undefined) queryParams.append('showArchived', params.showArchived.toString())
+    const query = queryParams.toString()
+    const endpoint = `/vouchers${query ? `?${query}` : ''}`
+    try {
+      const response = await apiRequest(endpoint)
+      if (response && response.data) {
+        return response.data
+      }
+      if (Array.isArray(response)) {
+        return response
+      }
+      return response
+    } catch (error: any) {
+      if (!navigator.onLine || error.message?.includes('No internet connection')) {
+        const { cacheManager } = await import('./cacheManager')
+        const cached = cacheManager.get('api_vouchers') || cacheManager.get('api_/vouchers')
+        if (cached) {
+          console.log('[Fallback] Using cached vouchers data')
+          return Array.isArray(cached) ? cached : ((cached as any)?.data || cached)
+        }
+      }
+      throw error
+    }
+  },
+
+  getById: async (id: string) => {
+    const response = await apiRequest(`/vouchers/${id}`)
+    return response.data
+  },
+
+  checkCustomerVoucher: async (customerId: string) => {
+    const response = await apiRequest(`/vouchers/customer/${customerId}/available`)
+    return response.data
+  },
+
+  create: async (voucherData: any) => {
+    const response = await apiRequest('/vouchers', {
+      method: 'POST',
+      body: JSON.stringify(voucherData),
+    })
+    return response.data
+  },
+
+  update: async (id: string, voucherData: any) => {
+    const response = await apiRequest(`/vouchers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(voucherData),
+    })
+    return response.data
+  },
+
+  archive: async (id: string) => {
+    const response = await apiRequest(`/vouchers/${id}/archive`, {
+      method: 'PUT',
+    })
+    return response.data
+  },
+
+  unarchive: async (id: string) => {
+    const response = await apiRequest(`/vouchers/${id}/unarchive`, {
+      method: 'PUT',
+    })
+    return response.data
+  },
+
+  delete: async (id: string) => {
+    const response = await apiRequest(`/vouchers/${id}`, {
+      method: 'DELETE',
+    })
+    return response.data
+  },
+}
+
 // Expense API functions
 export const expenseAPI = {
   getAll: async (params?: { search?: string; category?: string; status?: string; showArchived?: boolean }) => {

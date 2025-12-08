@@ -7,7 +7,7 @@ import Button from './Button'
 import AddCustomerModal from './AddCustomerModalBasic'
 import ConfirmDialog from './ConfirmDialog'
 import { Customer, Service } from '../types'
-import { customerAPI, serviceAPI, discountAPI, orderAPI, stationAPI } from '../utils/api'
+import { customerAPI, serviceAPI, discountAPI, voucherAPI, orderAPI, stationAPI, settingsAPI } from '../utils/api'
 import './CreateOrderModal.css'
 import '../pages/CreateOrder.css'
 
@@ -52,6 +52,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [selectedDiscountId, setSelectedDiscountId] = useState('')
+  const [selectedVoucherId, setSelectedVoucherId] = useState('')
+  const [availableVouchers, setAvailableVouchers] = useState<any[]>([])
   const [pointsUsed, setPointsUsed] = useState(0)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [paidAmount, setPaidAmount] = useState('')
@@ -68,6 +70,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [availableServices, setAvailableServices] = useState<Service[]>([])
   const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([])
   const [stations, setStations] = useState<any[]>([])
+  const [pointsSettings, setPointsSettings] = useState<{ enabled: boolean; pesoToPointMultiplier: number }>({ enabled: true, pesoToPointMultiplier: 0.01 })
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false)
   const [pendingCustomerData, setPendingCustomerData] = useState<{name: string, phone: string} | null>(null)
   const [showCustomerConfirmationModal, setShowCustomerConfirmationModal] = useState(false)
@@ -104,6 +107,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       setSelectedServiceId('')
       setQuantity(1)
       setSelectedDiscountId('')
+      setSelectedVoucherId('')
+      setAvailableVouchers([])
       setPointsUsed(0)
       setSelectedCustomer(null)
       setPaidAmount('')
@@ -137,6 +142,20 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             discountAPI.getAll({ showArchived: false }),
             stationAPI.getAll({ showArchived: false })
           ])
+          
+          // Fetch points settings
+          try {
+            const pointsData = await settingsAPI.getPointsSettings()
+            if (pointsData?.success && pointsData?.data) {
+              setPointsSettings({
+                enabled: pointsData.data.enabled ?? true,
+                pesoToPointMultiplier: pointsData.data.pesoToPointMultiplier ?? 0.01
+              })
+            }
+          } catch (pointsError) {
+            console.error('Failed to load points settings:', pointsError)
+            // Use defaults
+          }
         } catch (error: any) {
           // If offline or network error, try to use cached data
           console.log('API fetch failed, trying cache...', error)
@@ -419,15 +438,45 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       }
     }
 
+    // Calculate voucher discount
+    let voucherDiscount = 0
+    if (selectedVoucherId && availableVouchers.length > 0) {
+      const selectedVoucher = availableVouchers.find(v => v.id === selectedVoucherId)
+      if (selectedVoucher && amt >= (selectedVoucher.minPurchase || 0)) {
+        if (selectedVoucher.type === 'percentage') {
+          voucherDiscount = (amt * selectedVoucher.value) / 100
+        } else {
+          voucherDiscount = selectedVoucher.value
+        }
+      }
+    }
+
     // Calculate points discount (1 point = ₱1)
     const pointsDiscount = pointsUsed || 0
-    const total = Math.max(0, amt - discountValue - pointsDiscount)
+    const total = Math.max(0, amt - discountValue - voucherDiscount - pointsDiscount)
     setTotalDue(total)
 
     const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '')) || 0
     const bal = total - paid
     setBalance(bal)
-  }, [orderServices, selectedDiscountId, pointsUsed, paidAmount, availableServices, availableDiscounts])
+    
+    // Automatically update payment status based on paid amount
+    if (total > 0) {
+      if (paid >= total) {
+        // Fully paid (or overpaid)
+        setPaymentStatus('Paid')
+      } else if (paid > 0) {
+        // Partial payment
+        setPaymentStatus('Partial')
+      } else {
+        // Unpaid
+        setPaymentStatus('Unpaid')
+      }
+    } else {
+      // No order total yet, default to Unpaid
+      setPaymentStatus('Unpaid')
+    }
+  }, [orderServices, selectedDiscountId, selectedVoucherId, pointsUsed, paidAmount, availableServices, availableDiscounts, availableVouchers])
 
   // Update selectedCustomer when customer name/phone matches
   useEffect(() => {
@@ -454,12 +503,65 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     }
   }, [customerName, customerPhone, customers])
 
+  // Function to check and refresh available vouchers
+  const checkAvailableVouchers = async (customerId?: string) => {
+    const targetCustomerId = customerId || selectedCustomer?.id
+    if (!targetCustomerId) {
+      setAvailableVouchers([])
+      setSelectedVoucherId('')
+      return
+    }
+
+    try {
+      const voucherData = await voucherAPI.checkCustomerVoucher(targetCustomerId)
+      if (voucherData?.hasAvailableVoucher && voucherData?.vouchers) {
+        setAvailableVouchers(voucherData.vouchers)
+        // Check if currently selected voucher is still available
+        const currentVoucherStillAvailable = voucherData.vouchers.some(v => v.id === selectedVoucherId)
+        if (!currentVoucherStillAvailable) {
+          // Clear selection if voucher is no longer available
+          setSelectedVoucherId('')
+        }
+        // Auto-select first available voucher if only one and none selected
+        if (voucherData.vouchers.length === 1 && !selectedVoucherId) {
+          setSelectedVoucherId(voucherData.vouchers[0].id)
+        }
+      } else {
+        setAvailableVouchers([])
+        setSelectedVoucherId('')
+      }
+    } catch (error: any) {
+      console.error('Error checking vouchers:', error)
+      // Don't show error toast - vouchers are optional
+      setAvailableVouchers([])
+      setSelectedVoucherId('')
+    }
+  }
+
+  // Check for available vouchers when customer is selected
+  useEffect(() => {
+    checkAvailableVouchers()
+  }, [selectedCustomer?.id])
+
   // Filter customers for autocomplete
   const filteredCustomerSuggestions = customerName.trim()
-    ? customers.filter(customer => 
-        customer.name.toLowerCase().includes(customerName.toLowerCase()) ||
-        customer.phone.includes(customerName)
-      ).slice(0, 5)
+    ? (() => {
+        // Deduplicate by customer phone (unique) to avoid duplicate rows with same name/phone
+        const seen = new Set<string>()
+        const matches = customers.filter(customer =>
+          customer.name.toLowerCase().includes(customerName.toLowerCase()) ||
+          customer.phone.includes(customerName)
+        )
+        const unique = []
+        for (const c of matches) {
+          const key = c.phone || c.name.toLowerCase()
+          if (seen.has(key)) continue
+          seen.add(key)
+          unique.push(c)
+          if (unique.length >= 5) break
+        }
+        return unique
+      })()
     : []
 
   // Check if customer exists in the system
@@ -679,6 +781,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         customerPhone: customerPhone.trim(),
         items: items,
         discountId: selectedDiscountId && selectedDiscountId.trim() !== '' ? selectedDiscountId : null,
+        voucherId: selectedVoucherId && selectedVoucherId.trim() !== '' ? selectedVoucherId : null,
         pointsUsed: pointsUsed > 0 ? pointsUsed : 0,
         paid: actualPaid,
         pickupDate: pickupDate && pickupDate.trim() !== '' ? pickupDate : null,
@@ -693,6 +796,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       await orderAPI.create(orderData)
       
       const currentDraftId = draftOrderId
+      const currentCustomerId = selectedCustomer?.id
+      const wasVoucherUsed = !!selectedVoucherId
       
       if (currentDraftId) {
         toast.success('Order created successfully! Draft has been linked to the order.', { icon: '✅', duration: 3000 })
@@ -702,6 +807,13 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       
       localStorage.removeItem('orderDraft')
       
+      // Immediately refresh vouchers if a voucher was used (real-time update)
+      // This ensures the used voucher disappears from the dropdown immediately
+      if (currentCustomerId && wasVoucherUsed) {
+        // Refresh vouchers immediately - backend has already processed the order
+        await checkAvailableVouchers(currentCustomerId)
+      }
+      
       // Reset form
       setCustomerName('')
       setCustomerPhone('')
@@ -709,6 +821,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       setSelectedServiceId('')
       setQuantity(1)
       setSelectedDiscountId('')
+      setSelectedVoucherId('')
+      setAvailableVouchers([])
       setPaidAmount('')
       setPickupDate('')
       setPaymentStatus('Unpaid')
@@ -734,6 +848,9 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     setIsAddCustomerModalOpen(false)
     setPendingCustomerData(null)
     setSkipCustomerCreation(false)
+    
+    // Set the new customer as selected so vouchers can be checked
+    setSelectedCustomer(newCustomer)
     
     await createOrder()
   }
@@ -876,6 +993,9 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
       return
     }
 
+    // Compute subtotal from services (fresh)
+    const subtotal = orderServices.reduce((sum, os) => sum + getServicePrice(os), 0)
+
     // Get station info
     const station = stations.find(s => (s.stationId || s._id || s.id) === selectedStationId)
     
@@ -883,10 +1003,19 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     const selectedDiscount = availableDiscounts.find(d => d.id === selectedDiscountId)
     const discountAmount = selectedDiscount 
       ? selectedDiscount.type === 'percentage' 
-        ? (amount * selectedDiscount.value / 100)
+        ? (subtotal * selectedDiscount.value / 100)
         : selectedDiscount.value
       : 0
     const discountInfo = selectedDiscount ? selectedDiscount.code : ''
+
+    // Get voucher info
+    const selectedVoucher = availableVouchers.find(v => v.id === selectedVoucherId)
+    const voucherAmount = selectedVoucher
+      ? selectedVoucher.type === 'percentage'
+        ? (subtotal * selectedVoucher.value / 100)
+        : selectedVoucher.value
+      : 0
+    const voucherInfo = selectedVoucher ? selectedVoucher.code : ''
 
     const paid = parseFloat(paidAmount.replace(/[^0-9.]/g, '') || '0')
     const changeDue = paid > totalDue ? paid - totalDue : 0
@@ -980,12 +1109,24 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           <div class="payment-section">
             <div class="payment-row">
               <span>Subtotal:</span>
-              <span>₱${amount.toFixed(2)}</span>
+                <span>₱${subtotal.toFixed(2)}</span>
             </div>
             ${discountAmount > 0 ? `
               <div class="payment-row">
                 <span>Discount${discountInfo ? ` (${discountInfo})` : ''}:</span>
                 <span>-₱${discountAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${voucherAmount > 0 ? `
+              <div class="payment-row">
+                <span>Voucher${voucherInfo ? ` (${voucherInfo})` : ''}:</span>
+                <span>-₱${voucherAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${pointsUsed > 0 ? `
+              <div class="payment-row">
+                <span>Points Used (${pointsUsed} pts):</span>
+                <span>-₱${pointsUsed.toFixed(2)}</span>
               </div>
             ` : ''}
             <div class="payment-row total">
@@ -1711,6 +1852,48 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                                 })}
                             </select>
                           </div>
+                          {availableVouchers.length > 0 && (
+                            <div className="form-group">
+                              <label>
+                                🎫 Available Voucher
+                                {availableVouchers.length > 1 && (
+                                  <span style={{ fontSize: '12px', color: '#6B7280', marginLeft: '4px' }}>
+                                    ({availableVouchers.length} available)
+                                  </span>
+                                )}
+                              </label>
+                              <select
+                                value={selectedVoucherId}
+                                onChange={(e) => setSelectedVoucherId(e.target.value)}
+                              >
+                                <option value="">No Voucher</option>
+                                {availableVouchers.map((voucher) => {
+                                  const voucherText = voucher.type === 'percentage' 
+                                    ? `${voucher.code} - ${voucher.name} (${voucher.value}%)`
+                                    : `${voucher.code} - ${voucher.name} (₱${voucher.value})`
+                                  const minPurchaseText = voucher.minPurchase > 0 ? ` (Min: ₱${voucher.minPurchase})` : ''
+                                  const monthlyText = voucher.isMonthly ? ' [Monthly]' : ''
+                                  return (
+                                    <option key={voucher.id} value={voucher.id}>
+                                      {voucherText}{minPurchaseText}{monthlyText}
+                                    </option>
+                                  )
+                                })}
+                              </select>
+                              {selectedVoucherId && (
+                                <div style={{ 
+                                  marginTop: '8px', 
+                                  padding: '8px 12px', 
+                                  backgroundColor: '#F0FDF4', 
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  color: '#166534'
+                                }}>
+                                  ✅ Monthly voucher available for this customer
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {selectedCustomer && selectedCustomer.points !== undefined && selectedCustomer.points > 0 && (
                             <div className="form-group">
                               <label>
@@ -1751,11 +1934,27 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                                   className="btn-secondary"
                                   style={{ whiteSpace: 'nowrap' }}
                                   onClick={() => {
-                                    const maxPoints = selectedCustomer?.points || 0;
-                                    setPointsUsed(maxPoints);
+                                    const customerPoints = selectedCustomer?.points || 0;
+                                    // Calculate order total before points discount
+                                    // amount is the subtotal (already calculated in useEffect)
+                                    let discountValue = 0;
+                                    if (selectedDiscountId && amount > 0) {
+                                      const selectedDiscount = availableDiscounts.find(d => d.id === selectedDiscountId && d.isActive === true && !d.isArchived);
+                                      if (selectedDiscount && amount >= (selectedDiscount.minPurchase || 0)) {
+                                        if (selectedDiscount.type === 'percentage') {
+                                          discountValue = amount * (selectedDiscount.value / 100);
+                                        } else {
+                                          discountValue = selectedDiscount.value;
+                                        }
+                                      }
+                                    }
+                                    const orderTotal = Math.max(0, amount - discountValue);
+                                    // Use only enough points to cover the order total
+                                    const pointsToUse = Math.min(customerPoints, orderTotal);
+                                    setPointsUsed(pointsToUse);
                                   }}
                                 >
-                                  Use all points
+                                  Use Points to pay
                                 </button>
                               </div>
                               {pointsUsed > 0 && (
@@ -1861,12 +2060,30 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           
                           {(amount - totalDue) > 0 && (
                             <>
-                              {pointsUsed > 0 && (
-                                <div className="summary-item">
-                                  <span className="summary-label">Points Discount</span>
-                                  <span className="summary-value discount">-₱{pointsUsed.toFixed(2)}</span>
-                                </div>
-                              )}
+                          {selectedVoucherId && availableVouchers.length > 0 && (() => {
+                            const selectedVoucher = availableVouchers.find(v => v.id === selectedVoucherId)
+                            if (!selectedVoucher) return null
+                            let voucherDiscount = 0
+                            if (amount >= (selectedVoucher.minPurchase || 0)) {
+                              if (selectedVoucher.type === 'percentage') {
+                                voucherDiscount = (amount * selectedVoucher.value) / 100
+                              } else {
+                                voucherDiscount = selectedVoucher.value
+                              }
+                            }
+                            return voucherDiscount > 0 ? (
+                              <div className="summary-item">
+                                <span className="summary-label">Voucher Discount ({selectedVoucher.code})</span>
+                                <span className="summary-value discount">-₱{voucherDiscount.toFixed(2)}</span>
+                              </div>
+                            ) : null
+                          })()}
+                          {pointsUsed > 0 && (
+                            <div className="summary-item">
+                              <span className="summary-label">Points Discount</span>
+                              <span className="summary-value discount">-₱{pointsUsed.toFixed(2)}</span>
+                            </div>
+                          )}
                               {(amount - totalDue - pointsUsed) > 0 && (
                                 <div className="summary-item">
                                   <span className="summary-label">Discount</span>
@@ -1906,6 +2123,29 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                               <span className="summary-value" style={{ color: '#059669', fontWeight: '700' }}>Fully Paid ✓</span>
                             </div>
                           )}
+                          
+                          {/* Points to be earned - shown as soon as services are added */}
+                          {(() => {
+                            // Points earned based on order total, not paid amount
+                            // Show preview as soon as there's an order total
+                            const pointsToEarn = (pointsSettings.enabled && totalDue > 0)
+                              ? parseFloat((totalDue * pointsSettings.pesoToPointMultiplier).toFixed(2))
+                              : 0
+                            
+                            if (pointsToEarn > 0) {
+                              return (
+                                <div className="summary-item" style={{ backgroundColor: '#EFF6FF', padding: '12px 16px', borderRadius: '8px', marginTop: '8px', border: '1px solid #BFDBFE' }}>
+                                  <span className="summary-label" style={{ color: '#1D4ED8', fontWeight: '600' }}>
+                                    Points to Earn {paymentStatus !== 'Paid' && <span style={{ fontSize: '11px', fontWeight: '400', opacity: 0.7 }}>(when paid)</span>}
+                                  </span>
+                                  <span className="summary-value" style={{ color: '#1D4ED8', fontWeight: '700', fontSize: '16px' }}>
+                                    {pointsToEarn.toFixed(2)} pts
+                                  </span>
+                                </div>
+                              )
+                            }
+                            return null
+                          })()}
                         </div>
                       )}
 

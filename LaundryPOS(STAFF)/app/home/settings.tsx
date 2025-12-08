@@ -98,6 +98,13 @@ export default function Settings() {
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionSaveSuccess, setSessionSaveSuccess] = useState(false);
   
+  // Points settings state
+  const [pointsSettings, setPointsSettings] = useState({
+    enabled: true,
+    pesoToPointMultiplier: 0.01,
+  });
+  const [pointsLoading, setPointsLoading] = useState(false);
+  
   // Color palette state
   const [selectedPalette, setSelectedPalette] = useState<string>('default');
   const [availablePalettes, setAvailablePalettes] = useState<ColorPalette[]>(colorPalettes);
@@ -120,6 +127,7 @@ export default function Settings() {
   useEffect(() => {
     fetchUserProfile();
     fetchSessionSettings();
+    fetchPointsSettings();
     loadAppearancePreferences();
   }, []);
   
@@ -347,6 +355,40 @@ export default function Settings() {
       console.error('Error loading session settings:', error);
     } finally {
       setSessionLoading(false);
+    }
+  };
+
+  const fetchPointsSettings = async () => {
+    try {
+      setPointsLoading(true);
+      const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+      if (!token) return;
+      const headers: any = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_BASE_URL}/system-settings/points`, { headers });
+      
+      if (response.data) {
+        // Handle response format: { success: true, data: { enabled, pesoToPointMultiplier } }
+        let pointsData = null;
+        if (response.data.success === true && response.data.data) {
+          pointsData = response.data.data;
+        } else if (response.data.enabled !== undefined || response.data.pesoToPointMultiplier !== undefined) {
+          // Direct format: { enabled, pesoToPointMultiplier }
+          pointsData = response.data;
+        }
+        
+        if (pointsData) {
+          setPointsSettings({
+            enabled: typeof pointsData.enabled === 'boolean' ? pointsData.enabled : true,
+            pesoToPointMultiplier: typeof pointsData.pesoToPointMultiplier === 'number' 
+              ? pointsData.pesoToPointMultiplier 
+              : 0.01
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading points settings:', error);
+    } finally {
+      setPointsLoading(false);
     }
   };
 
@@ -842,6 +884,63 @@ export default function Settings() {
                   </>
                 )}
               </TouchableOpacity>
+              </View>
+
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Points System</Text>
+                <Text style={styles.sectionDescription}>
+                  View the current points conversion rate configured by the administrator.
+                </Text>
+
+                {pointsLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                    <ActivityIndicator size="small" color={dynamicColors.primary[500]} />
+                    <Text style={styles.hint}>Loading points settings...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.formGroup}>
+                      <Text style={styles.label}>Points Earning Status</Text>
+                      <View style={[styles.infoBox, { 
+                        backgroundColor: pointsSettings.enabled ? '#D1FAE5' : '#FEE2E2',
+                        borderColor: pointsSettings.enabled ? '#059669' : '#DC2626'
+                      }]}>
+                        <Ionicons 
+                          name={pointsSettings.enabled ? 'checkmark-circle' : 'close-circle'} 
+                          size={20} 
+                          color={pointsSettings.enabled ? '#059669' : '#DC2626'} 
+                        />
+                        <Text style={[styles.infoBoxText, { 
+                          color: pointsSettings.enabled ? '#059669' : '#DC2626' 
+                        }]}>
+                          {pointsSettings.enabled ? 'Points earning is enabled' : 'Points earning is disabled'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.formGroup}>
+                      <Text style={styles.label}>Conversion Rate</Text>
+                      <View style={styles.readOnlyInput}>
+                        <Text style={styles.readOnlyValue}>
+                          1 peso = {pointsSettings.pesoToPointMultiplier.toFixed(4)} points
+                        </Text>
+                      </View>
+                      <Text style={styles.hint}>
+                        For every ₱1 spent, customers earn {pointsSettings.pesoToPointMultiplier.toFixed(4)} points
+                      </Text>
+                    </View>
+
+                    <View style={[styles.infoBox, { 
+                      backgroundColor: '#EFF6FF',
+                      borderColor: '#3B82F6'
+                    }]}>
+                      <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                      <Text style={[styles.infoBoxText, { color: '#1E40AF' }]}>
+                        This rate is configured by the administrator and cannot be changed here.
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
 
               <View style={styles.card}>
@@ -1882,5 +1981,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: 'Poppins_500Medium',
+  },
+  readOnlyInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F9FAFB',
+    marginTop: 4,
+  },
+  readOnlyValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'Poppins_600SemiBold',
   },
 });

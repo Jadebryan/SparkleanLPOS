@@ -35,6 +35,7 @@ const rbacRoutes = require("./routes/RBACRoutes");
 const systemSettingRoutes = require("./routes/SystemSettingRoutes");
 const uploadRoutes = require("./routes/UploadRoutes");
 const supportRoutes = require("./routes/SupportRoutes");
+const voucherRoutes = require("./routes/VoucherRoutes");
 
 const app = express();
 
@@ -107,7 +108,40 @@ const { apiLimiter, authLimiter, sensitiveLimiter, uploadLimiter } = require('./
 // The rate limiter itself handles skipping (health check, lock endpoints in dev, etc.)
 app.use("/api/", apiLimiter);
 
-// Routes
+// API Versioning - Create versioned route handlers
+const v1Router = express.Router();
+
+// Apply rate limiting to versioned routes
+v1Router.use("/auth/login", authLimiter);
+v1Router.use("/auth/register", authLimiter);
+v1Router.use("/auth/forgot-password", sensitiveLimiter);
+v1Router.use("/auth/reset-password", sensitiveLimiter);
+
+// Mount all routes under v1
+v1Router.use("/auth", authRoutes);
+v1Router.use("/orders", orderRoutes);
+v1Router.use("/customers", customerRoutes);
+v1Router.use("/services", serviceRoutes);
+v1Router.use("/expenses", expenseRoutes);
+v1Router.use("/employees", employeeRoutes);
+v1Router.use("/discounts", discountRoutes);
+v1Router.use("/dashboard", dashboardRoutes);
+v1Router.use("/reports", reportRoutes);
+v1Router.use("/stations", stationRoutes);
+v1Router.use("/notifications", require("./routes/NotificationRoutes"));
+v1Router.use("/backups", backupRoutes);
+v1Router.use("/audit-logs", require("./routes/AuditLogRoutes"));
+v1Router.use("/rbac", rbacRoutes);
+v1Router.use("/system-settings", systemSettingRoutes);
+v1Router.use("/upload", uploadLimiter, uploadRoutes);
+v1Router.use("/support", supportRoutes);
+v1Router.use("/vouchers", voucherRoutes);
+
+// Mount versioned API routes
+app.use("/api/v1", v1Router);
+
+// Backward compatibility: Also mount routes at /api (defaults to v1)
+// This ensures existing clients continue to work
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/forgot-password", sensitiveLimiter);
@@ -129,6 +163,7 @@ app.use("/api/rbac", rbacRoutes);
 app.use("/api/system-settings", systemSettingRoutes);
 app.use("/api/upload", uploadLimiter, uploadRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/vouchers", voucherRoutes);
 
 // Enhanced health check endpoint
 app.get('/api/health', async (req, res) => {

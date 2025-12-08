@@ -35,5 +35,8 @@ router.put('/:id/unarchive', requirePermission('customers', 'unarchive'), Custom
 // Delete customer permanently
 router.delete('/:id', requirePermission('customers', 'delete'), CustomerController.deleteCustomer);
 
+// Check customer transactions in other branches
+router.get('/:customerId/other-branch-transactions', requirePermission('customers', 'read'), CustomerController.checkOtherBranchTransactions);
+
 module.exports = router;
 

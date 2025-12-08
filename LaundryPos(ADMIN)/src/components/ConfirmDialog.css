@@ -7,6 +7,7 @@
   justify-content: center;
   z-index: 10002;
   padding: 20px;
+  cursor: pointer;
 }
 
 .confirm-dialog {
@@ -18,6 +19,8 @@
   text-align: center;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   position: relative;
+  z-index: 10003;
+  cursor: default;
 }
 
 .confirm-dialog-icon {
@@ -57,10 +60,16 @@
   gap: 12px;
   justify-content: center;
   margin-top: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .confirm-dialog-actions button {
   min-width: 100px;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 /* Dark Mode Styles */

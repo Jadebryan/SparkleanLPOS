@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Order = require('../models/OrderModel');
 const Customer = require('../models/CustomerModel');
 const Discount = require('../models/DiscountModel');
+const Voucher = require('../models/VoucherModel');
 const User = require('../models/UserModel');
 const Station = require('../models/StationModel');
 const NotificationController = require('../controllers/NotificationController');
@@ -113,7 +114,8 @@ class OrderController {
         .populate('createdBy', 'username email fullName')
         .populate('lastEditedBy', 'username email fullName')
         .populate('customerId', 'name email phone address')
-        .populate('discountId', 'code name type value');
+        .populate('discountId', 'code name type value')
+        .populate('voucherId', 'code name type value minPurchase');
 
       if (!order) {
         return res.status(404).json({
@@ -175,7 +177,8 @@ class OrderController {
         customer, 
         customerPhone, 
         items, 
-        discountId, 
+        discountId,
+        voucherId,
         paid, 
         pickupDate, 
         notes,
@@ -295,13 +298,13 @@ class OrderController {
             // First, try to find customer matching name/phone AND stationId (prioritize branch-specific record)
             // This ensures orders link to the correct branch-specific customer record
             if (targetStationId) {
-              customerDoc = await Customer.findOne({
+            customerDoc = await Customer.findOne({
                 $and: [
                   {
-                    $or: [
-                      { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
-                      { phone: customerPhone || '' }
-                    ]
+              $or: [
+                { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
+                { phone: customerPhone || '' }
+              ]
                   },
                   { stationId: targetStationId }
                 ]
@@ -315,7 +318,7 @@ class OrderController {
                   { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
                   { phone: customerPhone || '' }
                 ]
-              });
+            });
             }
 
             if (!customerDoc) {
@@ -439,6 +442,51 @@ class OrderController {
             appliedDiscount = discount;
           }
 
+          // Apply voucher if provided
+          let voucherAmount = 0;
+          let appliedVoucher = null;
+          if (voucherId && customerDoc) {
+            if (!mongoose.Types.ObjectId.isValid(voucherId)) {
+              throw new Error('Invalid voucher selected. Please choose a different voucher.');
+            }
+
+            const voucher = await Voucher.findById(voucherId);
+
+            if (!voucher || !voucher.isActive || voucher.isArchived) {
+              throw new Error('This voucher is no longer active.');
+            }
+
+            const now = new Date();
+            const validFrom = voucher.validFrom ? new Date(voucher.validFrom) : new Date(0);
+            const validUntil = voucher.validUntil ? new Date(voucher.validUntil) : new Date('2100-01-01');
+            
+            if (validFrom > now || validUntil < now) {
+              throw new Error('This voucher is not valid at this time.');
+            }
+
+            if (voucher.maxUsage > 0 && voucher.usageCount >= voucher.maxUsage) {
+              throw new Error('This voucher has reached its maximum usage limit.');
+            }
+
+            // Check if customer can use this monthly voucher
+            if (voucher.isMonthly && !voucher.canCustomerUseThisMonth(customerDoc._id)) {
+              throw new Error('You have already used this monthly voucher this month.');
+            }
+
+            // Check minimum purchase requirement
+            if (voucher.minPurchase > 0 && totalAmount < voucher.minPurchase) {
+              throw new Error(`This voucher requires a minimum purchase of ₱${voucher.minPurchase}. Current total: ₱${totalAmount.toFixed(2)}`);
+            }
+
+            if (voucher.type === 'percentage') {
+              voucherAmount = totalAmount * (voucher.value / 100);
+            } else {
+              voucherAmount = voucher.value;
+            }
+            
+            appliedVoucher = voucher;
+          }
+
           // Update discount code to include points if used
           if (actualPointsUsed > 0) {
             if (discountCode && discountCode !== '0%') {
@@ -448,18 +496,19 @@ class OrderController {
             }
           }
 
-          // Calculate final total: subtotal - discount - points discount
-          const finalTotal = Math.max(0, totalAmount - discountAmount - pointsDiscountAmount);
+          // Calculate final total: subtotal - discount - voucher - points discount
+          const finalTotal = Math.max(0, totalAmount - discountAmount - voucherAmount - pointsDiscountAmount);
           const paidAmount = paid || 0;
           const balanceAmount = finalTotal - paidAmount;
           const changeAmount = paidAmount > finalTotal ? paidAmount - finalTotal : 0;
           const paymentStatus = balanceAmount <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
 
-          // Calculate points earned based on amount paid (only if order is paid)
+          // Calculate points earned based on order total (not paid amount)
+          // Points are earned on the order total when order is paid, not on overpayment
           // Earn points according to configured multiplier (may be disabled)
           let pointsEarned = 0;
-          if (pointsConfig.enabled && paymentStatus === 'Paid' && paidAmount > 0) {
-            pointsEarned = parseFloat((paidAmount * PESO_TO_POINT_MULTIPLIER).toFixed(2));
+          if (pointsConfig.enabled && paymentStatus === 'Paid' && finalTotal > 0) {
+            pointsEarned = parseFloat((finalTotal * PESO_TO_POINT_MULTIPLIER).toFixed(2));
           }
 
           const newOrder = new Order({
@@ -471,6 +520,12 @@ class OrderController {
             items: items,
             discount: discountCode,
             discountId: discountId || null,
+            voucherId: appliedVoucher ? appliedVoucher._id : null,
+            voucherCode: appliedVoucher ? appliedVoucher.code : '',
+            voucherName: appliedVoucher ? appliedVoucher.name : '',
+            voucherType: appliedVoucher ? appliedVoucher.type : '',
+            voucherAmountApplied: voucherAmount || 0,
+            voucherMinPurchase: appliedVoucher ? appliedVoucher.minPurchase || 0 : 0,
             total: `₱${finalTotal.toFixed(2)}`,
             paid: paidAmount,
             balance: `₱${Math.max(0, balanceAmount).toFixed(2)}`,
@@ -490,6 +545,16 @@ class OrderController {
           if (appliedDiscount) {
             appliedDiscount.usageCount += 1;
             await appliedDiscount.save();
+          }
+
+          // Update voucher usage count and record monthly usage
+          if (appliedVoucher && customerDoc) {
+            appliedVoucher.usageCount += 1;
+            // Record monthly usage for monthly vouchers
+            if (appliedVoucher.isMonthly) {
+              appliedVoucher.recordMonthlyUsage(customerDoc._id, newOrder._id);
+            }
+            await appliedVoucher.save();
           }
 
           // If this order was created from a draft, link the draft to this order
@@ -918,11 +983,15 @@ class OrderController {
         if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
           // Only grant points if they haven't been granted yet
           if (!order.pointsEarned || order.pointsEarned === 0) {
-            const paidAmount = order.paid || 0;
+            // Get order total (stored as string like "₱123.45")
+            const orderTotal = typeof order.total === 'string'
+              ? parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0
+              : order.total || 0;
             const pointsConfig = await getPointsConfig();
             const multiplier = pointsConfig.pesoToPointMultiplier ?? DEFAULT_POINTS_CONFIG.pesoToPointMultiplier;
-            const pointsEarned = (pointsConfig.enabled && paidAmount > 0)
-              ? parseFloat((paidAmount * multiplier).toFixed(2))
+            // Points earned based on order total, not paid amount
+            const pointsEarned = (pointsConfig.enabled && orderTotal > 0)
+              ? parseFloat((orderTotal * multiplier).toFixed(2))
               : 0;
             
             if (pointsEarned > 0) {
@@ -1090,11 +1159,11 @@ class OrderController {
       }
 
       // Execute order update with 2PL concurrency control (simplified direct update)
-      const order = await Order.findOne({ id: decodedId });
+          const order = await Order.findOne({ id: decodedId });
 
-      if (!order) {
-        throw new Error('Order not found');
-      }
+          if (!order) {
+            throw new Error('Order not found');
+          }
 
           // Check if order is completed and locked
           if (order.isCompleted) {
@@ -1115,15 +1184,15 @@ class OrderController {
             }
           }
 
-      // Track previous payment status to detect transitions
-      const previousPaymentStatus = order.payment;
-      
-      // Track previous item statuses to detect status changes
-      const previousItemStatuses = order.items ? order.items.map(item => item.status) : [];
-      let statusChanged = false;
-      let newStatus = null;
+          // Track previous payment status to detect transitions
+          const previousPaymentStatus = order.payment;
+          
+          // Track previous item statuses to detect status changes
+          const previousItemStatuses = order.items ? order.items.map(item => item.status) : [];
+          let statusChanged = false;
+          let newStatus = null;
 
-      if (items && Array.isArray(items) && items.length > 0) {
+          if (items && Array.isArray(items) && items.length > 0) {
         // Check if any item status changed to "In Progress" or "Completed"
         for (let i = 0; i < items.length; i++) {
           const newItemStatus = items[i].status || 'Pending';
@@ -1137,89 +1206,93 @@ class OrderController {
           }
         }
         
-        order.items = items;
-      }
-      if (discountId !== undefined) order.discountId = discountId;
-      if (paid !== undefined) order.paid = paid;
-      if (pickupDate !== undefined) order.pickupDate = pickupDate ? new Date(pickupDate) : null;
-      if (notes !== undefined) order.notes = notes;
-      if (payment) order.payment = payment;
+            order.items = items;
+          }
+          if (discountId !== undefined) order.discountId = discountId;
+          if (paid !== undefined) order.paid = paid;
+          if (pickupDate !== undefined) order.pickupDate = pickupDate ? new Date(pickupDate) : null;
+          if (notes !== undefined) order.notes = notes;
+          if (payment) order.payment = payment;
 
-      // Track who edited the order
-      order.lastEditedBy = req.user._id;
-      order.lastEditedAt = new Date();
+          // Track who edited the order
+          order.lastEditedBy = req.user._id;
+          order.lastEditedAt = new Date();
 
-      // Recalculate totals if items changed or paid amount changed
-      const needsRecalculation = (items && Array.isArray(items) && items.length > 0) || paid !== undefined;
-      
-      if (needsRecalculation) {
-        let totalAmount = 0;
-        
-        // Recalculate total from items if items were provided
-        if (items && Array.isArray(items) && items.length > 0) {
-          items.forEach(item => {
-            totalAmount += item.amount || 0;
-          });
-        } else {
+          // Recalculate totals if items changed or paid amount changed
+          const needsRecalculation = (items && Array.isArray(items) && items.length > 0) || paid !== undefined;
+          
+          if (needsRecalculation) {
+            let totalAmount = 0;
+            
+            // Recalculate total from items if items were provided
+            if (items && Array.isArray(items) && items.length > 0) {
+              items.forEach(item => {
+                totalAmount += item.amount || 0;
+              });
+            } else {
           // Use existing total (handle both string and number formats)
           if (typeof order.total === 'string') {
-            totalAmount = parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0;
+              totalAmount = parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0;
           } else {
             totalAmount = order.total || 0;
           }
-        }
-
-        // Apply discount if exists
-        let discountAmount = 0;
-        if (order.discountId) {
-          const discount = await Discount.findById(order.discountId);
-          if (discount && discount.isActive) {
-            if (discount.type === 'percentage') {
-              discountAmount = totalAmount * (discount.value / 100);
-            } else {
-              discountAmount = discount.value;
             }
-          }
-        }
+
+            // Apply discount if exists
+            let discountAmount = 0;
+            if (order.discountId) {
+              const discount = await Discount.findById(order.discountId);
+              if (discount && discount.isActive) {
+                if (discount.type === 'percentage') {
+                  discountAmount = totalAmount * (discount.value / 100);
+                } else {
+                  discountAmount = discount.value;
+                }
+              }
+            }
 
         // Apply points discount if points were used (1 point = ₱1)
         const POINTS_TO_PESO_RATE = 1;
         const pointsDiscountAmount = (order.pointsUsed || 0) * POINTS_TO_PESO_RATE;
 
         const finalTotal = Math.max(0, totalAmount - discountAmount - pointsDiscountAmount);
-        const paidAmount = paid !== undefined ? paid : (order.paid || 0);
-        const balanceAmount = finalTotal - paidAmount;
-        const changeAmount = paidAmount > finalTotal ? paidAmount - finalTotal : 0;
-        
-        order.total = `₱${finalTotal.toFixed(2)}`;
-        order.balance = `₱${Math.max(0, balanceAmount).toFixed(2)}`;
-        order.change = changeAmount;
-        
-        if (!payment) {
-          order.payment = balanceAmount <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
-        }
-      }
+            const paidAmount = paid !== undefined ? paid : (order.paid || 0);
+            const balanceAmount = finalTotal - paidAmount;
+            const changeAmount = paidAmount > finalTotal ? paidAmount - finalTotal : 0;
+            
+            order.total = `₱${finalTotal.toFixed(2)}`;
+            order.balance = `₱${Math.max(0, balanceAmount).toFixed(2)}`;
+            order.change = changeAmount;
+            
+            if (!payment) {
+              order.payment = balanceAmount <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
+            }
+          }
 
-      // Check if order should be marked as completed and locked
-      // If any item status is "Completed", mark the order as completed
-      if (items && Array.isArray(items) && items.length > 0) {
-        const hasCompletedItem = items.some(item => item.status === 'Completed');
-        if (hasCompletedItem) {
-          order.isCompleted = true;
-          console.log(`🔒 Order ${order.id} marked as completed and locked from further edits.`);
-        }
-      }
+          // Check if order should be marked as completed and locked
+          // If any item status is "Completed", mark the order as completed
+          if (items && Array.isArray(items) && items.length > 0) {
+            const hasCompletedItem = items.some(item => item.status === 'Completed');
+            if (hasCompletedItem) {
+              order.isCompleted = true;
+              console.log(`🔒 Order ${order.id} marked as completed and locked from further edits.`);
+            }
+          }
 
       // Handle points when payment status changes to Paid
       // Earn points according to configured multiplier (may be disabled)
       if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
         // Only grant points if they haven't been granted yet
         if (!order.pointsEarned || order.pointsEarned === 0) {
-          const paidAmount = order.paid || 0;
+          // Get order total (stored as string like "₱123.45")
+          const orderTotal = typeof order.total === 'string'
+            ? parseFloat(order.total.replace(/[^0-9.]/g, '')) || 0
+            : order.total || 0;
           const pointsConfig = await getPointsConfig();
           const multiplier = pointsConfig.pesoToPointMultiplier ?? DEFAULT_POINTS_CONFIG.pesoToPointMultiplier;
-          const pointsEarned = (pointsConfig.enabled && paidAmount > 0)
-            ? parseFloat((paidAmount * multiplier).toFixed(2))
+          // Points earned based on order total, not paid amount
+          const pointsEarned = (pointsConfig.enabled && orderTotal > 0)
+            ? parseFloat((orderTotal * multiplier).toFixed(2))
             : 0;
           
           if (pointsEarned > 0) {
@@ -1254,124 +1327,124 @@ class OrderController {
         }
       }
 
-      await order.save();
-      await order.populate('createdBy', 'username email fullName');
-      await order.populate('lastEditedBy', 'username email fullName');
-      await order.populate('customerId', 'name email phone');
+          await order.save();
+          await order.populate('createdBy', 'username email fullName');
+          await order.populate('lastEditedBy', 'username email fullName');
+          await order.populate('customerId', 'name email phone');
 
-      // Notify admins if payment status transitioned to Paid
-      try {
-        if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
-          const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
-          const notifyPromises = admins.map(a =>
-            NotificationController.createNotification(
-              a._id,
-              'payment',
-              'Order Paid',
-              `Order ${order.id} has been fully paid`,
-              order.id,
-              { amount: order.total }
-            )
-          );
-          await Promise.all(notifyPromises);
-        }
-      } catch (notifyErr) {
-        console.error('Notification (order paid) error:', notifyErr);
-      }
-
-      // Notify staff member if their order was updated by someone else
-      try {
-        const orderCreatorId = order.createdBy?._id || order.createdBy;
-        const editorId = req.user._id;
-        
-        // Only notify if the order was created by a staff member and edited by someone else
-        if (orderCreatorId && orderCreatorId.toString() !== editorId.toString()) {
-          const creator = await User.findById(orderCreatorId);
-          if (creator && creator.role === 'staff') {
-            const editorName = req.user.fullName || req.user.username || 'Admin';
-            await NotificationController.createNotification(
-              orderCreatorId,
-              'order',
-              'Order Updated',
-              `Your order ${order.id} for ${order.customer} was updated by ${editorName}`,
-              order.id,
-              { 
-                orderId: order.id,
-                customer: order.customer,
-                editedBy: editorName,
-                lastEditedAt: order.lastEditedAt
-              }
-            );
-          }
-        }
-      } catch (notifyErr) {
-        console.error('Notification (order update) error:', notifyErr);
-      }
-
-      // Send SMS and Email notifications when order status changes to "In Progress" or "Completed"
-      if (statusChanged && newStatus && (newStatus === 'In Progress' || newStatus === 'Completed')) {
-        try {
-          const customer = order.customerId;
-          
-          if (customer) {
-            const customerName = customer.name || order.customer || 'Valued Customer';
-            const customerEmail = customer.email;
-            const customerPhone = customer.phone || order.customerPhone;
-            const orderId = order.id;
-            const orderTotal = order.total;
-            const pickupDate = order.pickupDate;
-
-            // Prepare status message for SMS
-            const statusMessage = newStatus === 'In Progress' 
-              ? `Your order ${orderId} is now in progress. We've started processing your laundry. Total: ${orderTotal}`
-              : `Great news! Your order ${orderId} is ready for pickup. Total: ${orderTotal}. Please visit us to collect your order.`;
-
-            // Send SMS if phone number is available
-            if (customerPhone) {
-              try {
-                const smsResult = await smsService.sendSMS(customerPhone, statusMessage);
-                if (smsResult.success) {
-                  console.log(`✅ SMS notification sent to ${customerPhone} for order ${orderId}`);
-                } else {
-                  console.warn(`⚠️  SMS notification failed for ${customerPhone}: ${smsResult.error}`);
-                }
-              } catch (smsError) {
-                console.error(`❌ Error sending SMS to ${customerPhone}:`, smsError.message);
-              }
-            } else {
-              console.log(`ℹ️  No phone number available for customer ${customerName}, skipping SMS`);
+          // Notify admins if payment status transitioned to Paid
+          try {
+            if (previousPaymentStatus !== 'Paid' && order.payment === 'Paid') {
+              const admins = await User.find({ role: 'admin', isActive: true }).select('_id');
+              const notifyPromises = admins.map(a =>
+                NotificationController.createNotification(
+                  a._id,
+                  'payment',
+                  'Order Paid',
+                  `Order ${order.id} has been fully paid`,
+                  order.id,
+                  { amount: order.total }
+                )
+              );
+              await Promise.all(notifyPromises);
             }
+          } catch (notifyErr) {
+            console.error('Notification (order paid) error:', notifyErr);
+          }
 
-            // Send Email if email is available
-            if (customerEmail) {
-              try {
-                const emailResult = await emailService.sendOrderStatusEmail(
-                  customerEmail,
-                  orderId,
-                  customerName,
-                  newStatus,
-                  orderTotal,
-                  pickupDate
+          // Notify staff member if their order was updated by someone else
+          try {
+            const orderCreatorId = order.createdBy?._id || order.createdBy;
+            const editorId = req.user._id;
+            
+            // Only notify if the order was created by a staff member and edited by someone else
+            if (orderCreatorId && orderCreatorId.toString() !== editorId.toString()) {
+              const creator = await User.findById(orderCreatorId);
+              if (creator && creator.role === 'staff') {
+                const editorName = req.user.fullName || req.user.username || 'Admin';
+                await NotificationController.createNotification(
+                  orderCreatorId,
+                  'order',
+                  'Order Updated',
+                  `Your order ${order.id} for ${order.customer} was updated by ${editorName}`,
+                  order.id,
+                  { 
+                    orderId: order.id,
+                    customer: order.customer,
+                    editedBy: editorName,
+                    lastEditedAt: order.lastEditedAt
+                  }
                 );
-                if (emailResult.success) {
-                  console.log(`✅ Email notification sent to ${customerEmail} for order ${orderId}`);
-                } else {
-                  console.warn(`⚠️  Email notification failed for ${customerEmail}: ${emailResult.error}`);
-                }
-              } catch (emailError) {
-                console.error(`❌ Error sending email to ${customerEmail}:`, emailError.message);
               }
-            } else {
-              console.log(`ℹ️  No email address available for customer ${customerName}, skipping email`);
             }
-          } else {
-            console.log(`ℹ️  Order ${order.id} has no linked customer, skipping notifications`);
+          } catch (notifyErr) {
+            console.error('Notification (order update) error:', notifyErr);
           }
-        } catch (notificationError) {
-          // Don't fail the order update if notifications fail
-          console.error('Error sending order status notifications:', notificationError);
-        }
-      }
+
+          // Send SMS and Email notifications when order status changes to "In Progress" or "Completed"
+          if (statusChanged && newStatus && (newStatus === 'In Progress' || newStatus === 'Completed')) {
+            try {
+              const customer = order.customerId;
+              
+              if (customer) {
+                const customerName = customer.name || order.customer || 'Valued Customer';
+                const customerEmail = customer.email;
+                const customerPhone = customer.phone || order.customerPhone;
+                const orderId = order.id;
+                const orderTotal = order.total;
+                const pickupDate = order.pickupDate;
+
+                // Prepare status message for SMS
+                const statusMessage = newStatus === 'In Progress' 
+                  ? `Your order ${orderId} is now in progress. We've started processing your laundry. Total: ${orderTotal}`
+                  : `Great news! Your order ${orderId} is ready for pickup. Total: ${orderTotal}. Please visit us to collect your order.`;
+
+                // Send SMS if phone number is available
+                if (customerPhone) {
+                  try {
+                    const smsResult = await smsService.sendSMS(customerPhone, statusMessage);
+                    if (smsResult.success) {
+                      console.log(`✅ SMS notification sent to ${customerPhone} for order ${orderId}`);
+                    } else {
+                      console.warn(`⚠️  SMS notification failed for ${customerPhone}: ${smsResult.error}`);
+                    }
+                  } catch (smsError) {
+                    console.error(`❌ Error sending SMS to ${customerPhone}:`, smsError.message);
+                  }
+                } else {
+                  console.log(`ℹ️  No phone number available for customer ${customerName}, skipping SMS`);
+                }
+
+                // Send Email if email is available
+                if (customerEmail) {
+                  try {
+                    const emailResult = await emailService.sendOrderStatusEmail(
+                      customerEmail,
+                      orderId,
+                      customerName,
+                      newStatus,
+                      orderTotal,
+                      pickupDate
+                    );
+                    if (emailResult.success) {
+                      console.log(`✅ Email notification sent to ${customerEmail} for order ${orderId}`);
+                    } else {
+                      console.warn(`⚠️  Email notification failed for ${customerEmail}: ${emailResult.error}`);
+                    }
+                  } catch (emailError) {
+                    console.error(`❌ Error sending email to ${customerEmail}:`, emailError.message);
+                  }
+                } else {
+                  console.log(`ℹ️  No email address available for customer ${customerName}, skipping email`);
+                }
+              } else {
+                console.log(`ℹ️  Order ${order.id} has no linked customer, skipping notifications`);
+              }
+            } catch (notificationError) {
+              // Don't fail the order update if notifications fail
+              console.error('Error sending order status notifications:', notificationError);
+            }
+          }
 
       // Log audit event
       await auditLogger.logDataModification('update', req.user._id, 'order', order.id, {
@@ -1666,7 +1739,8 @@ class OrderController {
 
       const order = await Order.findOne({ id: decodedId })
         .populate('customerId', 'name email phone address')
-        .populate('discountId', 'code name type value');
+        .populate('discountId', 'code name type value')
+        .populate('voucherId', 'code name type value minPurchase');
 
       if (!order) {
         return res.status(404).json({
@@ -1795,7 +1869,8 @@ class OrderController {
 
       const order = await Order.findOne({ id: decodedId })
         .populate('customerId', 'name email phone address')
-        .populate('discountId', 'code name type value');
+        .populate('discountId', 'code name type value')
+        .populate('voucherId', 'code name type value minPurchase');
 
       if (!order) {
         return res.status(404).json({

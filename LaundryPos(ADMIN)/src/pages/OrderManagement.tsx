@@ -187,6 +187,14 @@ const OrderManagement: React.FC = () => {
           total: o.total,
           items: o.items || [],
           discount: o.discount || '0%',
+          voucherId: o.voucherId || null,
+          voucherCode: o.voucherCode || '',
+          voucherName: o.voucherName || '',
+          voucherType: o.voucherType || '',
+          voucherAmountApplied: o.voucherAmountApplied || 0,
+          voucherMinPurchase: o.voucherMinPurchase || 0,
+          pointsUsed: o.pointsUsed || 0,
+          pointsEarned: o.pointsEarned || 0,
           paid: o.paid || 0,
           balance: o.balance || '₱0.00',
           change: o.change || 0,
@@ -534,6 +542,14 @@ const OrderManagement: React.FC = () => {
           total: updatedOrder.total,
           items: updatedOrder.items || [],
           discount: updatedOrder.discount || '0%',
+          voucherId: updatedOrder.voucherId || null,
+          voucherCode: updatedOrder.voucherCode || '',
+          voucherName: updatedOrder.voucherName || '',
+          voucherType: updatedOrder.voucherType || '',
+          voucherAmountApplied: updatedOrder.voucherAmountApplied || 0,
+          voucherMinPurchase: updatedOrder.voucherMinPurchase || 0,
+          pointsUsed: updatedOrder.pointsUsed || 0,
+          pointsEarned: updatedOrder.pointsEarned || 0,
           paid: updatedOrder.paid || 0,
           balance: updatedOrder.balance || '₱0.00',
           change: updatedOrder.change || 0,
@@ -2221,6 +2237,85 @@ const OrderManagement: React.FC = () => {
                       </div>
                     </div>
                   )}
+                  {/* Discount/Voucher Applied */}
+                  {(() => {
+                    const orderAny = selectedOrder as any
+                    const discount = orderAny.discount || selectedOrder.discount
+                    const discountId = orderAny.discountId
+                  const pointsUsed = Number(orderAny.pointsUsed || selectedOrder.pointsUsed || 0)
+                  const voucherId = orderAny.voucherId
+                  const voucherAmount = Number(orderAny.voucherAmountApplied || 0)
+                  const voucherCode = orderAny.voucherCode || ''
+                  const voucherName = (typeof voucherId === 'object' && voucherId?.name) ? voucherId.name : orderAny.voucherName || ''
+                  const voucherDisplayCode = (typeof voucherId === 'object' && voucherId?.code) ? voucherId.code : voucherCode
+                  const voucherType = (typeof voucherId === 'object' && voucherId?.type) ? voucherId.type : orderAny.voucherType || ''
+                  
+                  const hasVoucher = (!!voucherId || voucherAmount > 0 || !!voucherDisplayCode || !!voucherName)
+                    
+                    // Check if discount or points were applied
+                    const hasDiscount = discount && discount !== '0%' && discount !== '0'
+                    const hasPoints = pointsUsed > 0
+                    
+                  if (!hasDiscount && !hasPoints && !hasVoucher) {
+                      return null
+                    }
+                    
+                    return (
+                      <>
+                        {hasDiscount && (
+                      <div className="detail-card">
+                            <label>Discount Applied</label>
+                        <div className="detail-value">
+                              {discountId && typeof discountId === 'object' && discountId.name ? (
+                                <div>
+                                  <div style={{ fontWeight: '600', color: '#059669' }}>
+                                    {discountId.name} {discountId.code && `(${discountId.code})`}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                                    {discount}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ fontWeight: '600', color: '#059669' }}>
+                                  {discount}
+                                </div>
+                              )}
+                            </div>
+                            </div>
+                          )}
+
+                        {hasVoucher && (
+                          <div className="detail-card">
+                            <label>Voucher Applied</label>
+                            <div className="detail-value">
+                              <div style={{ fontWeight: '600', color: '#059669' }}>
+                                {voucherName || 'Voucher'}{voucherDisplayCode ? ` (${voucherDisplayCode})` : ''}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                                {voucherAmount > 0
+                                  ? `-₱${voucherAmount.toFixed(2)}${voucherType === 'percentage' ? ' (percentage)' : ''}`
+                                  : 'Redeemed'}
+                              </div>
+                              </div>
+                            </div>
+                          )}
+
+                        {hasPoints && (
+                          <div className="detail-card">
+                            <label>Points Used</label>
+                            <div className="detail-value">
+                              <div style={{ fontWeight: '600', color: '#059669' }}>
+                                {pointsUsed} pts
+                        </div>
+                              <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                                (₱{pointsUsed.toFixed(2)} discount)
+                      </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
 
                 {/* Last Edited Information */}

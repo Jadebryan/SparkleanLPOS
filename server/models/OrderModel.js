@@ -151,6 +151,35 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
+  },
+  // Voucher integration
+  voucherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Voucher',
+    default: null
+  },
+  voucherCode: {
+    type: String,
+    default: ''
+  },
+  voucherName: {
+    type: String,
+    default: ''
+  },
+  voucherType: {
+    type: String,
+    enum: ['percentage', 'fixed', ''],
+    default: ''
+  },
+  voucherAmountApplied: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  voucherMinPurchase: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true

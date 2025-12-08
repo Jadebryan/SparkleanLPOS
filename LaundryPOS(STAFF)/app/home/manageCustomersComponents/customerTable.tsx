@@ -604,36 +604,53 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                     <Text style={styles.detailLabel}>CUSTOMER SINCE</Text>
                     <Text style={styles.detailValueText}>Jan 15, 2024</Text>
                   </View>
-                  {customerBranches.length > 0 && (
+                  
+                  {selectedCustomer.stationId && (
                     <View style={styles.detailCard}>
-                      <Text style={styles.detailLabel}>ALSO ADDED TO BRANCHES</Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                        {customerBranches.map((b) => (
-                          <View
-                            key={b}
-                            style={{
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              borderRadius: 999,
-                              backgroundColor: '#EFF6FF',
-                              borderWidth: 1,
-                              borderColor: '#BFDBFE',
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: dynamicColors.primary[600] || '#1D4ED8',
-                                fontFamily: 'Poppins_500Medium',
-                              }}
-                            >
-                              {b}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
+                      <Text style={styles.detailLabel}>STATION/BRANCH</Text>
+                      <Text style={[styles.detailValueText, { 
+                        color: dynamicColors.accent[500] || '#F97316',
+                        fontWeight: '600',
+                        fontFamily: 'monospace'
+                      }]}>
+                        {selectedCustomer.stationId}
+                      </Text>
                     </View>
                   )}
+                  
+                  {(() => {
+                    const originalBranch = selectedCustomer.stationId;
+                    const otherBranches = customerBranches.filter(b => b !== originalBranch);
+                    return otherBranches.length > 0 && (
+                      <View style={styles.detailCard}>
+                        <Text style={styles.detailLabel}>ALSO ADDED TO BRANCHES</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {otherBranches.map((b) => (
+                            <View
+                              key={b}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 6,
+                                backgroundColor: '#EFF6FF',
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: '500',
+                                  color: '#1D4ED8',
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {b}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </View>
 
                 {/* Recent Order History */}

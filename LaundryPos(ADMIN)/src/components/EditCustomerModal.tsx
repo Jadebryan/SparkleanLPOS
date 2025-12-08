@@ -57,6 +57,18 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({
       return
     }
 
+    // Check if email already exists for a customer with a DIFFERENT phone number
+    // (Same email for same phone is OK - they're the same person across branches)
+    const emailExistsForDifferentPhone = existingCustomers.some(c => 
+      c.email.toLowerCase() === editedCustomer.email.toLowerCase() && 
+      c.phone !== editedCustomer.phone && 
+      c.id !== customer.id
+    )
+    if (emailExistsForDifferentPhone) {
+      toast.error('This email address is already associated with another customer (different phone number)')
+      return
+    }
+
     setIsLoading(true)
     
     try {

@@ -1,7 +1,9 @@
 const Customer = require('../models/CustomerModel');
 const User = require('../models/UserModel');
+const Order = require('../models/OrderModel');
 const NotificationController = require('./NotificationController');
 const auditLogger = require('../utils/auditLogger');
+const { encrypt, decrypt, encryptObject, decryptObject } = require('../utils/encryption');
 
 class CustomerController {
   // Get all customers (both admin and staff can view)
@@ -28,10 +30,12 @@ class CustomerController {
       }
 
       if (search) {
+        // Escape special regex characters to prevent regex errors
+        const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } }
+          { name: { $regex: escapedSearch, $options: 'i' } },
+          { email: { $regex: escapedSearch, $options: 'i' } },
+          { phone: { $regex: escapedSearch, $options: 'i' } }
         ];
       }
 
@@ -62,10 +66,16 @@ class CustomerController {
 
       const customers = await Customer.find(query).sort(sort);
 
+      // Decrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      const decryptedCustomers = shouldEncrypt 
+        ? customers.map(c => decryptObject(c.toObject(), ['name', 'email', 'phone']))
+        : customers;
+
       res.status(200).json({
         success: true,
-        data: customers,
-        count: customers.length
+        data: decryptedCustomers,
+        count: decryptedCustomers.length
       });
     } catch (error) {
       console.error('Get all customers error:', error);
@@ -94,11 +104,15 @@ class CustomerController {
         });
       }
 
+      // Escape special regex characters to prevent regex errors
+      // This escapes: . * + ? ^ $ { } ( ) | [ ] \
+      const escapedSearch = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
       const query = {
         $or: [
-          { name: { $regex: trimmed, $options: 'i' } },
-          { email: { $regex: trimmed, $options: 'i' } },
-          { phone: { $regex: trimmed, $options: 'i' } },
+          { name: { $regex: escapedSearch, $options: 'i' } },
+          { email: { $regex: escapedSearch, $options: 'i' } },
+          { phone: { $regex: escapedSearch, $options: 'i' } },
         ],
       };
 
@@ -136,10 +150,16 @@ class CustomerController {
         .sort(sort)
         .limit(numericLimit);
 
+      // Decrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      const decryptedCustomers = shouldEncrypt 
+        ? customers.map(c => decryptObject(c.toObject(), ['name', 'email', 'phone']))
+        : customers;
+
       res.status(200).json({
         success: true,
-        data: customers,
-        count: customers.length,
+        data: decryptedCustomers,
+        count: decryptedCustomers.length,
       });
     } catch (error) {
       console.error('Global customer search error:', error);
@@ -179,9 +199,15 @@ class CustomerController {
         }
       }
 
+      // Decrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      const customerData = shouldEncrypt 
+        ? decryptObject(customer.toObject(), ['name', 'email', 'phone'])
+        : customer;
+
       res.status(200).json({
         success: true,
-        data: customer
+        data: customerData
       });
     } catch (error) {
       console.error('Get customer error:', error);
@@ -204,36 +230,48 @@ class CustomerController {
         });
       }
 
-      // Check if customer already exists
-      const queryConditions = [{ phone: phone }];
-      
-      // Only check email if it's provided and not empty
-      if (email && email.trim() !== '') {
-        queryConditions.push({ email: email.toLowerCase() });
-      }
-      
-      const existingCustomer = await Customer.findOne({
-        $or: queryConditions
-      });
+      // Check if customer with same phone already exists
+      const existingCustomerByPhone = await Customer.findOne({ phone: phone });
 
-      if (existingCustomer) {
+      if (existingCustomerByPhone) {
         return res.status(409).json({
           success: false,
-          message: 'Customer with this phone or email already exists',
-          data: existingCustomer // Include existing customer data
+          message: 'Customer with this phone number already exists',
+          data: existingCustomerByPhone // Include existing customer data
         });
+      }
+
+      // Check if email is already used by a customer with a DIFFERENT phone number
+      // (Same email for same phone is OK - they're the same person across branches)
+      if (email && email.trim() !== '') {
+        const existingCustomerByEmail = await Customer.findOne({
+          email: email.toLowerCase(),
+          phone: { $ne: phone } // Different phone number
+        });
+
+        if (existingCustomerByEmail) {
+          return res.status(409).json({
+            success: false,
+            message: 'This email address is already associated with another customer (different phone number)',
+            data: existingCustomerByEmail
+          });
+        }
       }
 
       // Use the same station ID logic: prefer stationId from body (admin selecting branch), then user's stationId, then null
       const customerStationId = stationIdFromBody || req.user.stationId || null;
 
-      const customer = new Customer({
-        name,
-        email: email?.toLowerCase(),
-        phone,
+      // Encrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      const customerData = {
+        name: shouldEncrypt ? encrypt(name) : name,
+        email: email ? (shouldEncrypt ? encrypt(email.toLowerCase()) : email.toLowerCase()) : undefined,
+        phone: shouldEncrypt ? encrypt(phone) : phone,
         notes: notes || '',
         stationId: customerStationId
-      });
+      };
+
+      const customer = new Customer(customerData);
 
       await customer.save();
       // Notify admins about new customer
@@ -324,9 +362,33 @@ class CustomerController {
       const originalPhone = customer.phone;
       const isPhoneChanging = phone && phone !== originalPhone;
 
-      if (name) customer.name = name;
-      if (email) customer.email = email.toLowerCase();
-      if (phone) customer.phone = phone;
+      // Validate email uniqueness: if email is being updated, check if it exists for a customer with a DIFFERENT phone number
+      // (Same email for same phone is OK - they're the same person across branches)
+      if (email && email.trim() !== '') {
+        const normalizedEmail = email.toLowerCase();
+        const newPhone = phone || originalPhone; // Use new phone if provided, otherwise original
+        
+        // Check if email exists for a customer with a different phone number
+        // Exclude: current customer and other records with the same phone (same person)
+        const existingCustomerByEmail = await Customer.findOne({
+          email: normalizedEmail,
+          phone: { $ne: newPhone } // Different phone number
+        });
+
+        if (existingCustomerByEmail) {
+          return res.status(409).json({
+            success: false,
+            message: 'This email address is already associated with another customer (different phone number)'
+          });
+        }
+      }
+
+      // Encrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      
+      if (name) customer.name = shouldEncrypt ? encrypt(name) : name;
+      if (email) customer.email = shouldEncrypt ? encrypt(email.toLowerCase()) : email.toLowerCase();
+      if (phone) customer.phone = shouldEncrypt ? encrypt(phone) : phone;
       if (notes !== undefined) customer.notes = notes;
 
       await customer.save();
@@ -688,6 +750,119 @@ class CustomerController {
       });
     } catch (error) {
       console.error('Delete customer error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Check if customer has existing transactions in other branches
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async checkOtherBranchTransactions(req, res) {
+    try {
+      const { customerId } = req.params;
+      const currentStationId = req.user.stationId;
+
+      if (!customerId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Customer ID is required'
+        });
+      }
+
+      // Get customer
+      const customer = await Customer.findById(customerId);
+      if (!customer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Customer not found'
+        });
+      }
+
+      // Decrypt phone if needed for searching
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      let searchPhone = customer.phone;
+      if (shouldEncrypt) {
+        // For searching, we need to find all customers with the same phone
+        // Since phone is encrypted, we need to find by customer ID or use a different approach
+        // For now, we'll search by customer ID across all orders
+        const allCustomersWithSamePhone = await Customer.find({ 
+          phone: customer.phone 
+        }).select('_id');
+        const customerIds = allCustomersWithSamePhone.map(c => c._id);
+        
+        // Find orders from other branches
+        const otherBranchOrders = await Order.find({
+          customerId: { $in: customerIds },
+          stationId: { $ne: currentStationId },
+          isArchived: false
+        })
+        .select('id date total payment stationId')
+        .sort({ date: -1 })
+        .limit(10)
+        .populate('customerId', 'name phone stationId');
+
+        // Get unique stations
+        const stations = [...new Set(otherBranchOrders.map(o => o.stationId).filter(Boolean))];
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            hasOtherBranchTransactions: otherBranchOrders.length > 0,
+            orderCount: otherBranchOrders.length,
+            stations: stations,
+            recentOrders: otherBranchOrders.map(o => ({
+              id: o.id,
+              date: o.date,
+              total: o.total,
+              payment: o.payment,
+              stationId: o.stationId
+            }))
+          }
+        });
+      } else {
+        // If not encrypted, we can search by phone directly
+        const allCustomersWithSamePhone = await Customer.find({ 
+          phone: customer.phone 
+        }).select('_id');
+        const customerIds = allCustomersWithSamePhone.map(c => c._id);
+        
+        // Find orders from other branches
+        const otherBranchOrders = await Order.find({
+          customerId: { $in: customerIds },
+          stationId: { $ne: currentStationId },
+          isArchived: false
+        })
+        .select('id date total payment stationId')
+        .sort({ date: -1 })
+        .limit(10)
+        .populate('customerId', 'name phone stationId');
+
+        // Get unique stations
+        const stations = [...new Set(otherBranchOrders.map(o => o.stationId).filter(Boolean))];
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            hasOtherBranchTransactions: otherBranchOrders.length > 0,
+            orderCount: otherBranchOrders.length,
+            stations: stations,
+            recentOrders: otherBranchOrders.map(o => ({
+              id: o.id,
+              date: o.date,
+              total: o.total,
+              payment: o.payment,
+              stationId: o.stationId
+            }))
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Check other branch transactions error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error'
