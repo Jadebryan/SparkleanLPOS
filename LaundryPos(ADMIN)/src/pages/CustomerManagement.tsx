@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiUserPlus, FiEdit2, FiArchive, FiEye, FiMail, FiPhone, FiShoppingBag, FiX, FiDownload, FiEyeOff, FiChevronDown, FiFileText, FiFolder, FiRotateCw, FiUsers } from 'react-icons/fi'
+import { FiSearch, FiUserPlus, FiEdit2, FiArchive, FiEye, FiMail, FiPhone, FiShoppingBag, FiX, FiDownload, FiEyeOff, FiChevronDown, FiFileText, FiFolder, FiRotateCw, FiUsers, FiMapPin } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import Layout from '../components/Layout'
 import Button from '../components/Button'
@@ -26,6 +26,13 @@ const CustomerManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithBranches | null>(null)
   const [recentOrders, setRecentOrders] = useState<Array<{ id: string; date: string; amount: string; service: string }>>([])
+  const [otherBranchTransactions, setOtherBranchTransactions] = useState<{
+    hasOtherBranchTransactions: boolean
+    orderCount: number
+    stations: string[]
+    recentOrders: Array<{ id: string; date: string; total: number; payment: number; stationId: string }>
+  } | null>(null)
+  const [isCheckingOtherBranches, setIsCheckingOtherBranches] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -253,6 +260,106 @@ const CustomerManagement: React.FC = () => {
     setIsModalOpen(false)
     setSelectedCustomer(null)
     setRecentOrders([])
+    setOtherBranchTransactions(null)
+  }
+
+  const checkOtherBranchTransactions = async () => {
+    if (!selectedCustomer) {
+      toast.error('No customer selected')
+      return
+    }
+    
+    if (!selectedCustomer.id) {
+      toast.error('Customer ID is missing')
+      console.error('Selected customer:', selectedCustomer)
+      return
+    }
+    
+    setIsCheckingOtherBranches(true)
+    setOtherBranchTransactions(null) // Clear previous results
+    
+    try {
+      console.log('Checking other branch transactions for customer:', selectedCustomer.id)
+      const response = await customerAPI.checkOtherBranchTransactions(selectedCustomer.id)
+      console.log('API response:', response)
+      
+      // Handle different response structures
+      const data = response?.data || response || {}
+      console.log('Extracted data:', data)
+      
+      // Ensure all required fields exist with defaults
+      const transactionsData = {
+        hasOtherBranchTransactions: Boolean(data.hasOtherBranchTransactions),
+        orderCount: Number(data.orderCount) || 0,
+        stations: Array.isArray(data.stations) ? data.stations : [],
+        recentOrders: Array.isArray(data.recentOrders) 
+          ? data.recentOrders.map((order: any) => {
+              try {
+                return {
+                  id: String(order.id || order._id || ''),
+                  date: order.date ? (typeof order.date === 'string' ? order.date : new Date(order.date).toISOString()) : new Date().toISOString(),
+                  total: typeof order.total === 'number' ? order.total : parseFloat(String(order.total || 0)),
+                  payment: typeof order.payment === 'number' ? order.payment : parseFloat(String(order.payment || 0)),
+                  stationId: String(order.stationId || '')
+                }
+              } catch (e) {
+                console.error('Error mapping order:', e, order)
+                return {
+                  id: '',
+                  date: new Date().toISOString(),
+                  total: 0,
+                  payment: 0,
+                  stationId: ''
+                }
+              }
+            })
+          : []
+      }
+      
+      console.log('Processed transactions data:', transactionsData)
+      setOtherBranchTransactions(transactionsData)
+      
+      if (transactionsData.hasOtherBranchTransactions) {
+        toast.success(`Found ${transactionsData.orderCount} transaction(s) in other branches`)
+      } else {
+        // No records found - show message
+        toast.success('No record in other branches')
+        setOtherBranchTransactions({
+          hasOtherBranchTransactions: false,
+          orderCount: 0,
+          stations: [],
+          recentOrders: []
+        })
+      }
+    } catch (error: any) {
+      console.error('Error checking other branch transactions:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response,
+        stack: error?.stack
+      })
+      // Check if it's a "no records" scenario (404 or empty response)
+      const isNoRecords = error?.response?.status === 404 || 
+                         error?.response?.data?.message?.toLowerCase().includes('no') ||
+                         error?.message?.toLowerCase().includes('no')
+      
+      if (isNoRecords) {
+        toast.success('No record in other branches')
+        setOtherBranchTransactions({
+          hasOtherBranchTransactions: false,
+          orderCount: 0,
+          stations: [],
+          recentOrders: []
+        })
+      } else {
+        // For other errors, show the actual error message
+        const errorMessage = error?.response?.data?.message || error?.message || 'Failed to check other branch transactions'
+        toast.error(errorMessage)
+        setOtherBranchTransactions(null)
+      }
+    } finally {
+      setIsCheckingOtherBranches(false)
+    }
   }
 
   const fetchRecentOrders = async (customer: Customer) => {
@@ -1092,6 +1199,102 @@ const CustomerManagement: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Other Branch Transactions Section */}
+                  <div className="recent-activity" style={{ marginTop: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4>Other Branch Transactions</h4>
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          try {
+                            checkOtherBranchTransactions()
+                          } catch (error) {
+                            console.error('Error in button click handler:', error)
+                            toast.error('An error occurred. Please check the console.')
+                          }
+                        }}
+                        disabled={isCheckingOtherBranches}
+                      >
+                        <FiMapPin /> {isCheckingOtherBranches ? 'Checking...' : 'Check Other Branches'}
+                      </Button>
+                    </div>
+                    {otherBranchTransactions && (
+                      <div style={{ 
+                        padding: '16px', 
+                        backgroundColor: otherBranchTransactions.hasOtherBranchTransactions ? '#FEF3C7' : '#F0FDF4',
+                        border: `1px solid ${otherBranchTransactions.hasOtherBranchTransactions ? '#FCD34D' : '#86EFAC'}`,
+                        borderRadius: '8px',
+                        marginBottom: '16px'
+                      }}>
+                        {otherBranchTransactions.hasOtherBranchTransactions ? (
+                          <>
+                            <div style={{ marginBottom: '12px' }}>
+                              <strong>Found {otherBranchTransactions.orderCount} transaction(s) in other branches:</strong>
+                            </div>
+                            {otherBranchTransactions.stations.length > 0 && (
+                              <div style={{ marginBottom: '12px' }}>
+                                <strong>Branches:</strong>{' '}
+                                {otherBranchTransactions.stations.map((stationId, idx) => {
+                                  const station = stations.find(s => (s.stationId || s._id || s.id) === stationId)
+                                  return (
+                                    <span key={idx} style={{ 
+                                      display: 'inline-block',
+                                      marginLeft: '8px',
+                                      padding: '4px 8px',
+                                      backgroundColor: '#FEF3C7',
+                                      borderRadius: '4px',
+                                      fontSize: '12px'
+                                    }}>
+                                      {station?.name || stationId}
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            {otherBranchTransactions.recentOrders.length > 0 && (
+                              <div>
+                                <strong>Recent Orders:</strong>
+                                <div style={{ marginTop: '8px' }}>
+                                  {otherBranchTransactions.recentOrders.map((order, idx) => {
+                                    let dateDisplay = 'Unknown date'
+                                    try {
+                                      if (order.date) {
+                                        const dateObj = typeof order.date === 'string' ? new Date(order.date) : order.date
+                                        if (!isNaN(dateObj.getTime())) {
+                                          dateDisplay = dateObj.toLocaleDateString()
+                                        }
+                                      }
+                                    } catch (e) {
+                                      console.error('Date parsing error:', e)
+                                    }
+                                    
+                                    return (
+                                      <div key={idx} style={{ 
+                                        padding: '8px',
+                                        marginTop: '4px',
+                                        backgroundColor: 'white',
+                                        borderRadius: '4px',
+                                        fontSize: '13px'
+                                      }}>
+                                        <strong>#{order.id || 'N/A'}</strong> - {dateDisplay} - 
+                                        ₱{(order.total || 0).toFixed(2)}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div>No transactions found in other branches.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="recent-activity">
                     <h4>Recent Order History</h4>

@@ -69,7 +69,20 @@ class CustomerController {
       // Decrypt sensitive data if encryption is enabled
       const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
       const decryptedCustomers = shouldEncrypt 
-        ? customers.map(c => decryptObject(c.toObject(), ['name', 'email', 'phone']))
+        ? customers.map(c => {
+            try {
+              const decrypted = decryptObject(c.toObject(), ['name', 'email', 'phone']);
+              // Verify decryption worked - if fields still look encrypted, log warning
+              if (decrypted.email && decrypted.email.includes(':') && decrypted.email.split(':').length >= 3) {
+                console.warn(`Customer ${c._id} email appears to still be encrypted after decryption attempt`);
+              }
+              return decrypted;
+            } catch (error) {
+              console.error('Error decrypting customer:', c._id, error);
+              // Return customer with original data if decryption fails
+              return c.toObject();
+            }
+          })
         : customers;
 
       res.status(200).json({
@@ -104,20 +117,7 @@ class CustomerController {
         });
       }
 
-      // Escape special regex characters to prevent regex errors
-      // This escapes: . * + ? ^ $ { } ( ) | [ ] \
-      const escapedSearch = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-      const query = {
-        $or: [
-          { name: { $regex: escapedSearch, $options: 'i' } },
-          { email: { $regex: escapedSearch, $options: 'i' } },
-          { phone: { $regex: escapedSearch, $options: 'i' } },
-        ],
-      };
-
-      // Exclude archived customers from global search by default
-      query.isArchived = false;
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
 
       // Sort options (reuse same shape as getAllCustomers)
       let sort = {};
@@ -146,20 +146,98 @@ class CustomerController {
 
       const numericLimit = Math.min(Number(limit) || 50, 200);
 
-      const customers = await Customer.find(query)
-        .sort(sort)
-        .limit(numericLimit);
+      // IMPORTANT:
+      // - If encryption is enabled, MongoDB regex search won't work on encrypted fields.
+      // - So we do a capped in-memory search: fetch candidates -> decrypt -> filter -> sort -> limit.
+      if (shouldEncrypt) {
+        const termLower = trimmed.toLowerCase();
 
-      // Decrypt sensitive data if encryption is enabled
-      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
-      const decryptedCustomers = shouldEncrypt 
-        ? customers.map(c => decryptObject(c.toObject(), ['name', 'email', 'phone']))
-        : customers;
+        // Keep this cap reasonable to avoid performance issues on large datasets.
+        // If you expect >10k customers and still need fast global search with encryption,
+        // the long-term solution is adding a separate searchable index field (e.g. blind-index / hash).
+        const CANDIDATE_CAP = 2000;
+
+        const candidates = await Customer.find({ isArchived: false })
+          .select('name email phone totalOrders totalSpent lastOrder stationId isArchived')
+          .limit(CANDIDATE_CAP);
+
+        const matches = [];
+        for (const c of candidates) {
+          try {
+            const decrypted = decryptObject(c.toObject(), ['name', 'email', 'phone']);
+            const name = String(decrypted.name || '');
+            const email = String(decrypted.email || '');
+            const phone = String(decrypted.phone || '');
+
+            const hayName = name.toLowerCase();
+            const hayEmail = email.toLowerCase();
+            const hayPhone = phone; // phone comparisons should be exact-ish, keep as-is
+
+            if (
+              hayName.includes(termLower) ||
+              hayEmail.includes(termLower) ||
+              hayPhone.includes(trimmed)
+            ) {
+              matches.push(decrypted);
+            }
+          } catch (error) {
+            // If decryption fails, skip this record for global search
+            continue;
+          }
+        }
+
+        // Sort after decryption
+        switch (sortBy) {
+          case 'name-asc':
+            matches.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            break;
+          case 'name-desc':
+            matches.sort((a, b) => String(b.name || '').localeCompare(String(a.name || '')));
+            break;
+          case 'orders-asc':
+            matches.sort((a, b) => (Number(a.totalOrders) || 0) - (Number(b.totalOrders) || 0));
+            break;
+          case 'orders-desc':
+            matches.sort((a, b) => (Number(b.totalOrders) || 0) - (Number(a.totalOrders) || 0));
+            break;
+          case 'spent-asc':
+            matches.sort((a, b) => (Number(a.totalSpent) || 0) - (Number(b.totalSpent) || 0));
+            break;
+          case 'spent-desc':
+            matches.sort((a, b) => (Number(b.totalSpent) || 0) - (Number(a.totalSpent) || 0));
+            break;
+          default:
+            matches.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        }
+
+        const limited = matches.slice(0, numericLimit);
+
+        return res.status(200).json({
+          success: true,
+          data: limited,
+          count: limited.length,
+        });
+      }
+
+      // Encryption disabled: use normal MongoDB regex search
+      // Escape special regex characters to prevent regex errors
+      // This escapes: . * + ? ^ $ { } ( ) | [ ] \
+      const escapedSearch = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const query = {
+        isArchived: false,
+        $or: [
+          { name: { $regex: escapedSearch, $options: 'i' } },
+          { email: { $regex: escapedSearch, $options: 'i' } },
+          { phone: { $regex: escapedSearch, $options: 'i' } },
+        ],
+      };
+
+      const customers = await Customer.find(query).sort(sort).limit(numericLimit);
 
       res.status(200).json({
         success: true,
-        data: decryptedCustomers,
-        count: decryptedCustomers.length,
+        data: customers,
+        count: customers.length,
       });
     } catch (error) {
       console.error('Global customer search error:', error);
@@ -201,9 +279,21 @@ class CustomerController {
 
       // Decrypt sensitive data if encryption is enabled
       const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
-      const customerData = shouldEncrypt 
-        ? decryptObject(customer.toObject(), ['name', 'email', 'phone'])
-        : customer;
+      let customerData;
+      if (shouldEncrypt) {
+        try {
+          customerData = decryptObject(customer.toObject(), ['name', 'email', 'phone']);
+          // Verify decryption worked
+          if (customerData.email && customerData.email.includes(':') && customerData.email.split(':').length >= 3) {
+            console.warn(`Customer ${customer._id} email appears to still be encrypted after decryption attempt`);
+          }
+        } catch (error) {
+          console.error('Error decrypting customer:', customer._id, error);
+          customerData = customer.toObject();
+        }
+      } else {
+        customerData = customer;
+      }
 
       res.status(200).json({
         success: true,
@@ -230,14 +320,30 @@ class CustomerController {
         });
       }
 
+      // Encrypt sensitive data if encryption is enabled
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+
       // Check if customer with same phone already exists
       const existingCustomerByPhone = await Customer.findOne({ phone: phone });
 
       if (existingCustomerByPhone) {
+        // Decrypt existing customer data if encryption is enabled
+        let existingCustomerData;
+        if (shouldEncrypt) {
+          try {
+            existingCustomerData = decryptObject(existingCustomerByPhone.toObject(), ['name', 'email', 'phone']);
+          } catch (error) {
+            console.error('Error decrypting existing customer in createCustomer (phone conflict):', error);
+            existingCustomerData = existingCustomerByPhone.toObject();
+          }
+        } else {
+          existingCustomerData = existingCustomerByPhone.toObject();
+        }
+        
         return res.status(409).json({
           success: false,
           message: 'Customer with this phone number already exists',
-          data: existingCustomerByPhone // Include existing customer data
+          data: existingCustomerData // Include existing customer data (decrypted)
         });
       }
 
@@ -250,20 +356,31 @@ class CustomerController {
         });
 
         if (existingCustomerByEmail) {
+          // Decrypt existing customer data if encryption is enabled
+          let existingCustomerData;
+          if (shouldEncrypt) {
+            try {
+              existingCustomerData = decryptObject(existingCustomerByEmail.toObject(), ['name', 'email', 'phone']);
+            } catch (error) {
+              console.error('Error decrypting existing customer in createCustomer (email conflict):', error);
+              existingCustomerData = existingCustomerByEmail.toObject();
+            }
+          } else {
+            existingCustomerData = existingCustomerByEmail.toObject();
+          }
+          
           return res.status(409).json({
             success: false,
             message: 'This email address is already associated with another customer (different phone number)',
-            data: existingCustomerByEmail
+            data: existingCustomerData // Include existing customer data (decrypted)
           });
         }
       }
 
       // Use the same station ID logic: prefer stationId from body (admin selecting branch), then user's stationId, then null
       const customerStationId = stationIdFromBody || req.user.stationId || null;
-
-      // Encrypt sensitive data if encryption is enabled
-      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
-      const customerData = {
+      
+      const newCustomerData = {
         name: shouldEncrypt ? encrypt(name) : name,
         email: email ? (shouldEncrypt ? encrypt(email.toLowerCase()) : email.toLowerCase()) : undefined,
         phone: shouldEncrypt ? encrypt(phone) : phone,
@@ -271,7 +388,7 @@ class CustomerController {
         stationId: customerStationId
       };
 
-      const customer = new Customer(customerData);
+      const customer = new Customer(newCustomerData);
 
       await customer.save();
       // Notify admins about new customer
@@ -303,10 +420,27 @@ class CustomerController {
         changes: { name, phone, email }
       }).catch(err => console.error('Audit logging error:', err));
 
+      // Decrypt sensitive data if encryption is enabled before sending response
+      let responseCustomerData;
+      if (shouldEncrypt) {
+        try {
+          responseCustomerData = decryptObject(customer.toObject(), ['name', 'email', 'phone']);
+          // Verify decryption worked
+          if (responseCustomerData.email && responseCustomerData.email.includes(':') && responseCustomerData.email.split(':').length >= 3) {
+            console.warn(`Customer ${customer._id} email appears to still be encrypted after decryption attempt`);
+          }
+        } catch (error) {
+          console.error('Error decrypting customer in createCustomer:', customer._id, error);
+          responseCustomerData = customer.toObject();
+        }
+      } else {
+        responseCustomerData = customer.toObject();
+      }
+
       res.status(201).json({
         success: true,
         message: 'Customer created successfully',
-        data: customer
+        data: responseCustomerData
       });
     } catch (error) {
       console.error('Create customer error:', error);
@@ -385,7 +519,7 @@ class CustomerController {
 
       // Encrypt sensitive data if encryption is enabled
       const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
-      
+
       if (name) customer.name = shouldEncrypt ? encrypt(name) : name;
       if (email) customer.email = shouldEncrypt ? encrypt(email.toLowerCase()) : email.toLowerCase();
       if (phone) customer.phone = shouldEncrypt ? encrypt(phone) : phone;
@@ -786,6 +920,27 @@ class CustomerController {
       // Decrypt phone if needed for searching
       const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
       let searchPhone = customer.phone;
+      
+      // Get the customer's stationId to exclude it from results
+      const customerStationId = customer.stationId;
+      
+      // Build list of stationIds to exclude (current user's branch + customer's branch)
+      const excludedStationIds = [];
+      if (currentStationId) {
+        excludedStationIds.push(currentStationId);
+      }
+      if (customerStationId && customerStationId !== currentStationId) {
+        excludedStationIds.push(customerStationId);
+      }
+      
+      // Build stationId filter for the query
+      let stationIdFilter = {};
+      if (excludedStationIds.length > 0) {
+        stationIdFilter = { $nin: excludedStationIds }; // Exclude all listed station IDs
+      } else if (currentStationId) {
+        stationIdFilter = { $ne: currentStationId }; // Fallback to just exclude current
+      }
+      
       if (shouldEncrypt) {
         // For searching, we need to find all customers with the same phone
         // Since phone is encrypted, we need to find by customer ID or use a different approach
@@ -795,13 +950,13 @@ class CustomerController {
         }).select('_id');
         const customerIds = allCustomersWithSamePhone.map(c => c._id);
         
-        // Find orders from other branches
+        // Find orders from other branches (exclude current branch and customer's branch)
         const otherBranchOrders = await Order.find({
           customerId: { $in: customerIds },
-          stationId: { $ne: currentStationId },
+          ...(Object.keys(stationIdFilter).length > 0 && { stationId: stationIdFilter }),
           isArchived: false
         })
-        .select('id date total payment stationId')
+        .select('id date total payment stationId items paid')
         .sort({ date: -1 })
         .limit(10)
         .populate('customerId', 'name phone stationId');
@@ -815,13 +970,29 @@ class CustomerController {
             hasOtherBranchTransactions: otherBranchOrders.length > 0,
             orderCount: otherBranchOrders.length,
             stations: stations,
-            recentOrders: otherBranchOrders.map(o => ({
-              id: o.id,
-              date: o.date,
-              total: o.total,
-              payment: o.payment,
-              stationId: o.stationId
-            }))
+            recentOrders: otherBranchOrders.map(o => {
+              // Convert total from string (e.g., "₱100.00") to number
+              let totalAmount = 0;
+              if (o.total) {
+                const totalStr = String(o.total).replace(/[₱,]/g, '').trim();
+                totalAmount = parseFloat(totalStr) || 0;
+              }
+              // If total is 0 or invalid, try calculating from items
+              if (totalAmount === 0 && o.items && Array.isArray(o.items) && o.items.length > 0) {
+                totalAmount = o.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+              }
+              // Debug logging
+              if (totalAmount === 0) {
+                console.log(`[Debug] Order ${o.id} - total field: "${o.total}", items:`, o.items?.length || 0, 'calculated from items:', totalAmount);
+              }
+              return {
+                id: o.id,
+                date: o.date,
+                total: totalAmount,
+                payment: o.payment,
+                stationId: o.stationId
+              };
+            })
           }
         });
       } else {
@@ -831,13 +1002,13 @@ class CustomerController {
         }).select('_id');
         const customerIds = allCustomersWithSamePhone.map(c => c._id);
         
-        // Find orders from other branches
+        // Find orders from other branches (exclude current branch and customer's branch)
         const otherBranchOrders = await Order.find({
           customerId: { $in: customerIds },
-          stationId: { $ne: currentStationId },
+          ...(Object.keys(stationIdFilter).length > 0 && { stationId: stationIdFilter }),
           isArchived: false
         })
-        .select('id date total payment stationId')
+        .select('id date total payment stationId items paid')
         .sort({ date: -1 })
         .limit(10)
         .populate('customerId', 'name phone stationId');
@@ -851,13 +1022,29 @@ class CustomerController {
             hasOtherBranchTransactions: otherBranchOrders.length > 0,
             orderCount: otherBranchOrders.length,
             stations: stations,
-            recentOrders: otherBranchOrders.map(o => ({
-              id: o.id,
-              date: o.date,
-              total: o.total,
-              payment: o.payment,
-              stationId: o.stationId
-            }))
+            recentOrders: otherBranchOrders.map(o => {
+              // Convert total from string (e.g., "₱100.00") to number
+              let totalAmount = 0;
+              if (o.total) {
+                const totalStr = String(o.total).replace(/[₱,]/g, '').trim();
+                totalAmount = parseFloat(totalStr) || 0;
+              }
+              // If total is 0 or invalid, try calculating from items
+              if (totalAmount === 0 && o.items && Array.isArray(o.items) && o.items.length > 0) {
+                totalAmount = o.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+              }
+              // Debug logging
+              if (totalAmount === 0) {
+                console.log(`[Debug] Order ${o.id} - total field: "${o.total}", items:`, o.items?.length || 0, 'calculated from items:', totalAmount);
+              }
+              return {
+                id: o.id,
+                date: o.date,
+                total: totalAmount,
+                payment: o.payment,
+                stationId: o.stationId
+              };
+            })
           }
         });
       }

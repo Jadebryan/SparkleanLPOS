@@ -14,6 +14,7 @@ const auditLogger = require('../utils/auditLogger');
 const LockManager = require('../utils/lockManager');
 const Lock = require('../models/LockModel');
 const SystemSetting = require('../models/SystemSettingModel');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 // Default points configuration used when no system setting is stored.
 // enabled: whether customers can earn new points
@@ -294,43 +295,82 @@ class OrderController {
           if (!skipCustomerCreation) {
             // Determine the target stationId for this order
             const targetStationId = stationIdFromBody || req.user.stationId || null;
+            const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
             
-            // First, try to find customer matching name/phone AND stationId (prioritize branch-specific record)
-            // This ensures orders link to the correct branch-specific customer record
-            if (targetStationId) {
-            customerDoc = await Customer.findOne({
-                $and: [
-                  {
-              $or: [
-                { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
-                { phone: customerPhone || '' }
-              ]
-                  },
-                  { stationId: targetStationId }
-                ]
-              });
-            }
-            
-            // If not found with stationId match, fall back to finding any customer with name/phone (backward compatibility)
-            if (!customerDoc) {
-              customerDoc = await Customer.findOne({
-                $or: [
-                  { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
-                  { phone: customerPhone || '' }
-                ]
-            });
+            // When encryption is enabled, we need to search differently
+            // Since encrypted values are non-deterministic, we search by fetching and decrypting
+            if (shouldEncrypt) {
+              // Build query for encrypted search
+              const query = { isArchived: false };
+              if (targetStationId) {
+                query.stationId = targetStationId;
+              }
+              
+              // Fetch customers and decrypt to find match
+              const candidates = await Customer.find(query).limit(1000); // Reasonable limit
+              
+              for (const candidate of candidates) {
+                try {
+                  const decryptedName = decrypt(candidate.name);
+                  const decryptedPhone = candidate.phone ? decrypt(candidate.phone) : '';
+                  
+                  // Check if this matches (case-insensitive for name, exact for phone)
+                  const nameMatch = decryptedName.toLowerCase() === customer.trim().toLowerCase();
+                  const phoneMatch = customerPhone && decryptedPhone === customerPhone.trim();
+                  
+                  if (nameMatch || phoneMatch) {
+                    customerDoc = candidate;
+                    break;
+                  }
+                } catch (err) {
+                  // Skip if decryption fails (might be plain text data)
+                  continue;
+                }
+              }
+            } else {
+              // Plain text search (original logic)
+              // First, try to find customer matching name/phone AND stationId (prioritize branch-specific record)
+              if (targetStationId) {
+                customerDoc = await Customer.findOne({
+                  $and: [
+                    {
+                      $or: [
+                        { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
+                        { phone: customerPhone || '' }
+                      ]
+                    },
+                    { stationId: targetStationId }
+                  ]
+                });
+              }
+              
+              // If not found with stationId match, fall back to finding any customer with name/phone (backward compatibility)
+              if (!customerDoc) {
+                customerDoc = await Customer.findOne({
+                  $or: [
+                    { name: { $regex: new RegExp(`^${customer}$`, 'i') } }, // Case-insensitive match
+                    { phone: customerPhone || '' }
+                  ]
+                });
+              }
             }
 
             if (!customerDoc) {
               // Use the same station ID logic as the order: prefer stationId from body (admin selecting branch), then user's stationId, then null
               const customerStationId = stationIdFromBody || req.user.stationId || null;
-              customerDoc = new Customer({
-                name: customer.trim(),
-                phone: customerPhone ? customerPhone.trim() : '',
+              
+              // Encrypt sensitive data if encryption is enabled (same logic as CustomerController)
+              const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+              
+              const customerData = {
+                name: shouldEncrypt ? encrypt(customer.trim()) : customer.trim(),
+                phone: customerPhone ? (shouldEncrypt ? encrypt(customerPhone.trim()) : customerPhone.trim()) : '',
                 totalOrders: 0,
                 totalSpent: 0,
                 stationId: customerStationId
-              });
+              };
+              
+              customerDoc = new Customer(customerData);
               await customerDoc.save();
             }
           }
@@ -446,45 +486,51 @@ class OrderController {
           let voucherAmount = 0;
           let appliedVoucher = null;
           if (voucherId && customerDoc) {
-            if (!mongoose.Types.ObjectId.isValid(voucherId)) {
-              throw new Error('Invalid voucher selected. Please choose a different voucher.');
-            }
-
-            const voucher = await Voucher.findById(voucherId);
-
-            if (!voucher || !voucher.isActive || voucher.isArchived) {
-              throw new Error('This voucher is no longer active.');
-            }
-
-            const now = new Date();
-            const validFrom = voucher.validFrom ? new Date(voucher.validFrom) : new Date(0);
-            const validUntil = voucher.validUntil ? new Date(voucher.validUntil) : new Date('2100-01-01');
-            
-            if (validFrom > now || validUntil < now) {
-              throw new Error('This voucher is not valid at this time.');
-            }
-
-            if (voucher.maxUsage > 0 && voucher.usageCount >= voucher.maxUsage) {
-              throw new Error('This voucher has reached its maximum usage limit.');
-            }
-
-            // Check if customer can use this monthly voucher
-            if (voucher.isMonthly && !voucher.canCustomerUseThisMonth(customerDoc._id)) {
-              throw new Error('You have already used this monthly voucher this month.');
-            }
-
-            // Check minimum purchase requirement
-            if (voucher.minPurchase > 0 && totalAmount < voucher.minPurchase) {
-              throw new Error(`This voucher requires a minimum purchase of ₱${voucher.minPurchase}. Current total: ₱${totalAmount.toFixed(2)}`);
-            }
-
-            if (voucher.type === 'percentage') {
-              voucherAmount = totalAmount * (voucher.value / 100);
+            // Skip voucher if this is the customer's first order
+            if (customerDoc.totalOrders === 0) {
+              // Silently skip voucher for first-time customers
+              // Don't throw error, just don't apply the voucher
             } else {
-              voucherAmount = voucher.value;
+              if (!mongoose.Types.ObjectId.isValid(voucherId)) {
+                throw new Error('Invalid voucher selected. Please choose a different voucher.');
+              }
+
+              const voucher = await Voucher.findById(voucherId);
+
+              if (!voucher || !voucher.isActive || voucher.isArchived) {
+                throw new Error('This voucher is no longer active.');
+              }
+
+              const now = new Date();
+              const validFrom = voucher.validFrom ? new Date(voucher.validFrom) : new Date(0);
+              const validUntil = voucher.validUntil ? new Date(voucher.validUntil) : new Date('2100-01-01');
+              
+              if (validFrom > now || validUntil < now) {
+                throw new Error('This voucher is not valid at this time.');
+              }
+
+              if (voucher.maxUsage > 0 && voucher.usageCount >= voucher.maxUsage) {
+                throw new Error('This voucher has reached its maximum usage limit.');
+              }
+
+              // Check if customer can use this monthly voucher
+              if (voucher.isMonthly && !voucher.canCustomerUseThisMonth(customerDoc._id)) {
+                throw new Error('You have already used this monthly voucher this month.');
+              }
+
+              // Check minimum purchase requirement
+              if (voucher.minPurchase > 0 && totalAmount < voucher.minPurchase) {
+                throw new Error(`This voucher requires a minimum purchase of ₱${voucher.minPurchase}. Current total: ₱${totalAmount.toFixed(2)}`);
+              }
+
+              if (voucher.type === 'percentage') {
+                voucherAmount = totalAmount * (voucher.value / 100);
+              } else {
+                voucherAmount = voucher.value;
+              }
+              
+              appliedVoucher = voucher;
             }
-            
-            appliedVoucher = voucher;
           }
 
           // Update discount code to include points if used
@@ -698,23 +744,55 @@ class OrderController {
       }
 
       // Check if customer exists, create if not
-      let customerDoc = await Customer.findOne({
-        $or: [
-          { name: { $regex: new RegExp(`^${customer}$`, 'i') } },
-          { phone: customerPhone || '' }
-        ]
-      });
+      const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+      let customerDoc = null;
+      
+      // When encryption is enabled, search by decrypting records
+      if (shouldEncrypt) {
+        const candidates = await Customer.find({ isArchived: false }).limit(1000);
+        
+        for (const candidate of candidates) {
+          try {
+            const decryptedName = decrypt(candidate.name);
+            const decryptedPhone = candidate.phone ? decrypt(candidate.phone) : '';
+            
+            const nameMatch = decryptedName.toLowerCase() === customer.trim().toLowerCase();
+            const phoneMatch = customerPhone && decryptedPhone === customerPhone.trim();
+            
+            if (nameMatch || phoneMatch) {
+              customerDoc = candidate;
+              break;
+            }
+          } catch (err) {
+            continue;
+          }
+        }
+      } else {
+        // Plain text search
+        customerDoc = await Customer.findOne({
+          $or: [
+            { name: { $regex: new RegExp(`^${customer}$`, 'i') } },
+            { phone: customerPhone || '' }
+          ]
+        });
+      }
 
       if (!customerDoc) {
         // Use the same station ID logic as the order: prefer stationId from body (admin selecting branch), then user's stationId, then null
         const customerStationId = stationIdFromBody || req.user.stationId || null;
-        customerDoc = new Customer({
-          name: customer.trim(),
-          phone: customerPhone ? customerPhone.trim() : '',
+        
+        // Encrypt sensitive data if encryption is enabled (same logic as CustomerController)
+        const shouldEncrypt = process.env.ENABLE_CUSTOMER_ENCRYPTION === 'true';
+        
+        const customerData = {
+          name: shouldEncrypt ? encrypt(customer.trim()) : customer.trim(),
+          phone: customerPhone ? (shouldEncrypt ? encrypt(customerPhone.trim()) : customerPhone.trim()) : '',
           totalOrders: 0,
           totalSpent: 0,
           stationId: customerStationId
-        });
+        };
+        
+        customerDoc = new Customer(customerData);
         await customerDoc.save();
       }
 

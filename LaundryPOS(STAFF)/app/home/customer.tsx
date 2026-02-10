@@ -65,6 +65,7 @@ export default function Customer() {
   const [globalResults, setGlobalResults] = useState<Customer[]>([]);
   const [isGlobalSearchLoading, setIsGlobalSearchLoading] = useState(false);
   const [isGlobalModalVisible, setIsGlobalModalVisible] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(true);
 
   // Calculate stats
   const totalCustomers = customers.length;
@@ -380,35 +381,58 @@ export default function Customer() {
         </View>
 
           {/* Global Customer Search (across all branches) */}
-          <View style={styles.globalSearchCard}>
-            <Text style={styles.globalSearchTitle}>Global Customer Search</Text>
-            <Text style={styles.globalSearchSubtitle}>
-              Search all branches for an existing customer, then attach them to this branch.
-            </Text>
-            <View style={styles.globalSearchRow}>
-              <TextInput
-                style={styles.globalSearchInput}
-                placeholder="Search by name, email, or phone across all branches..."
-                value={globalSearchTerm}
-                onChangeText={setGlobalSearchTerm}
-              />
-              <TouchableOpacity
-                style={[styles.globalSearchButton, dynamicButtonStyles.primary]}
-                onPress={handleGlobalSearch}
-                disabled={isGlobalSearchLoading}
-              >
-                <Ionicons
-                  name="search-outline"
-                  size={16}
-                  color="#FFFFFF"
-                  style={{ marginRight: 4 }}
+          {showGlobalSearch && (
+            <View style={styles.globalSearchCard}>
+              <View style={styles.globalSearchHeader}>
+                <View>
+                  <Text style={styles.globalSearchTitle}>Global Customer Search</Text>
+                  <Text style={styles.globalSearchSubtitle}>
+                    Search all branches for an existing customer, then attach them to this branch.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowGlobalSearch(false)}
+                  style={styles.hideToggleButton}
+                >
+                  <Ionicons name="eye-off-outline" size={18} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.globalSearchRow}>
+                <TextInput
+                  style={styles.globalSearchInput}
+                  placeholder="Search by name, email, or phone across all branches..."
+                  value={globalSearchTerm}
+                  onChangeText={setGlobalSearchTerm}
                 />
-                <Text style={[styles.globalSearchButtonText, dynamicButtonStyles.primaryText]}>
-                  {isGlobalSearchLoading ? 'Searching...' : 'Search'}
-                </Text>
+                <TouchableOpacity
+                  style={[styles.globalSearchButton, dynamicButtonStyles.primary]}
+                  onPress={handleGlobalSearch}
+                  disabled={isGlobalSearchLoading}
+                >
+                  <Ionicons
+                    name="search-outline"
+                    size={16}
+                    color="#FFFFFF"
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={[styles.globalSearchButtonText, dynamicButtonStyles.primaryText]}>
+                    {isGlobalSearchLoading ? 'Searching...' : 'Search'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          
+          {/* Show Global Search Toggle (when hidden) */}
+          {!showGlobalSearch && (
+            <TouchableOpacity
+              style={styles.showGlobalSearchButton}
+              onPress={() => setShowGlobalSearch(true)}
+            >
+              <Ionicons name="eye-outline" size={16} color="#6B7280" style={{ marginRight: 6 }} />
+              <Text style={styles.showGlobalSearchText}>Show Global Search</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          )}
 
           {/* Search and Filter Bar - scroll disabled to allow parent ScrollView to handle scrolling */}
           <CustomerTable 
@@ -799,6 +823,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+  globalSearchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  hideToggleButton: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  showGlobalSearchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: spacing.xl,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  showGlobalSearchText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    fontFamily: 'Poppins_500Medium',
+  },
   globalSearchTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -809,7 +865,7 @@ const styles = StyleSheet.create({
   globalSearchSubtitle: {
     fontSize: 12,
     color: '#6B7280',
-    marginBottom: 12,
+    marginBottom: 0,
     fontFamily: 'Poppins_400Regular',
   },
   globalSearchRow: {

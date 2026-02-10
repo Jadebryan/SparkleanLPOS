@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { useUser } from '../context/UserContext'
-import { authAPI, backupAPI, auditLogAPI, settingsAPI } from '../utils/api'
+import { authAPI, backupAPI, auditLogAPI, settingsAPI, stationAPI } from '../utils/api'
 import { availableFonts, getFontPreference, applyFont, loadFont } from '../utils/fontManager'
 import { HexColorPicker, HexColorInput } from 'react-colorful'
 import {
@@ -81,6 +81,13 @@ const Settings: React.FC = () => {
   const [pointsPreviewAmount, setPointsPreviewAmount] = useState<number>(100) // ₱100 default preview
   const [lastSavedPointsSettings, setLastSavedPointsSettings] = useState(() => ({ ...DEFAULT_POINTS_SETTINGS }))
   const [isPointsConfirmOpen, setIsPointsConfirmOpen] = useState(false)
+
+  // Branch-specific point rules
+  const [branchPointRules, setBranchPointRules] = useState<Record<string, { enabled: boolean | null; pesoToPointMultiplier: number | null }>>({})
+  const [isBranchPointsLoading, setIsBranchPointsLoading] = useState(false)
+  const [selectedBranchForPoints, setSelectedBranchForPoints] = useState<string>('')
+  const [branchPointsSettings, setBranchPointsSettings] = useState<{ enabled: boolean | null; pesoToPointMultiplier: number | null }>({ enabled: null, pesoToPointMultiplier: null })
+  const [stations, setStations] = useState<any[]>([])
 
   // Debug: Log user data
   console.log('Settings component rendered, user:', user)
@@ -157,6 +164,29 @@ const Settings: React.FC = () => {
     }
 
     fetchPointsSettings()
+  }, [user])
+
+  // Load stations and branch point rules (admin only)
+  useEffect(() => {
+    const fetchStationsAndBranchRules = async () => {
+      if (!user || user.role !== 'admin') return
+      try {
+        // Load stations
+        const stationsData = await stationAPI.getAll()
+        setStations(stationsData.filter((s: any) => s.isArchived !== true && s.isActive !== false))
+
+        // Load branch point rules
+        setIsBranchPointsLoading(true)
+        const branchRules = await settingsAPI.getBranchPointRules()
+        setBranchPointRules(branchRules || {})
+      } catch (error) {
+        console.error('Failed to load stations or branch point rules:', error)
+      } finally {
+        setIsBranchPointsLoading(false)
+      }
+    }
+
+    fetchStationsAndBranchRules()
   }, [user])
 
   const [passwordForm, setPasswordForm] = useState({
@@ -1560,6 +1590,174 @@ const Settings: React.FC = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Branch-Specific Point Rules */}
+                    {user?.role === 'admin' && (
+                      <div className="system-info" style={{ marginTop: '32px' }}>
+                        <div className="info-card">
+                          <h3>Branch-Specific Point Rules</h3>
+                          <p>
+                            Configure point rules for specific branches. If not set, branches will use the global settings above.
+                          </p>
+
+                          {isBranchPointsLoading ? (
+                            <p className="form-description">Loading branch point rules...</p>
+                          ) : (
+                            <div style={{ marginTop: '20px' }}>
+                              <div className="form-group">
+                                <label htmlFor="branch-select">Select Branch</label>
+                                <select
+                                  id="branch-select"
+                                  value={selectedBranchForPoints}
+                                  onChange={(e) => {
+                                    const stationId = e.target.value
+                                    setSelectedBranchForPoints(stationId)
+                                    if (stationId) {
+                                      const branchRule = branchPointRules[stationId] || { enabled: null, pesoToPointMultiplier: null }
+                                      setBranchPointsSettings(branchRule)
+                                    } else {
+                                      setBranchPointsSettings({ enabled: null, pesoToPointMultiplier: null })
+                                    }
+                                  }}
+                                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #D1D5DB' }}
+                                >
+                                  <option value="">-- Select a branch --</option>
+                                  {stations.map((station) => (
+                                    <option key={station.stationId || station._id || station.id} value={station.stationId || station._id || station.id}>
+                                      {station.name || station.stationId || station._id || station.id}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {selectedBranchForPoints && (
+                                <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                                  <div className="session-toggle-row" style={{ marginBottom: '16px' }}>
+                                    <div>
+                                      <h4>Enable points earning (override global)</h4>
+                                      <p>Leave unchecked to use global setting. Check to enable/disable for this branch only.</p>
+                                    </div>
+                                    <label className="settings-switch">
+                                      <input
+                                        type="checkbox"
+                                        checked={branchPointsSettings.enabled === true}
+                                        onChange={(e) => {
+                                          const newValue = e.target.checked ? true : (branchPointsSettings.enabled === false ? false : null)
+                                          setBranchPointsSettings(prev => ({ ...prev, enabled: newValue }))
+                                        }}
+                                      />
+                                      <span className="slider round"></span>
+                                    </label>
+                                  </div>
+
+                                  <div className="session-input-row">
+                                    <label>Peso to points conversion (override global)</label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={1}
+                                      step={0.001}
+                                      value={branchPointsSettings.pesoToPointMultiplier ?? ''}
+                                      onChange={(e) => {
+                                        const value = e.target.value === '' ? null : Number(e.target.value)
+                                        setBranchPointsSettings(prev => ({
+                                          ...prev,
+                                          pesoToPointMultiplier: value
+                                        }))
+                                      }}
+                                      placeholder="Leave empty to use global"
+                                    />
+                                    <small>
+                                      {branchPointsSettings.pesoToPointMultiplier !== null
+                                        ? `Points earned per ₱1: ${branchPointsSettings.pesoToPointMultiplier.toFixed(3)}`
+                                        : 'Will use global setting'}
+                                    </small>
+                                  </div>
+
+                                  <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      onClick={() => {
+                                        setSelectedBranchForPoints('')
+                                        setBranchPointsSettings({ enabled: null, pesoToPointMultiplier: null })
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      onClick={async () => {
+                                        try {
+                                          await settingsAPI.updateBranchPointRules({
+                                            stationId: selectedBranchForPoints,
+                                            enabled: branchPointsSettings.enabled,
+                                            pesoToPointMultiplier: branchPointsSettings.pesoToPointMultiplier
+                                          })
+                                          toast.success('Branch point rules updated successfully')
+                                          // Reload branch rules
+                                          const branchRules = await settingsAPI.getBranchPointRules()
+                                          setBranchPointRules(branchRules || {})
+                                          setSelectedBranchForPoints('')
+                                          setBranchPointsSettings({ enabled: null, pesoToPointMultiplier: null })
+                                        } catch (error: any) {
+                                          console.error('Error updating branch point rules:', error)
+                                          toast.error(error?.message || 'Failed to update branch point rules')
+                                        }
+                                      }}
+                                    >
+                                      <FiSave /> Save Branch Rules
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {Object.keys(branchPointRules).length > 0 && (
+                                <div style={{ marginTop: '24px' }}>
+                                  <h4 style={{ marginBottom: '12px' }}>Configured Branches</h4>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {Object.entries(branchPointRules).map(([stationId, rules]) => {
+                                      const station = stations.find(s => (s.stationId || s._id || s.id) === stationId)
+                                      return (
+                                        <div key={stationId} style={{ 
+                                          padding: '12px', 
+                                          backgroundColor: '#F9FAFB', 
+                                          borderRadius: '6px',
+                                          border: '1px solid #E5E7EB',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center'
+                                        }}>
+                                          <div>
+                                            <strong>{station?.name || stationId}</strong>
+                                            <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+                                              Enabled: {rules.enabled === null ? 'Global' : rules.enabled ? 'Yes' : 'No'} | 
+                                              Multiplier: {rules.pesoToPointMultiplier === null ? 'Global' : rules.pesoToPointMultiplier.toFixed(3)}
+                                            </div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ padding: '6px 12px', fontSize: '13px' }}
+                                            onClick={() => {
+                                              setSelectedBranchForPoints(stationId)
+                                              setBranchPointsSettings(rules)
+                                            }}
+                                          >
+                                            <FiEdit3 /> Edit
+                                          </button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </>

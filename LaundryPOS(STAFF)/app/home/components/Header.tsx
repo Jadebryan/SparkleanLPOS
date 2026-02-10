@@ -18,7 +18,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
   const router = useRouter();
   const dynamicColors = useColors();
-  const [user, setUser] = useState<{ name: string; email: string; username?: string; role?: string; _id?: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; username?: string; role?: string; _id?: string; stationId?: string } | null>(null);
+  const [branchId, setBranchId] = useState<string>('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userButtonLayout, setUserButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const userButtonRef = useRef<any>(null);
@@ -39,7 +40,14 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
     const fetchUser = async () => {
       try {
         const jsonValue = await AsyncStorage.getItem('user');
-        if (jsonValue) setUser(JSON.parse(jsonValue));
+        if (jsonValue) {
+          const userData = JSON.parse(jsonValue);
+          setUser(userData);
+          // Set branch ID from user's stationId
+          if (userData.stationId) {
+            setBranchId(userData.stationId);
+          }
+        }
       } catch (error) {
         console.error('Error loading user:', error);
       }
@@ -457,6 +465,16 @@ const Header: React.FC<HeaderProps> = ({ title, showPageTitle = true }) => {
             )}
           </TouchableOpacity>
 
+          {/* Branch ID Display */}
+          {branchId && (
+            <View style={styles.branchIdContainer}>
+              <Ionicons name="location-outline" size={16} color={dynamicColors.primary[500]} />
+              <Text style={[styles.branchIdText, { color: dynamicColors.primary[500] }]}>
+                {branchId}
+              </Text>
+            </View>
+          )}
+
           {/* User Menu */}
           <TouchableOpacity
             ref={userButtonRef}
@@ -864,6 +882,22 @@ const styles = {
     fontSize: 11,
     fontWeight: '700',
     fontFamily: 'Poppins_700Bold',
+  },
+  branchIdContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  branchIdText: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
   },
   userInfo: {
     flexDirection: 'row',

@@ -1,0 +1,91 @@
+Role,Category,Feature,Description/User Story
+Admin,Authentication,Login,As an admin, I want to log in securely so I can access management and reporting functions.
+Admin,Authentication,Logout,As an admin, I want to log out securely so my session is properly closed and audited.
+Admin,Authentication,Password Change,As an admin, I want to change my password so I can maintain account security.
+Admin,Authentication,Email Verification,As an admin, I want to verify my email address so I can receive important notifications.
+Admin,Operations,Create New Order,As an admin, I want to create new laundry orders so customer requests are properly recorded.
+Admin,Operations,Update Order,As an admin, I want to update laundry orders (status, payment, details) so records are accurate.
+Admin,Operations,Delete Order,As an admin, I want to delete orders so I can remove erroneous entries.
+Admin,Operations,Archive Order,As an admin, I want to archive orders so I can maintain a clean active order list while preserving history.
+Admin,Operations,Unarchive Order,As an admin, I want to unarchive orders so I can restore previously archived orders if needed.
+Admin,Operations,View Order Details,As an admin, I want to view detailed order information so I can track order status and history.
+Admin,Operations,Print Invoice/Receipt,As an admin, I want to print invoices/receipts so customers receive official proof of payment.
+Admin,Operations,Create Draft Order,As an admin, I want to save orders as drafts so I can complete them later without losing information.
+Admin,Operations,Enter & Update Customer Info,As an admin, I want to maintain customer information so records stay updated.
+Admin,Operations,Check Other Branch Transactions,As an admin, I want to check if a customer has transactions in other branches so I can see their complete history.
+Admin,Operations,Raise Expense Request,As an admin, I want to record expense requests so they can be tracked and approved.
+Admin,Operations,View Expense Requests,As an admin, I want to view all expense requests so I can review and manage them.
+Admin,Operations,Approve Expense Request,As an admin, I want to approve expense requests so valid expenses are processed.
+Admin,Operations,Reject Expense Request,As an admin, I want to reject expense requests so invalid expenses are not processed.
+Admin,Managing,Manage Employees,As an admin, I want to add, edit, or remove employee records so staff information is always updated.
+Admin,Managing,Manage Services,As an admin, I want to update laundry services, products, and prices so the system reflects current offerings.
+Admin,Managing,Manage Discounts,As an admin, I want to set or update discount rates/promos so customers can avail offers.
+Admin,Managing,Manage Vouchers,As an admin, I want to create and manage monthly vouchers so customers can redeem promotional offers.
+Admin,Managing,Manage Stations/Branches,As an admin, I want to manage branch locations so the system supports multi-branch operations.
+Admin,Managing,View & Approve Expenses,As an admin, I want to review and approve expense requests so only valid expenses are processed.
+Admin,Reports,Extract Orders Report,As an admin, I want to generate an Excel report of orders (filter by payment status, date) so I can analyze sales.
+Admin,Reports,Extract Expenses Report,As an admin, I want to generate an Excel report of expenses so I can monitor financial records.
+Admin,Reports,Generate Sales Reports,As an admin, I want to generate comprehensive sales reports so I can analyze business performance.
+Admin,Reports,Export to CSV,As an admin, I want to export data to CSV format so I can analyze it in spreadsheet applications.
+Admin,Reports,Export to Excel,As an admin, I want to export data to Excel format so I can create detailed reports.
+Admin,Reports,Export to PDF,As an admin, I want to export data to PDF format so I can share professional reports.
+Admin,Reports,Filter Reports by Date Range,As an admin, I want to filter reports by date range so I can analyze specific time periods.
+Admin,Reports,Filter Reports by Payment Status,As an admin, I want to filter reports by payment status so I can track paid and unpaid orders.
+Admin,Reports,Filter Reports by Branch,As an admin, I want to filter reports by branch so I can analyze performance per location.
+Admin,Dashboard,View Dashboard,As an admin, I want to view a comprehensive dashboard so I can see key metrics at a glance.
+Admin,Dashboard,View Order Statistics,As an admin, I want to view order statistics so I can monitor business activity.
+Admin,Dashboard,View Revenue Statistics,As an admin, I want to view revenue statistics so I can track financial performance.
+Admin,Dashboard,View Customer Statistics,As an admin, I want to view customer statistics so I can understand customer base.
+Admin,Security,RBAC Management,As an admin, I want to manage role-based access control so I can control what features each role can access.
+Admin,Security,Permission Management,As an admin, I want to set permissions for different roles so access is properly restricted.
+Admin,Security,Audit Logs,As an admin, I want to view audit logs so I can track all system activities and changes.
+Admin,Security,Data Encryption,As an admin, I want to enable data encryption so sensitive customer data is protected.
+Admin,Settings,Profile Settings,As an admin, I want to update my profile information so my account details are current.
+Admin,Settings,Appearance Settings,As an admin, I want to customize the appearance (fonts, colors) so the interface matches my preferences.
+Admin,Settings,Session Timeout Settings,As an admin, I want to configure session timeout settings so security is maintained.
+Admin,Settings,Points System Settings,As an admin, I want to configure the loyalty points system so I can control how customers earn points.
+Admin,Settings,Branch-Specific Point Rules,As an admin, I want to set branch-specific point rules so different branches can have different point rates.
+Admin,Settings,Voucher System Settings,As an admin, I want to enable or disable the voucher system so I can control promotional features.
+Admin,Settings,Backup Management,As an admin, I want to create and manage database backups so data is protected.
+Admin,Settings,Restore from Backup,As an admin, I want to restore from backups so I can recover data if needed.
+Admin,Settings,View Backup Statistics,As an admin, I want to view backup statistics so I can monitor backup health.
+Admin,Features,Loyalty Points System,As an admin, I want to enable a loyalty points system so customers can earn and redeem points.
+Admin,Features,Monthly Vouchers,As an admin, I want to create monthly vouchers so customers can redeem one voucher per month.
+Admin,Features,Customer Transaction History,As an admin, I want to view customer transaction history so I can see their complete order history.
+Admin,Features,Multi-Branch Support,As an admin, I want to manage multiple branches so the system supports multi-location operations.
+Admin,Features,Order Locking,As an admin, I want to see when orders are being edited by other users so conflicts are prevented.
+Admin,Features,Offline Mode Support,As an admin, I want the system to work offline so operations can continue during connectivity issues.
+Admin,Features,Keyboard Shortcuts,As an admin, I want to use keyboard shortcuts so I can work more efficiently.
+Admin,Features,Search & Filter,As an admin, I want to search and filter orders, customers, and other data so I can find information quickly.
+Admin,Features,Invoice Generation,As an admin, I want to generate professional invoices so customers receive proper documentation.
+Admin,Features,Receipt Printing,As an admin, I want to print receipts so customers have proof of payment.
+Staff,Authentication,Login,As a staff member, I want to log in securely so I can access the system based on my role.
+Staff,Authentication,Logout,As a staff member, I want to log out securely so my session is properly closed.
+Staff,Operations,Create New Order,As a staff member, I want to record a new laundry order so customer requests are properly tracked.
+Staff,Operations,Update Order,As a staff member, I want to update existing orders (status, details, payments) so information is accurate.
+Staff,Operations,View Order Details,As a staff member, I want to view order details so I can see complete order information.
+Staff,Operations,Print Invoice/Receipt,As a staff member, I want to print invoices/receipts so customers receive proof of their transactions.
+Staff,Operations,Create Draft Order,As a staff member, I want to save orders as drafts so I can complete them later.
+Staff,Operations,Enter and Update Customer Info,As a staff member, I want to add or edit customer information so records are always updated.
+Staff,Operations,View Customer Details,As a staff member, I want to view customer details so I can see their information and history.
+Staff,Operations,Check Customer Vouchers,As a staff member, I want to see if a customer has available vouchers so I can inform them of promotions.
+Staff,Operations,Apply Discounts,As a staff member, I want to apply discounts to orders so customers can avail promotional offers.
+Staff,Operations,Apply Vouchers,As a staff member, I want to apply vouchers to orders so customers can redeem their monthly vouchers.
+Staff,Operations,Apply Points,As a staff member, I want to apply customer points to orders so customers can use their loyalty rewards.
+Staff,Operations,Raise Expense Request,As a staff member, I want to log an expense request so the admin can review and approve it.
+Staff,Operations,View Expense Requests,As a staff member, I want to view my expense requests so I can track their status.
+Staff,Features,View Orders List,As a staff member, I want to view a list of orders so I can see all active orders.
+Staff,Features,Search Orders,As a staff member, I want to search orders so I can find specific orders quickly.
+Staff,Features,Filter Orders,As a staff member, I want to filter orders by status or payment so I can focus on specific orders.
+Staff,Features,View Customers List,As a staff member, I want to view a list of customers so I can see all registered customers.
+Staff,Features,Search Customers,As a staff member, I want to search customers so I can find specific customers quickly.
+Staff,Features,Export Orders,As a staff member, I want to export orders to CSV or PDF so I can share order data.
+Staff,Features,Offline Mode,As a staff member, I want the system to work offline so I can continue working during connectivity issues.
+Staff,Features,Command Palette,As a staff member, I want to use a command palette so I can quickly access features.
+Staff,Features,Keyboard Shortcuts,As a staff member, I want to use keyboard shortcuts so I can work more efficiently.
+Staff,Settings,Profile Settings,As a staff member, I want to update my profile information so my account details are current.
+Staff,Settings,Appearance Settings,As a staff member, I want to customize the appearance so the interface matches my preferences.
+Staff,Settings,Help & Documentation,As a staff member, I want to access help documentation so I can learn how to use the system.
+Staff,Features,Notifications,As a staff member, I want to receive notifications so I am informed of important updates.
+Staff,Features,Refresh Data,As a staff member, I want to refresh data so I can see the latest information.
+Staff,Features,View Statistics,As a staff member, I want to view order statistics so I can see my performance metrics.

@@ -287,7 +287,8 @@ function getAvailableResources() {
     backups: ['create', 'read', 'restore', 'delete', 'cleanup'],
     auditLogs: ['read', 'export'],
     rbac: ['read', 'update'],
-    settings: ['read', 'update']
+  settings: ['read', 'update'],
+  appearance: ['read', 'update', 'customize-palette', 'delete-palette']
   };
 }
 

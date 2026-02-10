@@ -192,27 +192,59 @@
 
 .password-input-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  padding-right: 45px !important;
 }
 
 .password-toggle {
   position: absolute;
   right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  height: 100%;
   background: none;
   border: none;
   color: var(--color-gray-500);
   cursor: pointer;
-  padding: 4px;
+  padding: 0;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
   transition: color 0.2s ease;
+  z-index: 10;
+  /* Prevent icon from moving on hover */
+  pointer-events: auto;
+  /* Only transition color, nothing else */
+  will-change: color;
+  /* Prevent any layout shifts */
+  box-sizing: border-box;
+  width: 24px;
+  /* No transform - use flexbox alignment instead */
+  transform: none;
+  /* Ensure no line-height issues */
+  line-height: 1;
 }
 
-.password-toggle:hover {
+.password-toggle:hover,
+.password-toggle:focus,
+.password-toggle:active {
   color: var(--color-primary-blue);
+  /* Maintain exact same position - no changes */
+  transform: none;
+  top: 0;
+  bottom: 0;
+  right: 14px;
+  /* Prevent any size changes */
+  padding: 0;
+  margin: 0;
+  width: 24px;
+  height: 100%;
 }
 
 .form-options {
@@ -472,10 +504,24 @@
 
 [data-theme="dark"] .password-toggle {
   color: var(--color-gray-500);
+  /* Use flexbox alignment - no transform */
+  transform: none;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  right: 14px;
 }
 
-[data-theme="dark"] .password-toggle:hover {
+[data-theme="dark"] .password-toggle:hover,
+[data-theme="dark"] .password-toggle:focus,
+[data-theme="dark"] .password-toggle:active {
   color: var(--color-primary-blue);
+  /* Maintain exact same position */
+  transform: none;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  right: 14px;
 }
 
 [data-theme="dark"] .remember-me {
@@ -591,10 +637,22 @@
 
 [data-theme="dim"] .password-toggle {
   color: var(--color-gray-500);
+  /* Use flexbox alignment - no transform */
+  transform: none;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  right: 14px;
 }
 
 [data-theme="dim"] .password-toggle:hover {
   color: var(--color-gray-700);
+  /* Maintain exact same position */
+  transform: none;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  right: 14px;
 }
 
 [data-theme="dim"] .remember-me {

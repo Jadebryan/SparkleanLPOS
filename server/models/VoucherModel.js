@@ -104,7 +104,6 @@ const voucherSchema = new mongoose.Schema({
 });
 
 // Indexes
-voucherSchema.index({ code: 1 });
 voucherSchema.index({ isActive: 1, isArchived: 1 });
 voucherSchema.index({ validFrom: 1, validUntil: 1 });
 voucherSchema.index({ isMonthly: 1 });

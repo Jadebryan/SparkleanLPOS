@@ -80,6 +80,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow: visible;
 }
 
 .acm-form-grid {
@@ -87,10 +88,18 @@
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-bottom: 0;
+  position: relative;
+  overflow: visible;
 }
 
 .acm-field {
   margin-bottom: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.acm-field:has(.email-input-wrapper) {
+  z-index: 2;
 }
 
 .acm-field label {

@@ -425,6 +425,13 @@ export const customerAPI = {
     })
     return response.data
   },
+
+  checkOtherBranchTransactions: async (customerId: string) => {
+    const response = await apiRequest(`/customers/${customerId}/other-branch-transactions`)
+    // apiRequest returns the full response object { success: true, data: {...} }
+    // Extract the data property
+    return response?.data || response
+  },
 }
 
 // Dashboard API functions
@@ -1183,6 +1190,27 @@ export const settingsAPI = {
     pesoToPointMultiplier: number
   }) => {
     const response = await apiRequest('/system-settings/points', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+    return response.data
+  },
+
+  // Branch-specific point rules
+  getBranchPointRules: async (stationId?: string) => {
+    const endpoint = stationId 
+      ? `/system-settings/points/branch?stationId=${stationId}`
+      : '/system-settings/points/branch'
+    const response = await apiRequest(endpoint)
+    return response.data
+  },
+
+  updateBranchPointRules: async (settings: {
+    stationId: string
+    enabled?: boolean | null
+    pesoToPointMultiplier?: number | null
+  }) => {
+    const response = await apiRequest('/system-settings/points/branch', {
       method: 'PUT',
       body: JSON.stringify(settings),
     })
