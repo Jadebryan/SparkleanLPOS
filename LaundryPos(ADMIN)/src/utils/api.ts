@@ -1216,6 +1216,20 @@ export const settingsAPI = {
     })
     return response.data
   },
+
+  // Voucher system settings
+  getVoucherSettings: async () => {
+    const response = await apiRequest('/system-settings/vouchers')
+    return response.data
+  },
+
+  updateVoucherSettings: async (settings: { enabled: boolean }) => {
+    const response = await apiRequest('/system-settings/vouchers', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+    return response.data
+  },
 }
 
 // Backup API

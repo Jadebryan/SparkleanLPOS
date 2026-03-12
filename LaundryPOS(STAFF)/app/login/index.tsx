@@ -15,7 +15,7 @@ import {
   Modal,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +29,7 @@ const ACCENT_COLOR = colors.accent[500];
 
 export default function LoginAccount() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
@@ -50,11 +51,7 @@ export default function LoginAccount() {
     return /^\S+@\S+\.\S+$/.test(value.trim());
   };
 
-  // simple captcha state
-  const [captchaA, setCaptchaA] = useState<number>(() => Math.floor(Math.random()*9)+1);
-  const [captchaB, setCaptchaB] = useState<number>(() => Math.floor(Math.random()*9)+1);
-  const [captchaInput, setCaptchaInput] = useState<string>("");
-  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  // Captcha temporarily disabled
 
   // Animation values for background circles
   const circle1Anim = useState(new Animated.Value(0))[0];
@@ -81,6 +78,26 @@ export default function LoginAccount() {
     };
     loadSavedCredentials();
   }, []);
+
+  // Show session-expired message if redirected from protected screen
+  React.useEffect(() => {
+    const showSessionExpiredMessage = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('sessionExpiredMessage');
+        if (stored) {
+          setGeneralError(stored);
+          await AsyncStorage.removeItem('sessionExpiredMessage');
+        } else if (params?.reason === 'sessionExpired') {
+          setGeneralError(
+            "Your session has expired. Please log in again to continue."
+          );
+        }
+      } catch (error) {
+        console.error('Error loading sessionExpiredMessage:', error);
+      }
+    };
+    showSessionExpiredMessage();
+  }, [params]);
 
   // Background circle animations
   React.useEffect(() => {
@@ -174,32 +191,12 @@ export default function LoginAccount() {
       ok = false;
     }
 
-    // captcha check basic format (actual value validated in submit)
-    if (!captchaInput.trim()) {
-      setCaptchaError("Please solve the captcha.");
-      ok = false;
-    } else if (!/^\d+$/.test(captchaInput.trim())) {
-      setCaptchaError("Captcha must be a number.");
-      ok = false;
-    } else {
-      setCaptchaError(null);
-    }
-
     return ok;
   };
 
   const submit = async () => {
     const ok = validateFields();
     if (!ok) return;
-
-    // validate captcha equals sum
-    const expected = captchaA + captchaB;
-    if (parseInt(captchaInput.trim(), 10) !== expected) {
-      setCaptchaError("Incorrect captcha. Please try again.");
-      // regenerate a new captcha for security
-      regenerateCaptcha();
-      return;
-    }
 
     setLoading(true);
     setGeneralError(null);
@@ -264,7 +261,41 @@ export default function LoginAccount() {
       if (res.status === 404) {
         setEmailError("This email or username is not registered.");
       } else if (res.status === 401) {
-        if (body && typeof body.message === "string" && /password/i.test(body.message)) {
+        const msg = body && typeof body.message === "string" ? body.message : "";
+        // Account lockout message from backend
+        if (msg.includes("Account is temporarily locked")) {
+          const lockUntilRaw = body.lockUntil;
+          if (lockUntilRaw) {
+            try {
+              const lockUntil = new Date(lockUntilRaw);
+              const now = new Date();
+              const remainingMs = lockUntil.getTime() - now.getTime();
+              const remainingMinutes = Math.max(0, Math.round(remainingMs / 60000));
+
+              const formatted = lockUntil.toLocaleString();
+              const remainingText =
+                remainingMinutes > 0
+                  ? ` (about ${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"} remaining)`
+                  : "";
+
+              setGeneralError(
+                "Your account has been temporarily locked due to too many failed login attempts.\n" +
+                `It will be unlocked around ${formatted}${remainingText}.\n` +
+                "If you need immediate access, please contact your administrator."
+              );
+            } catch {
+              setGeneralError(
+                "Your account has been temporarily locked due to too many failed login attempts.\n" +
+                "Please try again later or contact your administrator."
+              );
+            }
+          } else {
+            setGeneralError(
+              "Your account has been temporarily locked due to too many failed login attempts.\n" +
+              "Please try again later or contact your administrator."
+            );
+          }
+        } else if (msg && /password/i.test(msg)) {
           setPasswordError("Incorrect password. Please try again.");
         } else {
           setGeneralError("Invalid email/username or password.");
@@ -296,11 +327,6 @@ export default function LoginAccount() {
   };
 
   const cardMaxWidth = isLandscape ? 520 : 460;
-  const regenerateCaptcha = () => {
-    setCaptchaA(Math.floor(Math.random()*9)+1);
-    setCaptchaB(Math.floor(Math.random()*9)+1);
-    setCaptchaInput("");
-  };
 
   const cardWidth = Math.min(cardMaxWidth, width * (isLandscape ? 0.5 : 0.9));
 
@@ -485,32 +511,6 @@ export default function LoginAccount() {
                     <Text style={styles.errorText}>{generalError}</Text>
                   </View>
                 )}
-
-                {/* Captcha */}
-                <View style={styles.formGroup}>
-                  <View style={styles.labelContainer}>
-                    <Ionicons name="shield-checkmark-outline" size={14} color="#6B7280" />
-                    <Text style={styles.label}>Verify you're human</Text>
-                  </View>
-                  <View style={styles.captchaRow}>
-                    <View style={styles.captchaBadge}>
-                      <Text style={styles.captchaText}>{captchaA} + {captchaB} =</Text>
-                    </View>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      placeholder="Enter sum"
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="number-pad"
-                      value={captchaInput}
-                      onChangeText={(t) => { setCaptchaInput(t); if (captchaError) setCaptchaError(null); }}
-                      editable={!loading}
-                    />
-                    <TouchableOpacity onPress={regenerateCaptcha} style={styles.captchaRefresh}>
-                      <Ionicons name="refresh-outline" size={18} color={ACCENT_COLOR} />
-                    </TouchableOpacity>
-                  </View>
-                  {captchaError && <Text style={styles.errorText}>{captchaError}</Text>}
-                </View>
 
                 <View style={styles.formOptions}>
                   <TouchableOpacity

@@ -1,0 +1,162 @@
+Role,Test Case,Type,Test Case Description,Test Steps,Test Data,Expected Result
+Admin,1,Normal,Admin Login - Valid credentials,1. Open Admin web app (browser). 2. Navigate to Login page. 3. Enter valid email/username and password. 4. Click Login. 5. Verify dashboard loads.,email: admin@sparklean.com; password: ValidPassword123,Admin logged in successfully; dashboard displayed; JWT token stored in localStorage; user info visible in header.
+Admin,1.1,Error Handling,Admin Login - Invalid password,1. Open Admin app. 2. Enter valid email and incorrect password. 3. Click Login.,email: admin@sparklean.com; password: wrongpass,Login fails; error message displayed (e.g. "Invalid credentials"); no token issued; user remains on login page.
+Admin,1.2,Error Handling,Admin Login - Invalid email/username,1. Open Admin app. 2. Enter non-existent email/username. 3. Enter any password. 4. Click Login.,email: nonexistent@test.com; password: any,Login fails; appropriate error message; no token issued.
+Admin,1.3,Error Handling,Admin Login - Missing credentials (blank email),1. Open Admin app. 2. Leave email blank; enter password. 3. Click Login.,email: (blank); password: ValidPass123,Validation error; login button disabled or "Email required" message displayed.
+Admin,1.4,Error Handling,Admin Login - Missing credentials (blank password),1. Open Admin app. 2. Enter valid email; leave password blank. 3. Click Login.,email: admin@sparklean.com; password: (blank),Validation error; login prevented.
+Admin,1.5,Error Handling,Admin Login - Account locked after 5 failed attempts,1. Attempt login with wrong password 5 times consecutively. 2. On 6th attempt use correct password.,Same email; wrong then correct password,After 5 failures account locked; correct password still fails; lockout message; must wait lockout period (e.g. 2 hours).
+Admin,1.6,Error Handling,Admin Login - Rate limit (excessive attempts),1. From same IP attempt login 10+ times in 1 minute.,Wrong credentials,After threshold; 429 Too Many Requests or temporary block message.
+Admin,1.7,Error Handling,Admin Login - Session expired / Expired JWT,1. Log in as Admin. 2. Wait until session expires or manually clear token. 3. Perform any protected action (e.g. view orders).,Expired JWT,401 Unauthorized; redirected to login page; appropriate message.
+Admin,2,Normal,Admin Logout,1. Log in as Admin. 2. Click Profile/User menu. 3. Select Logout. 4. Confirm if prompted.,Valid admin session,Session ends; redirected to login page; token cleared from localStorage.
+Admin,3,Normal,Admin Password Change,1. Log in as Admin. 2. Go to Settings or Profile. 3. Click Change Password. 4. Enter current password and new password (meeting policy). 5. Submit.,current: OldPass1; new: NewPass2 (meets policy),Password updated; success message; re-login may be required.
+Admin,3.1,Error Handling,Admin Password Change - Wrong current password,1. Log in as Admin. 2. Go to Change Password. 3. Enter incorrect current password; valid new password. 4. Submit.,current: WrongPass; new: NewPass2,Error message; password not changed.
+Admin,3.2,Error Handling,Admin Password Change - New password does not meet policy,1. Go to Change Password. 2. Enter valid current password; new password too short or weak. 3. Submit.,new: 123 (too short),Validation error; password not changed.
+Admin,4,Normal,Admin - Email verification request,1. Log in as Admin. 2. Go to Profile/Verification section. 3. Click Request verification code.,Valid admin email,Verification code sent to email or success message shown.
+Admin,5,Normal,Admin - Forgot password - Request reset,1. On login page click Forgot Password. 2. Enter registered email. 3. Submit.,email: user@sparklean.com,Reset email/code sent or confirmation message; rate limit applies.
+Admin,5.1,Normal,Admin - Reset password with valid OTP,1. Request password reset; receive OTP. 2. Enter OTP and new password. 3. Submit.,OTP: 123456; New password: NewPass3,Password reset; can login with new password.
+Admin,5.2,Error Handling,Admin - Reset password - Expired OTP,1. Request reset. 2. Wait past OTP expiry (e.g. 10 min). 3. Enter OTP and new password. 4. Submit.,Expired OTP,422 or error; password not changed.
+Admin,6,Normal,Admin - Create new order,1. Log in as Admin. 2. Go to Orders. 3. Click Create Order. 4. Select or add customer; add services; set quantities and dates. 5. Save.,Customer: John Doe; Service: Wash & Iron; Qty: 2 kg,Order created; order ID generated; appears in orders list.
+Admin,6.1,Normal,Admin - Create order with multiple services,1. Create order. 2. Add Wash & Iron 2 kg; Dry Clean 1 item. 3. Save.,Service 1: 2 kg; Service 2: 1 item,Order with multiple line items; total calculated correctly.
+Admin,6.2,Normal,Admin - Create draft order,1. Create new order. 2. Add partial info (e.g. customer only). 3. Save as Draft.,Customer selected; one service; no payment,Order saved as draft; appears in drafts; can be completed later.
+Admin,6.3,Normal,Admin - Enter customer info in order,1. Create/Edit order. 2. Enter or select customer name; phone; email. 3. Save.,Name: Jane; Phone: 09171234567; Email: jane@email.com,Customer info saved with order; customer created/linked if new.
+Admin,6.4,Error Handling,Admin - Order - Invalid service quantity (negative/zero),1. Create order. 2. Enter negative or zero quantity for a service. 3. Save.,Qty: -1 or 0,Validation error; order not saved.
+Admin,6.5,Error Handling,Admin - Order - Missing required customer,1. Create order. 2. Do not select or add customer. 3. Try to save.,(No customer),Validation error; customer required.
+Admin,6.6,Error Handling,Admin - Order - Past pickup date,1. Create order. 2. Set pickup date to yesterday. 3. Save.,Pickup date: yesterday,Validation error or warning per business rule.
+Admin,6.7,Error Handling,Admin - Order locking - Two users edit same order,1. Admin A opens order. 2. Admin B opens same order. 3. Both try to save.,Order ORD-013,Lock or conflict message; one save succeeds; other sees lock/conflict notification.
+Admin,7,Normal,Admin - Update order status,1. Log in as Admin. 2. Open an existing order. 3. Change status (e.g. Pending to In Progress). 4. Save.,Order ID: ORD-001; New status: In Progress,Order status updated; change reflected in list and details.
+Admin,8,Normal,Admin - Update order payment,1. Open order. 2. Set payment status to Paid or enter partial amount. 3. Save.,Order: ORD-002; Payment: Paid 500 PHP,Payment status updated; receipt/invoice can be generated.
+Admin,8.1,Normal,Admin - Order - Partial payment,1. Open order. 2. Set payment type; enter amount less than total. 3. Save.,Total: 1000; Paid: 400,Payment status Partial; balance 600 shown.
+Admin,9,Normal,Admin - Delete order,1. Log in as Admin. 2. Select an order. 3. Choose Delete. 4. Confirm.,Order ID: ORD-003,Order removed from active list (or soft-deleted per system).
+Admin,10,Normal,Admin - Archive order,1. Select a completed order. 2. Click Archive. 3. Confirm.,Order ID: ORD-004,Order archived; no longer in active list; visible in archived view.
+Admin,11,Normal,Admin - Unarchive order,1. Go to archived orders. 2. Select order. 3. Click Unarchive.,Archived order ID: ORD-005,Order restored to active list.
+Admin,12,Normal,Admin - View order details,1. Log in as Admin. 2. Open Orders list. 3. Click an order.,Order ID: ORD-006,Full order details displayed (customer; services; amounts; dates; status).
+Admin,13,Normal,Admin - Print invoice/receipt,1. Open an order. 2. Click Print Invoice or Print Receipt.,Order ID: ORD-007 with payment completed,Invoice/receipt generated (PDF or print dialog).
+Admin,14,Normal,Admin - Check other branch transactions,1. Open customer profile or order. 2. View transaction history. 3. Filter or view other branches.,Customer ID: C001; Branch: Branch B,Transactions from other branches visible if multi-branch feature exists.
+Admin,15,Normal,Admin - Convert draft to full order,1. Open draft order. 2. Complete required fields (customer; services; payment). 3. Save as Complete.,Draft ID: D001,Order converted; draft removed; order ID assigned.
+Admin,16,Normal,Admin - View dashboard,1. Log in as Admin. 2. Land on dashboard.,(None),Dashboard displays; key metrics visible (orders; revenue; pending orders; customers).
+Admin,16.1,Normal,Admin - View order statistics,1. On dashboard; view order stats section.,(None),Order counts/trends displayed (e.g. total; pending; completed).
+Admin,16.2,Normal,Admin - View revenue statistics,1. On dashboard; view revenue section.,(None),Revenue totals and/or charts displayed.
+Admin,16.3,Normal,Admin - View customer statistics,1. On dashboard; view customer stats.,(None),Customer count or growth shown.
+Admin,16.4,Normal,Admin - View pending expenses count,1. Log in as Admin. 2. View dashboard.,(None),Pending expenses count displayed (e.g. badge or number).
+Admin,16.5,Normal,Admin - Dashboard - Time range filter Today,1. On Admin dashboard. 2. Select time range: Today. 3. View stats.,(None),Statistics for today only.
+Admin,16.6,Normal,Admin - Dashboard - Time range filter Week,1. Select time range: This Week. 2. View stats.,(None),Statistics for current week.
+Admin,16.7,Normal,Admin - Dashboard - Time range filter Month,1. Select time range: This Month. 2. View stats.,(None),Statistics for current month.
+Admin,16.8,Normal,Admin - Customize dashboard sections,1. Go to Dashboard settings. 2. Hide "Revenue" section. 3. Save.,(None),Revenue section hidden; dashboard shows selected sections only.
+Admin,17,Normal,Admin - Filter expense requests,1. Log in as Admin. 2. Go to Expenses. 3. Apply filter (e.g. status; category; date range). 4. View filtered list.,Filter: Status Pending; or Category: Supplies; or Date: Jan 2025,Expense requests list filtered; only matching requests displayed.
+Admin,18,Normal,Admin - View expense requests,1. Go to Expense requests list. 2. View all requests.,(No specific data),List of expense requests with status and amounts.
+Admin,19,Normal,Admin - Approve expense request,1. Open a pending expense. 2. Click Approve. 3. Confirm.,Expense ID: EXP-001,Status changed to Approved.
+Admin,20,Normal,Admin - Reject expense request,1. Open a pending expense. 2. Click Reject. 3. Optionally add reason. 4. Confirm.,Expense ID: EXP-002,Status changed to Rejected.
+Admin,20.1,Normal,Admin - Expense - Reject with reason,1. Admin opens pending expense. 2. Reject. 3. Enter reason. 4. Confirm.,Expense EXP-003; Reason: Out of policy,Expense rejected; reason stored; staff can see it.
+Admin,21,Normal,Admin - Manage employees - Add,1. Log in as Admin. 2. Go to Employees. 3. Click Add Employee. 4. Enter name; email; role; station. 5. Save.,Name: Ana; Email: ana@branch.com; Role: Staff; Station: Branch A,Employee created; appears in list.
+Admin,22,Normal,Admin - Manage employees - Edit,1. Open an employee record. 2. Edit name or station. 3. Save.,Employee ID: E001; New station: Branch B,Employee updated successfully.
+Admin,23,Normal,Admin - Manage employees - Remove/Archive,1. Select employee. 2. Archive or deactivate. 3. Confirm.,Employee ID: E002,Employee archived/deactivated; no longer in active list.
+Admin,24,Normal,Admin - Manage services,1. Go to Services/Settings. 2. Add or edit a service (name; price; unit). 3. Save.,Service: Wash & Fold; Price: 50/kg,Service created or updated; available in order form.
+Admin,25,Normal,Admin - Manage discounts,1. Go to Discounts/Promos. 2. Add or edit discount (rate or promo). 3. Save.,Discount: 15% off bulk,Discount saved; can be applied to orders.
+Admin,26,Normal,Admin - Manage vouchers - Create,1. Go to Vouchers. 2. Create monthly voucher (value; validity). 3. Save.,Voucher: 100 PHP off; Month: Jan 2025,Voucher created; customers can redeem one per month.
+Admin,27,Normal,Admin - Manage vouchers - Update,1. Open existing voucher. 2. Change value or validity. 3. Save.,Voucher ID: V001; New value: 150 PHP,Voucher updated.
+Admin,28,Normal,Admin - Manage stations/branches,1. Go to Branches/Stations. 2. Add or edit branch (name; address). 3. Save.,Branch: Branch C; Address: City Mall,Branch added or updated; available in assignments.
+Admin,29,Normal,Admin - Extract orders report (Excel),1. Go to Reports. 2. Select Orders report. 3. Set filters (date; payment status). 4. Export to Excel.,Date: Jan 2025; Payment: All,Excel file downloaded with order data.
+Admin,30,Normal,Admin - Extract expenses report,1. Go to Reports. 2. Select Expenses. 3. Export to Excel.,Date range: Dec 2024 - Jan 2025,Excel file with expense records.
+Admin,31,Normal,Admin - Generate sales report,1. Go to Reports/Dashboard. 2. Generate sales report. 3. Set date range.,From: 2025-01-01; To: 2025-01-31,Sales report generated with totals and breakdown.
+Admin,32,Normal,Admin - Export to CSV,1. From Orders or Customers list. 2. Click Export. 3. Choose CSV.,List: Orders; Filter: Paid,CSV file downloaded.
+Admin,33,Normal,Admin - Export to Excel,1. From report or list. 2. Choose Export to Excel.,Report: Orders by branch,Excel file downloaded.
+Admin,34,Normal,Admin - Export to PDF,1. Open report or invoice. 2. Choose Export/Print as PDF.,Report: Sales summary,PDF generated.
+Admin,35,Normal,Admin - Filter reports by date range,1. Open Reports. 2. Set date range (from-to). 3. Apply.,From: 2025-01-01; To: 2025-01-15,Report shows only data in range.
+Admin,36,Normal,Admin - Filter reports by payment status,1. In Orders report. 2. Select filter Payment status: Paid/Unpaid. 3. Apply.,Payment status: Paid,Only paid orders in report.
+Admin,37,Normal,Admin - Filter reports by branch,1. In report filters. 2. Select Branch A. 3. Apply.,Branch: Branch A,Report shows only Branch A data.
+Admin,38,Normal,Admin - Multi-branch - Filter orders by branch,1. Admin with multi-branch. 2. In Orders; filter by Branch B. 3. Apply.,Branch: Branch B,Only Branch B orders shown.
+Admin,39,Normal,Admin - RBAC - View roles,1. Log in as Admin. 2. Go to Security/RBAC. 3. View roles.,(None),List of roles (e.g. Admin; Staff) displayed.
+Admin,40,Normal,Admin - Set permissions for role,1. In RBAC. 2. Select role Staff. 3. Enable/disable permissions (e.g. Delete Order). 4. Save.,Role: Staff; Permission: Delete Order = Off,Permissions saved; staff cannot delete orders.
+Admin,41,Normal,Admin - View audit logs,1. Go to Audit Logs. 2. View log list.,(None),Log entries shown (user; action; time).
+Admin,42,Normal,Admin - Data encryption (sensitive fields),1. View customer or user record. 2. Check that sensitive data is stored/displayed per policy.,Customer with encrypted phone/email (if applicable),Sensitive data encrypted at rest or masked as designed.
+Admin,43,Normal,Admin - Profile settings update,1. Go to Settings/Profile. 2. Change name or email. 3. Save.,Name: New Admin Name,Profile updated; name reflected in header/session.
+Admin,44,Normal,Admin - Appearance settings,1. Go to Settings. 2. Change theme/font/color. 3. Save.,Theme: Dark; Font: Large,Appearance updated across app.
+Admin,45,Normal,Admin - Session timeout settings,1. Go to Settings. 2. Set session timeout (e.g. 30 min). 3. Save.,Timeout: 30 minutes,Setting saved; session expires after inactivity.
+Admin,46,Normal,Admin - Points system settings,1. Go to Settings. 2. Enable/configure points (e.g. 1 point per 10 PHP). 3. Save.,Points: 1 per 10 PHP spent,Points rules saved; applied to new orders.
+Admin,47,Normal,Admin - Branch-specific point rules,1. In Points settings. 2. Set different rate for Branch B. 3. Save.,Branch B: 1 point per 15 PHP,Branch-specific rules saved.
+Admin,48,Normal,Admin - Voucher system enable/disable,1. In Settings. 2. Toggle Voucher system On/Off. 3. Save.,Voucher system: Off,Vouchers disabled; voucher option hidden in orders.
+Admin,49,Normal,Admin - Backup management - Create backup,1. Go to Backup. 2. Click Create backup. 3. Confirm.,(None),Backup created; confirmation message.
+Admin,50,Normal,Admin - Restore from backup,1. Go to Backup. 2. Select a backup. 3. Click Restore. 4. Confirm.,Backup ID: BKP-001,Data restored from backup; confirmation.
+Admin,51,Normal,Admin - View backup statistics,1. Go to Backup. 2. View backup list and stats.,(None),Backup count; last backup date; size (if available).
+Admin,52,Normal,Admin - Customer list - Add customer,1. Log in as Admin. 2. Go to Customers. 3. Click Add Customer. 4. Enter name; phone; email; address. 5. Save.,Name: Leo; Phone: 09171112222; Email: leo@email.com,Customer created; appears in list.
+Admin,53,Normal,Admin - Customer list - Edit customer,1. Open a customer. 2. Edit phone or address. 3. Save.,Customer ID: C004; New phone: 09172223333,Customer updated.
+Admin,54,Normal,Admin - Customer list - Archive customer,1. Select customer. 2. Click Archive. 3. Confirm.,Customer ID: C005,Customer archived; removed from active list.
+Admin,55,Normal,Admin - Customer list - Search by name,1. In Customers. 2. Search by name.,Search: "Leo",Customers with matching name shown.
+Admin,56,Normal,Admin - Customer list - Search by phone,1. In Customers. 2. Search by phone.,Search: 09171112222,Customer with that phone shown.
+Admin,57,Normal,Admin - Customer - View transaction history,1. Open customer profile. 2. View Orders/History tab.,Customer ID: C006,List of customer orders with dates and amounts.
+Admin,58,Normal,Admin - Customer export - CSV,1. In Customers list. 2. Export to CSV.,(None),CSV file with customer data downloaded.
+Admin,58.1,Error Handling,Admin - Customer - Duplicate phone validation,1. Add new customer with phone already in system. 2. Save.,Phone: 09171234567 (existing),Warning or error; duplicate not allowed or merge option.
+Admin,59,Normal,Admin - Invoice - Email to customer,1. Open completed order. 2. Click Email Invoice. 3. Enter email if needed. 4. Send.,Order ORD-014; Email: customer@email.com,Email sent; customer receives invoice (if feature enabled).
+Admin,60,Normal,Admin - Keyboard shortcut - New Order,1. Log in as Admin. 2. Use shortcut for New Order (e.g. Ctrl+N).,(None),New order form opens.
+Admin,61,Normal,Admin - Search & filter - Combined,1. In Orders. 2. Set Status: Ready + Payment: Paid + Date: This week. 3. Apply.,(Filters as above),Orders matching all criteria shown.
+Admin,62,Normal,Admin - Sort orders by date,1. In Orders list. 2. Sort by Date (asc/desc). 3. Apply.,(None),Orders reordered by date.
+Admin,63,Normal,Admin - Sort orders by amount,1. In Orders list. 2. Sort by Amount. 3. Apply.,(None),Orders reordered by total amount.
+Admin,64,Normal,Admin - Sort customers by name,1. In Customers list. 2. Sort by Name.,(None),Customers sorted alphabetically.
+Admin,65,Normal,Admin - Filter customers - Archived,1. In Customers. 2. Filter: Show Archived. 3. Apply.,(None),Archived customers shown.
+Staff,1,Normal,Staff Login - Valid credentials,1. Open Staff app (React Native mobile/web). 2. Navigate to Login page. 3. Enter valid staff email and password. 4. Click Login. 5. Verify home/orders view loads.,email: staff@branch.com; password: ValidPass1,Staff logged in successfully; home/orders view displayed; JWT token stored in AsyncStorage; staff info visible.
+Staff,1.1,Error Handling,Staff Login - Invalid password,1. Open Staff app. 2. Enter valid staff email and wrong password. 3. Click Login.,email: staff@branch.com; password: wrongpass,Login fails; error message shown; no token issued; user remains on login page.
+Staff,1.2,Error Handling,Staff Login - Invalid email,1. Open Staff app. 2. Enter non-existent email. 3. Enter any password. 4. Click Login.,email: nonexistent@test.com; password: any,Login fails; appropriate error message; no token issued.
+Staff,1.3,Error Handling,Staff Login - Missing credentials (blank email),1. Open Staff app. 2. Leave email blank; enter password. 3. Click Login.,email: (blank); password: ValidPass1,Validation error; login button disabled or "Email required" message.
+Staff,1.4,Error Handling,Staff Login - Missing credentials (blank password),1. Open Staff app. 2. Enter valid email; leave password blank. 3. Click Login.,email: staff@branch.com; password: (blank),Validation error; login prevented.
+Staff,1.5,Error Handling,Staff Login - Account locked after 5 failed attempts,1. Attempt login with wrong password 5 times. 2. Try again with correct password.,Same email; wrong then correct password,After 5 failures account locked; correct password still fails until lockout period ends.
+Staff,1.6,Error Handling,Staff Login - Session expired / Expired token,1. Log in as Staff. 2. Wait until session expires or clear token. 3. Perform any protected action.,Expired JWT,401 Unauthorized; redirected to login screen.
+Staff,2,Normal,Staff Logout,1. Log in as Staff. 2. Open menu (hamburger or profile). 3. Select Logout. 4. Confirm if prompted.,Valid staff session,Logged out; redirected to login screen; token cleared from storage.
+Staff,3,Normal,Staff - Create new order,1. Log in as Staff. 2. Go to Create Order. 3. Select customer; add services; set qty and dates. 4. Save.,Customer: Maria; Service: Dry Clean; Qty: 1,Order created; staff sees it in own list.
+Staff,3.1,Normal,Staff - Create order with multiple services,1. Create order. 2. Add multiple service items with quantities. 3. Save.,Service 1: 2 kg; Service 2: 1 item,Order with multiple line items; total calculated correctly.
+Staff,3.2,Normal,Staff - Create draft order,1. Staff starts new order. 2. Add partial data. 3. Save as Draft.,Partial order data,Draft saved; appears in drafts list; can be completed later.
+Staff,3.3,Normal,Staff - Enter and update customer info in order,1. In order or Customer section; add/edit customer name; phone; email. 2. Save.,Name: Pedro; Phone: 09187654321,Customer created or updated; linked to order.
+Staff,3.4,Error Handling,Staff - Order - Invalid service quantity,1. Create order. 2. Enter negative or zero quantity. 3. Save.,Qty: -1 or 0,Validation error; order not saved.
+Staff,3.5,Error Handling,Staff - Order - Missing required customer,1. Create order. 2. Do not select or add customer. 3. Try to save.,(No customer),Validation error; customer required.
+Staff,3.6,Error Handling,Staff - Order - Past pickup date,1. Create order. 2. Set pickup date to yesterday. 3. Save.,Pickup date: yesterday,Validation error or warning per business rule.
+Staff,4,Normal,Staff - Update order,1. Staff opens own order. 2. Change status or details. 3. Save.,Order ID: ORD-008 (owned by staff),Order updated successfully.
+Staff,4.1,Error Handling,Staff - No permission to delete order,1. Log in as Staff. 2. Try to delete an order (if UI exposed).,Order ID: ORD-012,Action forbidden or button hidden; 403 if API called.
+Staff,5,Normal,Staff - View order details,1. Staff opens Orders. 2. Click an order.,Order ID: ORD-009,Order details displayed (staff sees permitted fields).
+Staff,6,Normal,Staff - Print invoice/receipt,1. Staff opens paid order. 2. Click Print Receipt.,Order ID: ORD-010,Receipt/invoice printed or downloaded.
+Staff,7,Normal,Staff - Apply discount to order,1. Open order. 2. Apply discount (e.g. 10%). 3. Save.,Order total 1000; discount 10%,Total updated; discount reflected in receipt.
+Staff,8,Normal,Staff - Apply voucher to order,1. Open order for customer with voucher. 2. Apply monthly voucher. 3. Save.,Customer with 1 unused voucher; order amount 500,Voucher applied; discount deducted; voucher marked used.
+Staff,8.1,Error Handling,Staff - Apply voucher - Already used this month,1. Apply monthly voucher for customer who already used one. 2. Save.,Customer C007 already used Jan 2025 voucher,Error or voucher not applied; message shown.
+Staff,8.2,Error Handling,Staff - Apply voucher - No voucher available,1. Apply voucher for customer with no eligible voucher. 2. Save.,Customer C008; no vouchers,Eligible voucher message or option disabled.
+Staff,9,Normal,Staff - Apply points to order,1. Open order. 2. Apply customer loyalty points. 3. Save.,Customer points: 100; points to redeem: 50,Points deducted; order total reduced; balance updated.
+Staff,9.1,Error Handling,Staff - Apply points - Insufficient points,1. Apply 200 points when customer has 50. 2. Save.,Points to apply: 200; Balance: 50,Error or max 50 applied; message shown.
+Staff,10,Normal,Staff - Convert draft to full order,1. Open draft order. 2. Complete required fields (customer; services; payment). 3. Save as Complete.,Draft ID: D001,Order converted; draft removed; order ID assigned.
+Staff,11,Normal,Staff - View orders list,1. Log in as Staff. 2. Go to Orders/Home.,(None),List of orders (staff's or branch) displayed; mobile-optimized UI.
+Staff,12,Normal,Staff - Search orders,1. In Orders list. 2. Enter search (customer name or order ID). 3. Apply.,Search: "John" or "ORD-011",Matching orders shown.
+Staff,13,Normal,Staff - Filter orders by status,1. In Orders. 2. Select filter Status: Ready. 3. Apply.,Status: Ready,Only orders with status Ready shown.
+Staff,14,Normal,Staff - Filter orders by payment,1. In Orders. 2. Filter by Payment: Unpaid. 3. Apply.,Payment: Unpaid,Only unpaid orders shown.
+Staff,15,Normal,Staff - Sort orders by date,1. In Orders list. 2. Sort by Date (asc/desc). 3. Apply.,(None),Orders reordered by date.
+Staff,16,Normal,Staff - Sort orders by amount,1. In Orders list. 2. Sort by Amount. 3. Apply.,(None),Orders reordered by total amount.
+Staff,17,Normal,Staff - Refresh data,1. Staff on Orders list. 2. Click Refresh or pull-to-refresh.,(None),List reloaded with latest data from server.
+Staff,18,Normal,Staff - View customers list,1. Go to Customers. 2. View list.,(None),Customer list displayed.
+Staff,19,Normal,Staff - View customer details,1. Staff goes to Customers. 2. Click a customer.,Customer ID: C002,Customer details and history shown (within staff permissions).
+Staff,20,Normal,Staff - Search customers,1. In Customers. 2. Type name or phone in search. 3. Apply.,Search: "Maria",Matching customers shown.
+Staff,21,Normal,Staff - Check customer vouchers,1. Open customer profile or order. 2. View vouchers section.,Customer ID: C003 with monthly voucher,Eligible vouchers displayed; can apply to order if applicable.
+Staff,22,Normal,Staff - Raise expense request,1. Log in as Staff. 2. Go to Expenses. 3. Create expense with amount and description. 4. Submit.,Amount: 200; Description: Transport,Expense created; visible to admin for approval.
+Staff,22.1,Normal,Staff - Expense request with receipt image,1. Create expense request. 2. Attach receipt photo (camera/gallery). 3. Submit.,Amount: 300; Receipt: image,Expense created with receipt; admin can view.
+Staff,22.2,Normal,Staff - Appeal rejected expense,1. Staff has rejected expense. 2. Open expense. 3. Click Appeal. 4. Enter reason and optionally attach images. 5. Submit.,Expense EXP-003; Reason: Receipt attached,Appeal submitted; admin can review.
+Staff,23,Normal,Staff - View own expense requests,1. Staff goes to Expenses. 2. View list.,(Staff user),Only staff's expense requests listed with status (Pending; Approved; Rejected).
+Staff,24,Normal,Staff - View statistics,1. Staff opens dashboard or statistics section.,(None),Order/performance statistics displayed (personal metrics).
+Staff,25,Normal,Staff - Export orders (CSV/PDF),1. In Orders list. 2. Click Export. 3. Choose CSV or PDF.,Format: CSV,File downloaded with order data.
+Staff,26,Normal,Staff - Profile settings,1. Staff logs in. 2. Go to Profile. 3. Update name or phone. 4. Save.,Name: Staff New Name,Profile updated.
+Staff,27,Normal,Staff - Appearance settings,1. Staff goes to Settings. 2. Change theme or font. 3. Save.,Theme: Light,Appearance updated.
+Staff,28,Normal,Staff - Help & documentation,1. Staff opens Help or Documentation. 2. Browse content.,(None),Help/docs open; content visible.
+Staff,29,Normal,Staff - View notifications,1. Staff logs in. 2. Check notification bell/icon. 3. View notification list.,(None),Notifications displayed (order updates; expense approvals/rejections; system alerts).
+Staff,30,Normal,Staff - Mark notification as read,1. Open notifications. 2. Click on a notification.,Notification ID: N001,Notification marked as read.
+Staff,31,Normal,Staff - Command palette,1. Staff opens app. 2. Open command palette (e.g. Ctrl+K). 3. Type "order".,(None),Matching commands/links shown; can navigate to Orders.
+Staff,32,Normal,Staff - Offline mode - View cached orders,1. Disconnect network. 2. Open Staff app. 3. View orders.,(Cached data),Cached orders displayed if offline support enabled; message may indicate offline.
+Staff,32.1,Normal,Staff - Offline mode - Queue actions,1. Disconnect network. 2. Create order or update status. 3. Reconnect. 4. Verify sync.,(Offline queue),Actions queued; synced when online.
+Staff,33,Normal,Staff - Mobile - Touch-friendly navigation,1. Use Staff app on mobile device. 2. Navigate between screens; tap buttons.,(None),Touch targets adequate; navigation smooth.
+Staff,34,Normal,Staff - Mobile - Pull-to-refresh orders,1. On Orders list. 2. Pull down to refresh.,(None),List refreshes; loading indicator shown.
+Staff,35,Normal,Staff - View stations,1. Go to Stations section. 2. View list.,(None),List of active stations displayed.
+Staff,36,Normal,Staff - View services,1. Go to Services (or within order form). 2. View services.,(None),Active services with pricing displayed.
+Staff,37,Normal,Staff - View discounts,1. In order form or Discounts section. 2. View available discounts.,(None),Active discounts displayed.
+Staff,38,Normal,Staff - No permission to manage employees,1. Log in as Staff. 2. Navigate to Employees (if link exists).,(None),Employees section not accessible or 403; menu item hidden.
+Staff,39,Normal,Staff - Forgot password - Request reset,1. On Staff login page click Forgot Password. 2. Enter registered email. 3. Submit.,email: staff@branch.com,Reset email/code sent or confirmation message.
+Staff,40,Normal,Staff - Change password,1. Log in as Staff. 2. Go to Profile/Settings. 3. Enter current and new password. 4. Submit.,current: OldPass; new: NewPass2,Password updated; success message.
+Staff,40.1,Error Handling,Staff - Change password - Wrong current password,1. Go to Change Password. 2. Enter wrong current password. 3. Submit.,current: WrongPass,Error message; password not changed.
+Staff,41,Normal,Staff - Add customer,1. Go to Customers. 2. Click Add Customer. 3. Enter name; phone; email. 4. Save.,Name: Rosa; Phone: 09179998888; Email: rosa@email.com,Customer created; appears in list.
+Staff,42,Normal,Staff - Edit customer,1. Open customer profile. 2. Edit phone or address. 3. Save.,Customer ID: C009; New phone: 09178887777,Customer updated.
+Staff,42.1,Error Handling,Staff - Customer - Duplicate phone validation,1. Add new customer with phone already in system. 2. Save.,Phone: 09171234567 (existing),Warning or error; duplicate not allowed.
+Staff,43,Normal,Staff - Order - Partial payment,1. Open order. 2. Set payment type; enter amount less than total. 3. Save.,Total: 1000; Paid: 400,Payment status Partial; balance 600 shown.
+Staff,44,Normal,Staff - Filter customers - Archived,1. In Customers. 2. Filter: Show Archived. 3. Apply.,(None),Archived customers shown (if staff has permission).
+Staff,45,Normal,Staff - Sort customers by name,1. In Customers list. 2. Sort by Name.,(None),Customers sorted alphabetically.
+Staff,46,Normal,Staff - Real-time notifications - New order assignment,1. Staff logged in. 2. Admin assigns new order to staff. 3. Check notifications.,(None),Notification appears for new assignment (if SSE/real-time enabled).

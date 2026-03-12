@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import type { FilterStatus, FilterPayment, SortBy } from "./searchFilter";
 import {
   View,
   Text,
@@ -46,6 +47,9 @@ type OrderTableProps = {
   onViewInvoice?: (order: any) => void;
   onPrintReceipt?: (order: any) => void;
   orderLocks?: Record<string, { isLocked: boolean; lockedBy?: { name: string; email?: string }; isLockedByMe?: boolean }>;
+  filterStatus?: FilterStatus;
+  filterPayment?: FilterPayment;
+  sortBy?: SortBy;
 };
 
 const OrderTableComponent: React.FC<OrderTableProps> = ({
@@ -61,6 +65,9 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
   onViewInvoice,
   onPrintReceipt,
   orderLocks = {},
+  filterStatus = 'All',
+  filterPayment = 'All',
+  sortBy = 'date-desc',
 }) => {
   const dynamicColors = useColors();
   // Use provided orders/loading or fetch internally (for backward compatibility)
@@ -164,15 +171,27 @@ const OrderTableComponent: React.FC<OrderTableProps> = ({
     }
   };
 
-  // Memoize filtered orders to avoid recalculation on every render
+  // Memoize filtered and sorted orders
   const filteredOrders = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    return orders.filter(
-    (order) =>
-        (order.orderId ?? "").toLowerCase().includes(query) ||
-        (order.customerName ?? "").toLowerCase().includes(query)
-  );
-  }, [orders, searchQuery]);
+    const query = searchQuery.toLowerCase().trim();
+    let result = orders.filter((order) => {
+      const matchesSearch = !query || (order.orderId ?? "").toLowerCase().includes(query) || (order.customerName ?? "").toLowerCase().includes(query);
+      const status = (order.laundryStatus || order.__raw?.status || "").toLowerCase();
+      const matchesStatus = filterStatus === 'All' || status === filterStatus.toLowerCase().replace(/\s+/g, ' ');
+      const payment = (order.feeStatus || order.__raw?.payment || "").toLowerCase();
+      const matchesPayment = filterPayment === 'All' || payment === filterPayment.toLowerCase();
+      return matchesSearch && matchesStatus && matchesPayment;
+    });
+    // Sort
+    result = [...result].sort((a, b) => {
+      if (sortBy === 'date-desc') return new Date(b.createDate).getTime() - new Date(a.createDate).getTime();
+      if (sortBy === 'date-asc') return new Date(a.createDate).getTime() - new Date(b.createDate).getTime();
+      if (sortBy === 'amount-desc') return (b.totalFee || 0) - (a.totalFee || 0);
+      if (sortBy === 'amount-asc') return (a.totalFee || 0) - (b.totalFee || 0);
+      return 0;
+    });
+    return result;
+  }, [orders, searchQuery, filterStatus, filterPayment, sortBy]);
 
   // Pagination calculations
   const totalPages = useMemo(() => {

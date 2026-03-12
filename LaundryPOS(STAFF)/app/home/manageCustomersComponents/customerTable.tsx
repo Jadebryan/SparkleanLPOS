@@ -40,6 +40,47 @@ type Customer = {
   stationId?: string;
 };
 
+// Fetches and displays available vouchers for a customer
+const CustomerVouchersSection: React.FC<{ customerId: string }> = ({ customerId }) => {
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const dynamicColors = useColors();
+
+  useEffect(() => {
+    if (!customerId) return;
+    let cancelled = false;
+    const fetchVouchers = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await axios.get(`${API_BASE_URL}/vouchers/customer/${customerId}/available`, { headers });
+        const data = res.data?.data || res.data || {};
+        const list = data.vouchers || [];
+        if (!cancelled) setVouchers(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setVouchers([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchVouchers();
+    return () => { cancelled = true; };
+  }, [customerId]);
+
+  if (loading) return <ActivityIndicator size="small" color={dynamicColors.primary[500]} />;
+  if (vouchers.length === 0) return <Text style={styles.detailValueText}>No vouchers available</Text>;
+  return (
+    <View style={{ gap: 4 }}>
+      {vouchers.map((v: any) => (
+        <Text key={v.id || v._id} style={styles.detailValueText}>
+          • {v.code || v.name} {v.type === 'percentage' ? `(${v.value}%)` : `(₱${v.value})`}
+        </Text>
+      ))}
+    </View>
+  );
+};
+
 type CustomerTableProps = {
   searchTerm?: string;
   onSearchChange?: (term: string) => void;
@@ -591,6 +632,11 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                         (1 point = ₱1 discount)
                       </Text>
                     </View>
+                  </View>
+                  
+                  <View style={styles.detailCard}>
+                    <Text style={styles.detailLabel}>AVAILABLE VOUCHERS</Text>
+                    <CustomerVouchersSection customerId={selectedCustomer._id} />
                   </View>
                   
                   <View style={styles.detailCard}>

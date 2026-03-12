@@ -33,7 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ctrl: true,
       alt: true,
       callback: () => {
-        navigate('/orders')
+        navigate('/orders?create=1')
       }
     },
     {

@@ -25,7 +25,7 @@ import { useButtonStyles } from '@/app/theme/useButtonStyles';
 // Components
 import ModernSidebar from "./components/ModernSidebar";
 import Header from "./components/Header";
-import SearchFilter from "./orderListComponents/searchFilter";
+import SearchFilter, { FilterStatus, FilterPayment, SortBy } from "./orderListComponents/searchFilter";
 import OrderTable from "./orderListComponents/orderTable";
 import ViewTransaction from "./orderListComponents/viewTransaction";
 import AddOrderModal from "./addOrderComponents/AddOrderModal";
@@ -760,6 +760,9 @@ export default function Dashboard() {
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [invoiceStationInfo, setInvoiceStationInfo] = useState<any>(null);
   const [showDrafts, setShowDrafts] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('All');
+  const [filterPayment, setFilterPayment] = useState<FilterPayment>('All');
+  const [sortBy, setSortBy] = useState<SortBy>('date-desc');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exportButtonLayout, setExportButtonLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const exportButtonRef = useRef<any>(null);
@@ -1771,6 +1774,12 @@ export default function Dashboard() {
               setSearchQuery={setSearchQuery}
               showDrafts={showDrafts}
               onToggleDrafts={() => setShowDrafts(!showDrafts)}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              filterPayment={filterPayment}
+              setFilterPayment={setFilterPayment}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
             />
             
             <View style={styles.orderCountContainer}>
@@ -1779,14 +1788,16 @@ export default function Dashboard() {
                   const matchesSearch = (o.orderId ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
                     (o.customerName ?? "").toLowerCase().includes(debouncedSearchQuery.toLowerCase());
                   const matchesDrafts = showDrafts ? (o.__raw?.isDraft === true) : (o.__raw?.isDraft !== true);
-                  return matchesSearch && matchesDrafts;
+                  const matchesStatus = filterStatus === 'All' || (o.laundryStatus || o.__raw?.status || '').toLowerCase() === filterStatus.toLowerCase();
+                  const matchesPayment = filterPayment === 'All' || (o.feeStatus || o.__raw?.payment || '').toLowerCase() === filterPayment.toLowerCase();
+                  return matchesSearch && matchesDrafts && matchesStatus && matchesPayment;
                 }).length} Orders Found
               </Text>
             </View>
           </View>
 
           {/* Order table - scroll disabled to allow parent ScrollView to handle scrolling */}
-          <OrderTable
+            <OrderTable
             setVisible={(visible) => {
               setShowTransaction(visible);
               if (!visible) {
@@ -1804,6 +1815,9 @@ export default function Dashboard() {
             onPrintReceipt={handlePrintReceipt}
             orderLocks={orderLocks}
             scrollEnabled={false}
+            filterStatus={filterStatus}
+            filterPayment={filterPayment}
+            sortBy={sortBy}
           />
         </ScrollView>
 

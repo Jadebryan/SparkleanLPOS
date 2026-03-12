@@ -7,7 +7,7 @@ import { useUser } from '../context/UserContext'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BrandIcon from '../components/BrandIcon'
 import TopLoadingBar from '../components/TopLoadingBar'
-import GoogleReCAPTCHA from '../components/GoogleReCAPTCHA'
+// reCAPTCHA temporarily disabled
 import ForgotPasswordModal from '../components/ForgotPasswordModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import './Login.css'
@@ -66,27 +66,8 @@ const Login: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(!!savedCredentials)
   const [isLoading, setIsLoading] = useState(false)
   const [emailValid, setEmailValid] = useState<boolean | null>(getInitialEmailValid())
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
   const [showRememberMeDialog, setShowRememberMeDialog] = useState(false)
-
-  // reCAPTCHA handlers
-  const handleRecaptchaVerify = (token: string | null) => {
-    setRecaptchaToken(token)
-    if (token) {
-      toast.success('Security verification completed')
-    }
-  }
-
-  const handleRecaptchaExpire = () => {
-    setRecaptchaToken(null)
-    toast.error('Security verification expired. Please verify again.')
-  }
-
-  const handleRecaptchaError = () => {
-    setRecaptchaToken(null)
-    toast.error('Security verification failed. Please try again.')
-  }
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,11 +96,6 @@ const Login: React.FC = () => {
       return
     }
 
-    if (!recaptchaToken) {
-      toast.error('Please complete the security verification')
-      return
-    }
-
     setIsLoading(true)
     
     try {
@@ -133,7 +109,6 @@ const Login: React.FC = () => {
           email: email,
           username: username,
           password: password,
-          recaptchaToken: recaptchaToken,
         }),
       })
 
@@ -393,21 +368,12 @@ const Login: React.FC = () => {
                 </button>
               </div>
 
-              {/* reCAPTCHA Component */}
-              <GoogleReCAPTCHA
-                onVerify={handleRecaptchaVerify}
-                onExpire={handleRecaptchaExpire}
-                onError={handleRecaptchaError}
-                action="login"
-                className="login-recaptcha"
-              />
-              
               <motion.button 
                 type="submit" 
                 className={`login-btn ${isLoading ? 'btn-loading' : ''}`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                disabled={isLoading || !recaptchaToken}
+                disabled={isLoading}
               >
                 {isLoading ? <LoadingSpinner size="small" /> : 'Login'}
               </motion.button>

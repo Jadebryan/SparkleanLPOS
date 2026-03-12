@@ -284,7 +284,10 @@ class AuthController {
         userAgent: req.get('user-agent'),
         errorMessage: error.message
       });
-
+      
+      // Prepare optional lock information
+      let lockInfo = null;
+      
       // Log security event for account lockout
       if (error.message.includes('Account is temporarily locked')) {
         await auditLogger.logSecurityEvent('account_locked', {
@@ -292,12 +295,38 @@ class AuthController {
           ipAddress: req.ip || req.connection.remoteAddress,
           details: { reason: 'Too many failed login attempts' }
         });
+        
+        try {
+          // Try to fetch lockUntil so clients can display when the lock expires
+          if (loginIdentifier) {
+            const identifier = loginIdentifier.trim();
+            const lockedUser = await User.findOne({
+              $or: [
+                { email: identifier.toLowerCase() },
+                { username: identifier }
+              ]
+            }).select('lockUntil loginAttempts email username');
+            
+            if (lockedUser && lockedUser.lockUntil) {
+              lockInfo = {
+                lockUntil: lockedUser.lockUntil,
+                loginAttempts: lockedUser.loginAttempts,
+                identifier: lockedUser.email || lockedUser.username
+              };
+            }
+          }
+        } catch (lookupError) {
+          logger.warn('Failed to look up lock information for locked account', {
+            error: lookupError.message
+          });
+        }
       }
       
       if (error.message === 'Invalid credentials' || error.message.includes('Account is temporarily locked')) {
         return res.status(401).json({
           success: false,
-          message: error.message
+          message: error.message,
+          ...(lockInfo ? { lockUntil: lockInfo.lockUntil } : {})
         });
       }
 

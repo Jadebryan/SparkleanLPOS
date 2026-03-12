@@ -3,6 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
+import { router } from 'expo-router';
 import { API_BASE_URL } from '@/constants/api';
 import { offlineQueue } from './offlineQueue';
 import { cacheManager } from './cacheManager';
@@ -49,16 +50,45 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Handle 401 unauthorized - redirect to login
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+
+    // Handle 401/403 unauthorized/forbidden - likely invalid or expired token
+    if (status === 401 || status === 403) {
       try {
+        const backendMessage: string | undefined =
+          error.response?.data?.message || error.response?.data?.error;
+
+        // Decide if this looks like a session/token problem
+        const tokenRelated =
+          backendMessage &&
+          /token|expired|jwt/i.test(backendMessage);
+
+        if (tokenRelated) {
+          const now = new Date();
+          const humanTime = now.toLocaleString();
+          const sessionMessage =
+            `Your session has expired or your login token is no longer valid.\n` +
+            `Time: ${humanTime}\n` +
+            `Please log in again to continue.`;
+
+          await AsyncStorage.setItem('sessionExpiredMessage', sessionMessage);
+        }
+
         await AsyncStorage.removeItem('token');
         await AsyncStorage.removeItem('userToken');
         await AsyncStorage.removeItem('user');
       } catch (e) {
-        console.error('Error clearing auth data:', e);
+        console.error('Error handling auth/session error:', e);
+      }
+
+      // Best-effort redirect back to login
+      try {
+        router.replace('/login');
+      } catch (navError) {
+        console.error('Failed to navigate to login after auth error:', navError);
       }
     }
+
     return Promise.reject(error);
   }
 );

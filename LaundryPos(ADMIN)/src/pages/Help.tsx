@@ -89,7 +89,7 @@ const Help: React.FC = () => {
         {
           id: 'create-order',
           question: 'How do I create a new order?',
-          answer: 'Go to "Create Order" from the sidebar or use Ctrl+N. Select the customer (or add a new one), choose a branch/station, add services (popular services are shown first with a 🔥 badge), apply discounts if needed, and process payment. The system will automatically assign the customer to the selected branch.',
+          answer: 'Go to "Create Order" from the sidebar or use Ctrl+Alt+N. Select the customer (or add a new one), choose a branch/station, add services (popular services are shown first with a 🔥 badge), apply discounts if needed, and process payment. The system will automatically assign the customer to the selected branch.',
           category: 'orders',
           tags: ['create', 'new-order', 'customer', 'services', 'branch', 'station']
         },
@@ -557,7 +557,7 @@ const Help: React.FC = () => {
         {
           id: 'shortcuts-list',
           question: 'What keyboard shortcuts are available?',
-          answer: 'Press Ctrl+/ to see all available shortcuts. Key shortcuts include: Ctrl+K (search), Ctrl+N (new order), Ctrl+1/2/3 (themes), and many more for navigation and actions.',
+          answer: 'Press Ctrl+/ to see all available shortcuts. Key shortcuts include: Ctrl+K (search), Ctrl+Alt+N (new order), Ctrl+1/2/3 (themes), and many more for navigation and actions.',
           category: 'keyboard-shortcuts',
           tags: ['shortcuts', 'keyboard', 'productivity']
         }

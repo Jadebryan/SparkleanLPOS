@@ -8,17 +8,17 @@ const seedUsers = async () => {
     // Connect to database
     await ConnectDb();
     
-    // Check if admin user already exists
-    const existingAdmin = await User.findOne({ role: "admin" });
+    // Check if admin user(s) already exist
+    const existingAdmins = await User.find({ role: "admin" });
+    const hasTestAdmin = existingAdmins.some(u => u.email === "admin@sparklean.com");
+    const hasDefaultAdmin = existingAdmins.some(u => u.email === "admin@labubbles.com");
     
-    if (existingAdmin) {
-      console.log("Admin user already exists:", existingAdmin.email);
-    } else {
-      // Create default admin user
+    if (!hasDefaultAdmin) {
+      // Create default admin user (only if no labubbles admin)
       const adminUser = new User({
         email: "admin@labubbles.com",
-        username: "admin",
-        password: "admin123", // This will be hashed automatically
+        username: "admin_labubbles",
+        password: "admin123",
         role: "admin",
         isActive: true
       });
@@ -27,11 +27,16 @@ const seedUsers = async () => {
       
       console.log("✅ Default admin user created successfully!");
       console.log("📧 Email: admin@labubbles.com");
-      console.log("👤 Username: admin");
+      console.log("👤 Username: admin_labubbles");
       console.log("🔑 Password: admin123");
       console.log("⚠️  Please change the password after first login!");
-      
-      // Create a sample staff user
+    } else {
+      console.log("Default admin user already exists:", existingAdmins.find(u => u.email === "admin@labubbles.com")?.email);
+    }
+    
+    // Create sample staff user if none exists
+    const existingStaff = await User.findOne({ email: "staff@labubbles.com" });
+    if (!existingStaff) {
       const staffUser = new User({
         email: "staff@labubbles.com",
         username: "staff",
@@ -47,6 +52,26 @@ const seedUsers = async () => {
       console.log("👤 Username: staff");
       console.log("🔑 Password: staff123");
       console.log("⚠️  Please change the password after first login!");
+    }
+
+    // Test case admin account (for test cases / documentation)
+    const existingTestAdmin = await User.findOne({ email: "admin@sparklean.com" });
+    if (!existingTestAdmin) {
+      const testAdminUser = new User({
+        email: "admin@sparklean.com",
+        username: "admin",
+        password: "ValidPassword123",
+        role: "admin",
+        isActive: true
+      });
+      await testAdminUser.save();
+      console.log("\n✅ Test case admin user created successfully!");
+      console.log("📧 Email: admin@sparklean.com");
+      console.log("👤 Username: admin");
+      console.log("🔑 Password: ValidPassword123");
+      console.log("   (Use for test cases / documentation)");
+    } else {
+      console.log("\n📋 Test case admin already exists: admin@sparklean.com");
     }
   } catch (error) {
     console.error("❌ Error seeding users:", error);

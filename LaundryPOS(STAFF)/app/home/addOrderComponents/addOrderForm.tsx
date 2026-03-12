@@ -143,24 +143,49 @@ export const addOrder = async (orderData: any) => {
     
     // Extract detailed error information
     const errorData = error?.response?.data || {};
-    const message = errorData.message || 
-                   errorData.error || 
-                   error?.message || 
-                   "Something went wrong. Please check the console for details.";
+    const status = error?.response?.status;
     
-    // If there are detailed validation errors, show them
-    let errorDetails = '';
-    if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
-      errorDetails = '\n\nValidation errors:\n' + errorData.errors.join('\n');
-    } else if (errorData.errorDetails && Array.isArray(errorData.errorDetails) && errorData.errorDetails.length > 0) {
-      errorDetails = '\n\nValidation errors:\n' + errorData.errorDetails.map((e: any) => `${e.field}: ${e.message}`).join('\n');
+    // Base message from backend or generic fallback
+    let baseMessage: string =
+      errorData.message ||
+      errorData.error ||
+      error?.message ||
+      "Something went wrong while creating the order.";
+
+    // Friendlier message per status
+    if (status === 400) {
+      baseMessage = errorData.message || "Some order details are invalid. Please review and try again.";
+    } else if (status === 401) {
+      baseMessage = "Your session may have expired. Please log in again and then retry creating the order.";
+    } else if (status === 403) {
+      baseMessage = "You do not have permission to create this order. Please contact your administrator.";
+    } else if (status === 409) {
+      baseMessage = errorData.message || "There is a conflict with this order (for example, a duplicate or locked record). Please refresh and try again.";
+    } else if (status && status >= 500) {
+      baseMessage = "The server encountered an error while creating the order. Please try again in a moment.";
+    }
+
+    // If there are detailed validation errors, show the first few
+    let validationDetails = '';
+    const rawErrors =
+      (Array.isArray(errorData.errors) && errorData.errors) ||
+      (Array.isArray(errorData.errorDetails) && errorData.errorDetails.map((e: any) => `${e.field}: ${e.message}`));
+
+    if (rawErrors && rawErrors.length > 0) {
+      const firstErrors = rawErrors.slice(0, 3);
+      validationDetails = '\n\nDetails:\n- ' + firstErrors.join('\n- ');
+      if (rawErrors.length > 3) {
+        validationDetails += '\n- (and more…)';
+      }
     }
     
-    const fullMessage = message + errorDetails;
-    console.error("Alert message:", fullMessage);
+    const userMessage = `${baseMessage}${validationDetails}`;
+    console.error("Alert message:", userMessage);
     console.error("Error details:", errorData);
     
-    Alert.alert("Error creating order", fullMessage);
+    // Show both toast and blocking alert so errors are visible even with floating modals
+    showError(userMessage);
+    Alert.alert("Error creating order", userMessage);
     throw error;
   }
 };
@@ -236,6 +261,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
   const [discountOptions, setDiscountOptions] = useState<Discount[]>([]);
   const [availableVouchers, setAvailableVouchers] = useState<Voucher[]>([]);
+  const [voucherSettingsEnabled, setVoucherSettingsEnabled] = useState(true);
   const [loadingDiscounts, setLoadingDiscounts] = useState(true);
   const [pointsSettings, setPointsSettings] = useState<{ enabled: boolean; pesoToPointMultiplier: number }>({ enabled: true, pesoToPointMultiplier: 0.01 });
   
@@ -258,6 +284,11 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
   // Voucher availability
   const checkAvailableVouchers = async (customerId?: string) => {
+    if (!voucherSettingsEnabled) {
+      setAvailableVouchers([]);
+      setSelectedVoucherId("");
+      return;
+    }
     try {
       const targetCustomerId = customerId || selectedCustomer?._id;
       if (!targetCustomerId) {
@@ -403,6 +434,21 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
         // Fetch points settings FIRST to ensure it's loaded
         await fetchPointsSettings();
+
+        // Fetch voucher system settings
+        try {
+          const voucherRes = await axios.get(`${API_BASE_URL}/system-settings/vouchers`, { headers });
+          const vData = voucherRes.data?.data ?? voucherRes.data;
+          const enabled = typeof vData?.enabled === 'boolean' ? vData.enabled : true;
+          setVoucherSettingsEnabled(enabled);
+          if (!enabled) {
+            setAvailableVouchers([]);
+            setSelectedVoucherId("");
+          }
+        } catch (voucherErr) {
+          console.warn('Voucher settings fetch failed, using default enabled:', voucherErr);
+          setVoucherSettingsEnabled(true);
+        }
 
         // Fetch services
         const servicesRes = await axios.get(`${API_BASE_URL}/services`, { headers });
@@ -590,9 +636,14 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       return;
     }
 
-    const qty = parseInt(quantity) || 1;
+    const qtyText = (quantity || "").trim();
+    const qty = qtyText === "" ? 1 : parseInt(qtyText, 10);
+    if (isNaN(qty)) {
+      Alert.alert("Error", "Please enter a valid quantity.");
+      return;
+    }
     if (qty <= 0) {
-      Alert.alert("Error", "Quantity must be greater than 0");
+      Alert.alert("Error", "Quantity must be at least 1.");
       return;
     }
 
@@ -626,8 +677,11 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
 
   // Update service quantity inline
   const handleUpdateQuantity = (serviceItemId: string, newQuantity: number) => {
+    if (!Number.isFinite(newQuantity) || isNaN(newQuantity)) {
+      return;
+    }
     if (newQuantity <= 0) {
-      handleRemoveService(serviceItemId);
+      Alert.alert("Invalid Quantity", "Quantity must be at least 1.");
       return;
     }
     
@@ -1029,7 +1083,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
         orderData.discountId = selectedDiscountId.trim();
       }
 
-      if (selectedVoucherId && selectedVoucherId.trim() !== '') {
+      if (voucherSettingsEnabled && selectedVoucherId && selectedVoucherId.trim() !== '') {
         orderData.voucherId = selectedVoucherId.trim();
       }
       
@@ -1038,7 +1092,28 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       }
       
       if (pickupDate && pickupDate.trim() !== '') {
-        orderData.pickupDate = pickupDate.trim();
+        const raw = pickupDate.trim();
+        const parts = raw.split('/');
+        if (parts.length === 3) {
+          const [mm, dd, yyyy] = parts;
+          const month = parseInt(mm, 10) - 1;
+          const day = parseInt(dd, 10);
+          const year = parseInt(yyyy, 10);
+          const picked = new Date(year, month, day);
+          if (!isNaN(picked.getTime())) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            picked.setHours(0, 0, 0, 0);
+            if (picked < today) {
+              Alert.alert(
+                "Invalid pickup date",
+                "Pickup date cannot be in the past. Please choose today or a future date."
+              );
+              return;
+            }
+          }
+        }
+        orderData.pickupDate = raw;
       }
       
       if (notes && notes.trim()) {
@@ -1103,23 +1178,25 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
       console.error("Error message:", error?.message);
       console.error("Error stack:", error?.stack);
       
-      // Show error toast notification
-      const errorMessage = error?.response?.data?.message || error?.message || "Failed to create order. Please try again.";
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to create order. Please try again.";
+
+      // Show both toast and a blocking alert so the message
+      // is visible even when the create-order modal is floating.
       showError(errorMessage);
-      
-      // Don't show error alert here since addOrder already shows it
-      // But make sure we show a message if something else went wrong
-      if (!error?.response) {
-        const errorMsg = error?.message || "Failed to create order. Please check the console for details.";
-        console.error("No response from server. Error:", errorMsg);
-        Alert.alert("Error", errorMsg);
-      } else {
-        // Log the full error details
+      Alert.alert("Error creating order", errorMessage);
+
+      // Log full error details for debugging
+      if (error?.response) {
         console.error("Server responded with error:", {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data
         });
+      } else {
+        console.error("No response from server.");
       }
     }
   };
@@ -2421,6 +2498,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     onChange={(item) => setSelectedDiscountId(item.value)}
             />
             </View>
+                {voucherSettingsEnabled && (
                 <View style={[styles.inputContainer, { width: '100%', marginTop: spacing.sm }]}>
                   <Text style={styles.label}>Voucher</Text>
                   <Dropdown
@@ -2455,6 +2533,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     onChange={(item) => setSelectedVoucherId(item.value)}
                   />
                 </View>
+                )}
           </View>
               {selectedCustomer && selectedCustomer.points !== undefined && selectedCustomer.points > 0 && (
                 <View style={styles.inputContainer}>
@@ -2670,7 +2749,7 @@ const AddOrderForm: React.FC<AddOrderFormProps> = ({
                     <Text style={styles.summaryValue}>-₱{pointsUsed.toFixed(2)}</Text>
                   </View>
                 )}
-                {voucherAmount > 0 && (
+                {voucherSettingsEnabled && voucherAmount > 0 && (
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>VOUCHER</Text>
                     <Text style={styles.summaryValue}>-₱{voucherAmount.toFixed(2)}</Text>

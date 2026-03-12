@@ -71,6 +71,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([])
   const [stations, setStations] = useState<any[]>([])
   const [pointsSettings, setPointsSettings] = useState<{ enabled: boolean; pesoToPointMultiplier: number }>({ enabled: true, pesoToPointMultiplier: 0.01 })
+  const [voucherSettingsEnabled, setVoucherSettingsEnabled] = useState(true)
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false)
   const [pendingCustomerData, setPendingCustomerData] = useState<{name: string, phone: string} | null>(null)
   const [showCustomerConfirmationModal, setShowCustomerConfirmationModal] = useState(false)
@@ -155,6 +156,21 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           } catch (pointsError) {
             console.error('Failed to load points settings:', pointsError)
             // Use defaults
+          }
+
+          // Fetch voucher system settings
+          try {
+            const voucherData = await settingsAPI.getVoucherSettings()
+            const vData = voucherData?.data ?? voucherData
+            const enabled = typeof vData?.enabled === 'boolean' ? vData.enabled : true
+            setVoucherSettingsEnabled(enabled)
+            if (!enabled) {
+              setSelectedVoucherId('')
+              setAvailableVouchers([])
+            }
+          } catch (voucherError) {
+            console.error('Failed to load voucher settings:', voucherError)
+            setVoucherSettingsEnabled(true)
           }
         } catch (error: any) {
           // If offline or network error, try to use cached data
@@ -505,6 +521,11 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
   // Function to check and refresh available vouchers
   const checkAvailableVouchers = async (customerId?: string) => {
+    if (!voucherSettingsEnabled) {
+      setAvailableVouchers([])
+      setSelectedVoucherId('')
+      return
+    }
     const targetCustomerId = customerId || selectedCustomer?.id
     if (!targetCustomerId) {
       setAvailableVouchers([])
@@ -538,10 +559,10 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     }
   }
 
-  // Check for available vouchers when customer is selected
+  // Check for available vouchers when customer is selected (only when voucher system is enabled)
   useEffect(() => {
     checkAvailableVouchers()
-  }, [selectedCustomer?.id])
+  }, [selectedCustomer?.id, voucherSettingsEnabled])
 
   // Filter customers for autocomplete
   const filteredCustomerSuggestions = customerName.trim()
@@ -781,7 +802,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         customerPhone: customerPhone.trim(),
         items: items,
         discountId: selectedDiscountId && selectedDiscountId.trim() !== '' ? selectedDiscountId : null,
-        voucherId: selectedVoucherId && selectedVoucherId.trim() !== '' ? selectedVoucherId : null,
+        voucherId: voucherSettingsEnabled && selectedVoucherId && selectedVoucherId.trim() !== '' ? selectedVoucherId : null,
         pointsUsed: pointsUsed > 0 ? pointsUsed : 0,
         paid: actualPaid,
         pickupDate: pickupDate && pickupDate.trim() !== '' ? pickupDate : null,
@@ -1852,7 +1873,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                                 })}
                             </select>
                           </div>
-                          {availableVouchers.length > 0 && (
+                          {voucherSettingsEnabled && availableVouchers.length > 0 && (
                             <div className="form-group">
                               <label>
                                 🎫 Available Voucher
@@ -2060,7 +2081,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           
                           {(amount - totalDue) > 0 && (
                             <>
-                          {selectedVoucherId && availableVouchers.length > 0 && (() => {
+                          {voucherSettingsEnabled && selectedVoucherId && availableVouchers.length > 0 && (() => {
                             const selectedVoucher = availableVouchers.find(v => v.id === selectedVoucherId)
                             if (!selectedVoucher) return null
                             let voucherDiscount = 0

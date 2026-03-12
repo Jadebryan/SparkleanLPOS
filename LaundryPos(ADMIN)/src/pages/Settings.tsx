@@ -82,6 +82,11 @@ const Settings: React.FC = () => {
   const [lastSavedPointsSettings, setLastSavedPointsSettings] = useState(() => ({ ...DEFAULT_POINTS_SETTINGS }))
   const [isPointsConfirmOpen, setIsPointsConfirmOpen] = useState(false)
 
+  // Voucher system settings
+  const [voucherSettings, setVoucherSettings] = useState<{ enabled: boolean }>({ enabled: true })
+  const [isVoucherLoading, setIsVoucherLoading] = useState(false)
+  const [isVoucherSaving, setIsVoucherSaving] = useState(false)
+
   // Branch-specific point rules
   const [branchPointRules, setBranchPointRules] = useState<Record<string, { enabled: boolean | null; pesoToPointMultiplier: number | null }>>({})
   const [isBranchPointsLoading, setIsBranchPointsLoading] = useState(false)
@@ -164,6 +169,29 @@ const Settings: React.FC = () => {
     }
 
     fetchPointsSettings()
+  }, [user])
+
+  // Load voucher system settings (admin only)
+  useEffect(() => {
+    const fetchVoucherSettings = async () => {
+      if (!user || user.role !== 'admin') return
+      try {
+        setIsVoucherLoading(true)
+        const response = await settingsAPI.getVoucherSettings()
+        const data = response?.data ?? response
+        setVoucherSettings({
+          enabled: typeof data?.enabled === 'boolean' ? data.enabled : true,
+        })
+      } catch (error) {
+        console.error('Failed to load voucher settings:', error)
+        toast.error('Failed to load voucher settings')
+        setVoucherSettings({ enabled: true })
+      } finally {
+        setIsVoucherLoading(false)
+      }
+    }
+
+    fetchVoucherSettings()
   }, [user])
 
   // Load stations and branch point rules (admin only)
@@ -697,6 +725,20 @@ const Settings: React.FC = () => {
 
   const handlePointsReset = () => {
     setPointsSettings({ ...DEFAULT_POINTS_SETTINGS })
+  }
+
+  const handleVoucherSettingsSave = async () => {
+    if (!user || user.role !== 'admin') return
+    try {
+      setIsVoucherSaving(true)
+      await settingsAPI.updateVoucherSettings({ enabled: voucherSettings.enabled })
+      toast.success('Voucher settings updated')
+    } catch (error: any) {
+      console.error('Voucher settings update error:', error)
+      toast.error(error?.message || 'Failed to update voucher settings')
+    } finally {
+      setIsVoucherSaving(false)
+    }
   }
 
   // Early return if user is not available
@@ -1590,6 +1632,62 @@ const Settings: React.FC = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Voucher System Settings */}
+                    {user?.role === 'admin' && (
+                      <div className="system-info" style={{ marginTop: '24px' }}>
+                        <div className="info-card">
+                          <h3>Voucher System Settings</h3>
+                          <p>
+                            Enable or disable the voucher system. When disabled, the voucher option will be hidden in orders.
+                          </p>
+
+                          {isVoucherLoading ? (
+                            <p className="form-description">Loading voucher settings...</p>
+                          ) : (
+                            <div className="session-settings-grid">
+                              <div className="session-toggle-row">
+                                <div>
+                                  <h4>Enable voucher system</h4>
+                                  <p>Turn off to hide vouchers in order creation (Admin and Staff).</p>
+                                </div>
+                                <label className="settings-switch">
+                                  <input
+                                    type="checkbox"
+                                    checked={voucherSettings.enabled}
+                                    onChange={(e) =>
+                                      setVoucherSettings(prev => ({ ...prev, enabled: e.target.checked }))
+                                    }
+                                  />
+                                  <span className="slider round"></span>
+                                </label>
+                              </div>
+
+                              <div className="form-actions session-actions">
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={handleVoucherSettingsSave}
+                                  disabled={isVoucherSaving}
+                                >
+                                  {isVoucherSaving ? (
+                                    <>
+                                      <div className="spinner"></div>
+                                      Saving...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FiSave />
+                                      Save Voucher Settings
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Branch-Specific Point Rules */}
                     {user?.role === 'admin' && (

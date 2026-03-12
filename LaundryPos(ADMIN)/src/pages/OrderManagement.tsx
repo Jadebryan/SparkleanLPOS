@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FiSearch, FiFilter, FiDownload, FiEdit2, FiArchive, FiEye, FiX, FiFileText, FiChevronDown, FiFolder, FiRotateCw, FiSave, FiCheckCircle, FiClock, FiPrinter, FiLock, FiPackage, FiPlus } from 'react-icons/fi'
@@ -59,6 +59,9 @@ const OrderManagement: React.FC = () => {
   const { hasPermission } = usePermissions()
   const canArchiveOrders = hasPermission('orders', 'archive')
   const canUnarchiveOrders = hasPermission('orders', 'unarchive')
+  const [sortBy, setSortBy] = useState<
+    'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'name_asc' | 'name_desc'
+  >('date_desc')
 
   // Keyboard shortcuts
   useKeyboardShortcut([
@@ -270,14 +273,18 @@ const OrderManagement: React.FC = () => {
     fetchStations()
   }, [])
 
-  // Check URL for draft parameter on mount
+  // Check URL for draft or create parameter on mount
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const draftId = searchParams.get('draft')
+    const createNew = searchParams.get('create')
     if (draftId) {
       setDraftOrderIdForModal(draftId)
       setIsCreateOrderModalOpen(true)
-      // Clean up URL
+      navigate('/orders', { replace: true })
+    } else if (createNew === '1') {
+      setDraftOrderIdForModal(null)
+      setIsCreateOrderModalOpen(true)
       navigate('/orders', { replace: true })
     }
   }, [location.search, navigate])
@@ -784,10 +791,40 @@ const OrderManagement: React.FC = () => {
     return matchesSearch && matchesPayment && matchesStation && matchesDate && matchesStatus
   })
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize))
+  const sortedOrders = useMemo(() => {
+    const cloned = [...filteredOrders]
+
+    if (sortBy === 'amount_desc' || sortBy === 'amount_asc') {
+      cloned.sort((a, b) => {
+        const aAmount = parseFloat(String(a.total).replace(/[^\d.-]/g, '')) || 0
+        const bAmount = parseFloat(String(b.total).replace(/[^\d.-]/g, '')) || 0
+        return sortBy === 'amount_desc' ? bAmount - aAmount : aAmount - bAmount
+      })
+    } else if (sortBy === 'date_desc' || sortBy === 'date_asc') {
+      cloned.sort((a, b) => {
+        const aDate = new Date((a as any).createdAt || a.date)
+        const bDate = new Date((b as any).createdAt || b.date)
+        return sortBy === 'date_desc'
+          ? bDate.getTime() - aDate.getTime()
+          : aDate.getTime() - bDate.getTime()
+      })
+    } else if (sortBy === 'name_asc' || sortBy === 'name_desc') {
+      cloned.sort((a, b) => {
+        const aName = (a.customer || '').toString().toLowerCase()
+        const bName = (b.customer || '').toString().toLowerCase()
+        if (aName < bName) return sortBy === 'name_asc' ? -1 : 1
+        if (aName > bName) return sortBy === 'name_asc' ? 1 : -1
+        return 0
+      })
+    }
+
+    return cloned
+  }, [filteredOrders, sortBy])
+
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const pageStart = (safeCurrentPage - 1) * pageSize
-  const pagedOrders = filteredOrders.slice(pageStart, pageStart + pageSize)
+  const pagedOrders = sortedOrders.slice(pageStart, pageStart + pageSize)
 
   const renderPageNumbers = () => {
     const pages: number[] = []
@@ -1729,16 +1766,42 @@ const OrderManagement: React.FC = () => {
           <div className="table-header-info">
             <div className="table-count">
               <span className="count-label">Showing</span>
-              <span className="count-number">{filteredOrders.length}</span>
+              <span className="count-number">{sortedOrders.length}</span>
               <span className="count-label">
               {showDrafts 
-                  ? (filteredOrders.length === 1 ? 'draft' : 'drafts')
-                  : (filteredOrders.length === 1 ? 'order' : 'orders')
+                  ? (sortedOrders.length === 1 ? 'draft' : 'drafts')
+                  : (sortedOrders.length === 1 ? 'order' : 'orders')
               }
                 {filterStation !== 'All' && !showDrafts && ` in ${stations.find(s => (s.stationId || s._id || s.id) === filterStation)?.name || filterStation}`}
               </span>
             </div>
             <div className="table-actions">
+              <div className="table-sort-control">
+                <label style={{ fontSize: '12px', color: '#6B7280', marginRight: '8px' }}>
+                  Sort by:
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    const value = e.target.value as
+                      | 'date_desc'
+                      | 'date_asc'
+                      | 'amount_desc'
+                      | 'amount_asc'
+                      | 'name_asc'
+                      | 'name_desc'
+                    setSortBy(value)
+                  }}
+                  style={{ fontSize: '12px', padding: '4px 8px', borderRadius: 4 }}
+                >
+                  <option value="date_desc">Date (Newest first)</option>
+                  <option value="date_asc">Date (Oldest first)</option>
+                  <option value="amount_desc">Amount (High to low)</option>
+                  <option value="amount_asc">Amount (Low to high)</option>
+                  <option value="name_asc">Customer Name (A → Z)</option>
+                  <option value="name_desc">Customer Name (Z → A)</option>
+                </select>
+              </div>
               <label className="select-all-label">
                 <input
                   type="checkbox"
@@ -1752,7 +1815,7 @@ const OrderManagement: React.FC = () => {
 
             {isLoading ? (
               <TableSkeleton rows={5} columns={8} />
-            ) : filteredOrders.length === 0 ? (
+            ) : sortedOrders.length === 0 ? (
               <EmptyState
                 icon={<FiPackage />}
                 title={showDrafts ? 'No drafts found' : searchTerm || filterPayment !== 'All' || filterStation !== 'All' || filterStatus !== 'All Status' || filterDateFrom || filterDateTo ? 'No orders found' : 'No orders yet'}

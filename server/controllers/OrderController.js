@@ -922,6 +922,9 @@ class OrderController {
           });
         }
 
+        // Remember if this is a simple draft (no converted live order linked)
+        const wasSimpleDraft = order.isDraft === true && !order.convertedOrderId;
+
         // Staff can only update orders from their station
         if (req.user.role === 'staff') {
           if (req.user.stationId) {
@@ -1055,6 +1058,12 @@ class OrderController {
         // Update last edited tracking
         order.lastEditedBy = userId;
         order.lastEditedAt = new Date();
+
+        // If this was a draft without a linked live order, promote it to a normal order
+        // so it no longer appears in the Drafts list.
+        if (wasSimpleDraft) {
+          order.isDraft = false;
+        }
 
         // Handle points when payment status changes to Paid
         // Earn points according to configured multiplier (may be disabled)

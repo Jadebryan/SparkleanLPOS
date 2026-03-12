@@ -605,6 +605,11 @@ export default function Settings() {
     try {
       setSaving(true);
       const token = await AsyncStorage.getItem('token') || await AsyncStorage.getItem('userToken');
+
+      if (!token) {
+        Alert.alert('Error', 'You must be logged in to change your password.');
+        return;
+      }
       
       const response = await axios.put(
         `${API_BASE_URL}/auth/change-password`,
@@ -613,22 +618,37 @@ export default function Settings() {
           newPassword: passwordForm.newPassword,
         },
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
         }
       );
 
-      if (response.data.success) {
-        setSuccessMessage('Password changed successfully!');
+      const success = response.status === 200 && (response.data?.success !== false);
+
+      if (success) {
+        const msg = response.data?.message || 'Password changed successfully!';
+        // Show both toast and modal so feedback is always visible
+        showSuccess(msg);
+        setSuccessMessage(msg);
         setShowSuccessMessage(true);
         setPasswordForm({
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
         });
+      } else {
+        const msg = response.data?.message || 'Failed to change password. Please try again.';
+        Alert.alert('Error', msg);
       }
     } catch (error: any) {
       console.error('Error changing password:', error);
-      Alert.alert('Error', error?.response?.data?.message || 'Failed to change password');
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to change password. Please try again.';
+      Alert.alert('Error', msg);
     } finally {
       setSaving(false);
     }
